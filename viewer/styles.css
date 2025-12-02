@@ -1396,6 +1396,30 @@ body {
     text-transform: uppercase;
     letter-spacing: 0.2em;
     font-weight: 400;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4em;
+    transition: color 0.2s ease;
+}
+
+.verse-range:hover {
+    color: var(--color-gold);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+}
+
+.verse-range::after {
+    content: '↗';
+    font-size: 0.75em;
+    opacity: 0;
+    transform: translateX(-4px);
+    transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.verse-range:hover::after {
+    opacity: 0.8;
+    transform: translateX(0);
 }
 
 /* Key Verse */

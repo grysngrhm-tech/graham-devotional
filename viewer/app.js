@@ -605,8 +605,13 @@ function renderStory(story) {
     // Set title
     content.getElementById('storyTitle').textContent = story.title || 'Untitled Story';
     
-    // Set verse range
-    content.getElementById('verseRange').textContent = story.kjv_passage_ref || '';
+    // Set verse range with Bible Gateway link
+    const verseRangeEl = content.getElementById('verseRange');
+    verseRangeEl.textContent = story.kjv_passage_ref || '';
+    const bibleGatewayUrl = getBibleGatewayUrl(story.kjv_passage_ref);
+    if (bibleGatewayUrl) {
+        verseRangeEl.href = bibleGatewayUrl;
+    }
     
     // Set key verse (use correct database field names)
     const keyVerseTextEl = content.getElementById('keyVerseText');
@@ -1236,6 +1241,12 @@ function setupScrollIndicator() {
 // ============================================================================
 // Utilities
 // ============================================================================
+
+function getBibleGatewayUrl(passageRef) {
+    if (!passageRef) return null;
+    const encoded = encodeURIComponent(passageRef);
+    return `https://www.biblegateway.com/passage/?search=${encoded}&version=NIV`;
+}
 
 function debounce(func, wait) {
     let timeout;
