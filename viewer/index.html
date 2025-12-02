@@ -3,12 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>The Graham Devotional Bible</title>
+    <title>The GRACE Bible</title>
     
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Playfair+Display:wght@400;500;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=IM+Fell+English:ital@0;1&family=Inter:wght@300;400;500;600&family=Playfair+Display:wght@400;500;600&display=swap" rel="stylesheet">
     
     <link rel="stylesheet" href="styles.css">
 </head>
@@ -17,9 +17,19 @@
         <!-- Compact Header -->
         <header class="compact-header">
             <div class="header-left">
-                <h1 class="brand-title">The Graham Devotional Bible</h1>
+                <h1 class="brand-title">
+                    <span class="brand-prefix">The</span>
+                    <span class="grace-acronym" id="graceAcronym"><!--
+                        --><span class="grace-word" data-full="raham">G</span><!--
+                        --><span class="grace-word" data-full="eimagined">R</span><!--
+                        --><span class="grace-word" data-full="rt &amp;">A</span><!--
+                        --><span class="grace-word" data-full="anon">C</span><!--
+                        --><span class="grace-word" data-full="xperience">E</span><!--
+                    --></span>
+                    <span class="brand-suffix">Bible</span>
+                </h1>
                 <span class="brand-divider"></span>
-                <span class="brand-tagline">500 Spreads Through Scripture</span>
+                <span class="brand-tagline">500 Stories of Scripture, Reimagined with Art</span>
             </div>
             <div class="header-stats">
                 <span class="stat-pill complete">
@@ -72,19 +82,19 @@
                     <!-- Populated by JavaScript -->
                 </div>
                 <div class="results-count">
-                    Showing <span id="resultsCount">—</span> spreads
+                    Showing <span id="resultsCount">—</span> stories
                 </div>
             </section>
 
-            <!-- Spreads Grid -->
-            <section class="spreads-grid" id="spreadsGrid">
+            <!-- Stories Grid -->
+            <section class="stories-grid" id="storiesGrid">
                 <!-- Cards populated by JavaScript -->
             </section>
         </main>
 
         <!-- Skeleton Card Template -->
         <template id="skeletonTemplate">
-            <div class="spread-card skeleton">
+            <div class="story-card skeleton">
                 <div class="card-image skeleton-shimmer"></div>
                 <div class="card-content">
                     <div class="skeleton-title skeleton-shimmer"></div>
@@ -94,7 +104,7 @@
         </template>
 
         <footer class="site-footer">
-            <p>The Graham Devotional Bible</p>
+            <p>The GRACE Bible</p>
         </footer>
     </div>
 

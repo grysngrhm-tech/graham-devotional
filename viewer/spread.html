@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>The Graham Devotional Bible</title>
+    <title>The GRACE Bible</title>
     
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -12,29 +12,29 @@
     
     <link rel="stylesheet" href="styles.css">
 </head>
-<body class="spread-page">
-    <nav class="spread-nav">
-        <a href="index.html" class="nav-back">← All Spreads</a>
+<body class="story-page">
+    <nav class="story-nav">
+        <a href="index.html" class="nav-back">← All Stories</a>
         <div class="nav-controls">
-            <button class="nav-btn" id="prevBtn" title="Previous Spread (← arrow key)">
+            <button class="nav-btn" id="prevBtn" title="Previous Story (← arrow key)">
                 <span>‹</span>
             </button>
             <span class="nav-position" id="navPosition">— / —</span>
-            <button class="nav-btn" id="nextBtn" title="Next Spread (→ arrow key)">
+            <button class="nav-btn" id="nextBtn" title="Next Story (→ arrow key)">
                 <span>›</span>
             </button>
         </div>
     </nav>
 
-    <main class="book-spread" id="bookSpread">
+    <main class="book-story" id="bookStory">
         <div class="loading-state">
             <div class="loading-spinner"></div>
-            <p>Loading spread...</p>
+            <p>Loading story...</p>
         </div>
     </main>
 
-    <template id="spreadTemplate">
-        <article class="spread-layout">
+    <template id="storyTemplate">
+        <article class="story-layout">
             <!-- Left Page: Image Area -->
             <div class="left-page">
                 <div class="image-container" id="imageContainer">
@@ -45,8 +45,8 @@
             <!-- Right Page: Text Area -->
             <div class="right-page" id="rightPage">
                 <div class="text-content-wrapper">
-                    <header class="spread-header">
-                        <h1 class="spread-title" id="spreadTitle"></h1>
+                    <header class="story-header">
+                        <h1 class="story-title" id="storyTitle"></h1>
                         <p class="verse-range" id="verseRange"></p>
                     </header>
 
@@ -59,8 +59,8 @@
 
                     <div class="summary-text" id="summaryText"></div>
 
-                    <footer class="spread-footer">
-                        <span class="spread-code" id="spreadCode"></span>
+                    <footer class="story-footer">
+                        <span class="story-code" id="storyCode"></span>
                         <span class="batch-info" id="batchInfo"></span>
                     </footer>
                 </div>
@@ -138,9 +138,9 @@
 
     <template id="errorTemplate">
         <div class="error-state">
-            <h2>Spread Not Found</h2>
-            <p>The requested spread could not be loaded.</p>
-            <a href="index.html" class="btn">Return to All Spreads</a>
+            <h2>Story Not Found</h2>
+            <p>The requested story could not be loaded.</p>
+            <a href="index.html" class="btn">Return to All Stories</a>
         </div>
     </template>
 

@@ -1,7 +1,8 @@
 /**
- * Graham Devotion - Web Viewer App
+ * The GRACE Bible - Web Viewer App
  * ============================================================================
- * Static web application for browsing devotional spreads from Supabase
+ * The Graham Reimagined Art & Canon Experience Bible
+ * Static web application for browsing Biblical stories from Supabase
  * ============================================================================
  */
 
@@ -12,28 +13,92 @@ const supabase = window.supabase.createClient(
 );
 
 // Global state
-let allSpreads = [];
-let filteredSpreads = [];
-let currentSpreadIndex = 0;
-let spreadsMetadata = null; // From all-spreads.json
+let allStories = [];
+let filteredStories = [];
+let currentStoryIndex = 0;
 
 // Filter state
 let currentFilters = {
     testament: 'all',
     book: 'all',
+    grouping: 'all',
     status: 'all',
     search: ''
 };
+
+// Biblical book order (canonical Protestant order)
+const BIBLE_BOOK_ORDER = [
+    // Old Testament
+    'Genesis', 'Exodus', 'Leviticus', 'Numbers', 'Deuteronomy',
+    'Joshua', 'Judges', 'Ruth', '1 Samuel', '2 Samuel', '1 Kings', '2 Kings',
+    '1 Chronicles', '2 Chronicles', 'Ezra', 'Nehemiah', 'Esther',
+    'Job', 'Psalms', 'Proverbs', 'Ecclesiastes', 'Song of Solomon',
+    'Isaiah', 'Jeremiah', 'Lamentations', 'Ezekiel', 'Daniel',
+    'Hosea', 'Joel', 'Amos', 'Obadiah', 'Jonah', 'Micah', 'Nahum',
+    'Habakkuk', 'Zephaniah', 'Haggai', 'Zechariah', 'Malachi',
+    // New Testament
+    'Matthew', 'Mark', 'Luke', 'John', 'Acts',
+    'Romans', '1 Corinthians', '2 Corinthians', 'Galatians', 'Ephesians',
+    'Philippians', 'Colossians', '1 Thessalonians', '2 Thessalonians',
+    '1 Timothy', '2 Timothy', 'Titus', 'Philemon', 'Hebrews',
+    'James', '1 Peter', '2 Peter', '1 John', '2 John', '3 John', 'Jude',
+    'Revelation'
+];
+
+// Create a lookup map for fast ordering
+const BOOK_ORDER_MAP = BIBLE_BOOK_ORDER.reduce((map, book, index) => {
+    map[book] = index;
+    return map;
+}, {});
+
+// Book Groupings for filter options
+const BOOK_GROUPINGS = {
+    'Torah': ['Genesis', 'Exodus', 'Leviticus', 'Numbers', 'Deuteronomy'],
+    'History': ['Joshua', 'Judges', 'Ruth', '1 Samuel', '2 Samuel', '1 Kings', '2 Kings', '1 Chronicles', '2 Chronicles', 'Ezra', 'Nehemiah', 'Esther'],
+    'Poetry': ['Job', 'Psalms', 'Proverbs', 'Ecclesiastes', 'Song of Solomon'],
+    'Prophets': ['Isaiah', 'Jeremiah', 'Lamentations', 'Ezekiel', 'Daniel', 'Hosea', 'Joel', 'Amos', 'Obadiah', 'Jonah', 'Micah', 'Nahum', 'Habakkuk', 'Zephaniah', 'Haggai', 'Zechariah', 'Malachi'],
+    'Gospels': ['Matthew', 'Mark', 'Luke', 'John'],
+    'Acts': ['Acts'],
+    'Epistles': ['Romans', '1 Corinthians', '2 Corinthians', 'Galatians', 'Ephesians', 'Philippians', 'Colossians', '1 Thessalonians', '2 Thessalonians', '1 Timothy', '2 Timothy', 'Titus', 'Philemon', 'Hebrews', 'James', '1 Peter', '2 Peter', '1 John', '2 John', '3 John', 'Jude'],
+    'Revelation': ['Revelation']
+};
+
+// Sort stories in Biblical order (book → chapter → verse)
+function sortStoriesChronologically(stories) {
+    return stories.sort((a, b) => {
+        // Get book order (unknown books go to end)
+        const bookOrderA = BOOK_ORDER_MAP[a.book] ?? 999;
+        const bookOrderB = BOOK_ORDER_MAP[b.book] ?? 999;
+        
+        if (bookOrderA !== bookOrderB) {
+            return bookOrderA - bookOrderB;
+        }
+        
+        // Same book - sort by chapter
+        const chapterA = a.start_chapter || 0;
+        const chapterB = b.start_chapter || 0;
+        
+        if (chapterA !== chapterB) {
+            return chapterA - chapterB;
+        }
+        
+        // Same chapter - sort by verse
+        const verseA = a.start_verse || 0;
+        const verseB = b.start_verse || 0;
+        
+        return verseA - verseB;
+    });
+}
 
 // ============================================================================
 // Initialization
 // ============================================================================
 
 document.addEventListener('DOMContentLoaded', () => {
-    const isSpreadPage = document.body.classList.contains('spread-page');
+    const isStoryPage = document.body.classList.contains('story-page');
     
-    if (isSpreadPage) {
-        initSpreadPage();
+    if (isStoryPage) {
+        initStoryPage();
     } else {
         initIndexPage();
     }
@@ -46,21 +111,19 @@ document.addEventListener('DOMContentLoaded', () => {
 async function initIndexPage() {
     showSkeletonCards(12);
     
-    // Load metadata and spreads in parallel
-    await Promise.all([
-        loadSpreadsMetadata(),
-        loadAllSpreads()
-    ]);
+    // Load stories (testament/book now come from Supabase directly)
+    await loadAllStories();
     
     populateBookDropdown();
     setupFilters();
     setupKeyboardShortcuts();
+    setupAcronymExpansion();
     applyFilters();
     updateStats();
 }
 
 function showSkeletonCards(count) {
-    const grid = document.getElementById('spreadsGrid');
+    const grid = document.getElementById('storiesGrid');
     const template = document.getElementById('skeletonTemplate');
     if (!template || !grid) return;
     
@@ -71,45 +134,25 @@ function showSkeletonCards(count) {
     }
 }
 
-async function loadSpreadsMetadata() {
-    try {
-        const response = await fetch('../data/all-spreads.json');
-        if (!response.ok) throw new Error('Failed to load metadata');
-        spreadsMetadata = await response.json();
-    } catch (err) {
-        console.warn('Could not load spreads metadata:', err);
-        spreadsMetadata = null;
-    }
-}
-
-async function loadAllSpreads() {
+async function loadAllStories() {
     try {
         const { data, error } = await supabase
             .from('grahams_devotional_spreads')
-            .select('spread_code, title, kjv_passage_ref, status_text, status_image, image_url, image_url_1')
-            .order('spread_code', { ascending: true });
+            .select('spread_code, title, kjv_passage_ref, status_text, status_image, image_url, image_url_1, testament, book, start_chapter, start_verse');
         
         if (error) throw error;
         
-        // Merge with metadata to get testament/book info
-        allSpreads = (data || []).map(spread => {
-            const meta = spreadsMetadata?.spreads?.find(m => m.spread_code === spread.spread_code);
-            return {
-                ...spread,
-                testament: meta?.testament || null,
-                book: meta?.book || null
-            };
-        });
-        
-        filteredSpreads = [...allSpreads];
+        // Sort in Biblical order (book → chapter → verse)
+        allStories = sortStoriesChronologically(data || []);
+        filteredStories = [...allStories];
         
     } catch (err) {
-        console.error('Error loading spreads:', err);
-        const grid = document.getElementById('spreadsGrid');
+        console.error('Error loading stories:', err);
+        const grid = document.getElementById('storiesGrid');
         if (grid) {
             grid.innerHTML = `
                 <div class="empty-state">
-                    <p>Error loading spreads. Please check your connection and try again.</p>
+                    <p>Error loading stories. Please check your connection and try again.</p>
                 </div>
             `;
         }
@@ -118,32 +161,53 @@ async function loadAllSpreads() {
 
 function populateBookDropdown() {
     const bookSelect = document.getElementById('bookFilter');
-    if (!bookSelect || !spreadsMetadata?.spreads) return;
+    if (!bookSelect) return;
     
-    // Count spreads per book and group by testament
+    // Count stories per book from actual data
     const bookCounts = {};
-    const otBooks = [];
-    const ntBooks = [];
+    const booksWithData = new Set();
     
-    spreadsMetadata.spreads.forEach(spread => {
-        const book = spread.book;
-        const testament = spread.testament;
+    allStories.forEach(story => {
+        const book = story.book;
+        if (!book) return; // Skip if no book set
         
+        booksWithData.add(book);
         if (!bookCounts[book]) {
-            bookCounts[book] = { count: 0, testament };
-            if (testament === 'OT') otBooks.push(book);
-            else if (testament === 'NT') ntBooks.push(book);
+            bookCounts[book] = 0;
         }
-        bookCounts[book].count++;
+        bookCounts[book]++;
+    });
+    
+    // Get OT and NT books that have data, in Biblical order
+    const otBooks = BIBLE_BOOK_ORDER.slice(0, 39).filter(book => booksWithData.has(book));
+    const ntBooks = BIBLE_BOOK_ORDER.slice(39).filter(book => booksWithData.has(book));
+    
+    // Calculate grouping counts
+    const groupingCounts = {};
+    Object.entries(BOOK_GROUPINGS).forEach(([groupName, books]) => {
+        groupingCounts[groupName] = books.reduce((sum, book) => {
+            return sum + (bookCounts[book] || 0);
+        }, 0);
     });
     
     // Build dropdown HTML
     let html = '<option value="all">All Books</option>';
     
+    // Add groupings section
+    html += '<optgroup label="Book Groupings">';
+    Object.entries(BOOK_GROUPINGS).forEach(([groupName, books]) => {
+        const count = groupingCounts[groupName];
+        if (count > 0) {
+            html += `<option value="group:${groupName}">${groupName} (${count})</option>`;
+        }
+    });
+    html += '</optgroup>';
+    
+    // Add individual books by testament (in Biblical order)
     if (otBooks.length > 0) {
         html += '<optgroup label="Old Testament">';
         otBooks.forEach(book => {
-            html += `<option value="${book}">${book} (${bookCounts[book].count})</option>`;
+            html += `<option value="${book}">${book} (${bookCounts[book]})</option>`;
         });
         html += '</optgroup>';
     }
@@ -151,7 +215,7 @@ function populateBookDropdown() {
     if (ntBooks.length > 0) {
         html += '<optgroup label="New Testament">';
         ntBooks.forEach(book => {
-            html += `<option value="${book}">${book} (${bookCounts[book].count})</option>`;
+            html += `<option value="${book}">${book} (${bookCounts[book]})</option>`;
         });
         html += '</optgroup>';
     }
@@ -170,17 +234,28 @@ function setupFilters() {
             
             // Reset book filter when testament changes
             currentFilters.book = 'all';
+            currentFilters.grouping = 'all';
             document.getElementById('bookFilter').value = 'all';
             
             applyFilters();
         });
     });
     
-    // Book dropdown
+    // Book dropdown (handles both individual books and groupings)
     const bookFilter = document.getElementById('bookFilter');
     if (bookFilter) {
         bookFilter.addEventListener('change', () => {
-            currentFilters.book = bookFilter.value;
+            const value = bookFilter.value;
+            
+            // Check if it's a grouping or individual book
+            if (value.startsWith('group:')) {
+                currentFilters.grouping = value.replace('group:', '');
+                currentFilters.book = 'all';
+            } else {
+                currentFilters.book = value;
+                currentFilters.grouping = 'all';
+            }
+            
             applyFilters();
         });
     }
@@ -228,23 +303,47 @@ function setupKeyboardShortcuts() {
     });
 }
 
-function applyFilters() {
-    const { testament, book, status, search } = currentFilters;
+// Setup GRACE acronym expansion interaction
+function setupAcronymExpansion() {
+    const acronym = document.getElementById('graceAcronym');
+    if (!acronym) return;
     
-    filteredSpreads = allSpreads.filter(spread => {
+    // Desktop: hover to expand
+    acronym.addEventListener('mouseenter', () => acronym.classList.add('expanded'));
+    acronym.addEventListener('mouseleave', () => acronym.classList.remove('expanded'));
+    
+    // Mobile: tap to toggle
+    acronym.addEventListener('click', (e) => {
+        e.preventDefault();
+        acronym.classList.toggle('expanded');
+    });
+}
+
+function applyFilters() {
+    const { testament, book, grouping, status, search } = currentFilters;
+    
+    filteredStories = allStories.filter(story => {
         // Testament filter
-        if (testament !== 'all' && spread.testament !== testament) {
+        if (testament !== 'all' && story.testament !== testament) {
             return false;
         }
         
+        // Grouping filter (e.g., Torah, Gospels)
+        if (grouping !== 'all') {
+            const booksInGroup = BOOK_GROUPINGS[grouping] || [];
+            if (!booksInGroup.includes(story.book)) {
+                return false;
+            }
+        }
+        
         // Book filter
-        if (book !== 'all' && spread.book !== book) {
+        if (book !== 'all' && story.book !== book) {
             return false;
         }
         
         // Status filter
         if (status !== 'all') {
-            const isComplete = spread.status_text === 'done' && spread.status_image === 'done';
+            const isComplete = story.status_text === 'done' && story.status_image === 'done';
             if (status === 'complete' && !isComplete) return false;
             if (status === 'pending' && isComplete) return false;
         }
@@ -252,10 +351,10 @@ function applyFilters() {
         // Search filter
         if (search) {
             const searchFields = [
-                spread.title,
-                spread.kjv_passage_ref,
-                spread.spread_code,
-                spread.book
+                story.title,
+                story.kjv_passage_ref,
+                story.spread_code,
+                story.book
             ].filter(Boolean).map(f => f.toLowerCase());
             
             if (!searchFields.some(field => field.includes(search))) {
@@ -266,7 +365,7 @@ function applyFilters() {
         return true;
     });
     
-    renderSpreads();
+    renderStories();
     updateActiveFilters();
     updateResultsCount();
 }
@@ -280,6 +379,10 @@ function updateActiveFilters() {
     if (currentFilters.testament !== 'all') {
         const label = currentFilters.testament === 'OT' ? 'Old Testament' : 'New Testament';
         tags.push({ type: 'testament', label });
+    }
+    
+    if (currentFilters.grouping !== 'all') {
+        tags.push({ type: 'grouping', label: currentFilters.grouping });
     }
     
     if (currentFilters.book !== 'all') {
@@ -308,6 +411,9 @@ function clearFilter(type) {
         currentFilters.testament = 'all';
         document.querySelectorAll('#testamentFilter .segment').forEach(b => b.classList.remove('active'));
         document.querySelector('#testamentFilter .segment[data-value="all"]')?.classList.add('active');
+    } else if (type === 'grouping') {
+        currentFilters.grouping = 'all';
+        document.getElementById('bookFilter').value = 'all';
     } else if (type === 'book') {
         currentFilters.book = 'all';
         document.getElementById('bookFilter').value = 'all';
@@ -326,44 +432,44 @@ function clearFilter(type) {
 function updateResultsCount() {
     const countEl = document.getElementById('resultsCount');
     if (countEl) {
-        countEl.textContent = filteredSpreads.length;
+        countEl.textContent = filteredStories.length;
     }
 }
 
-function renderSpreads() {
-    const grid = document.getElementById('spreadsGrid');
+function renderStories() {
+    const grid = document.getElementById('storiesGrid');
     if (!grid) return;
     
-    if (filteredSpreads.length === 0) {
+    if (filteredStories.length === 0) {
         grid.innerHTML = `
             <div class="empty-state">
-                <p>No spreads found matching your filters.</p>
+                <p>No stories found matching your filters.</p>
             </div>
         `;
         return;
     }
     
-    grid.innerHTML = filteredSpreads.map(spread => {
-        const isComplete = spread.status_text === 'done' && spread.status_image === 'done';
+    grid.innerHTML = filteredStories.map(story => {
+        const isComplete = story.status_text === 'done' && story.status_image === 'done';
         const statusClass = isComplete ? 'complete' : 'pending';
         const statusText = isComplete ? 'Complete' : 'Pending';
-        const imageUrl = spread.image_url || spread.image_url_1;
+        const imageUrl = story.image_url || story.image_url_1;
         
         // Parse book and chapter from passage ref
-        const passageRef = spread.kjv_passage_ref || '';
-        const bookMatch = spread.book || passageRef.split(/\d/)[0]?.trim() || '';
+        const passageRef = story.kjv_passage_ref || '';
+        const bookMatch = story.book || passageRef.split(/\d/)[0]?.trim() || '';
         
         return `
-            <a href="spread.html?id=${spread.spread_code}" class="spread-card">
+            <a href="spread.html?id=${story.spread_code}" class="story-card">
                 <div class="card-image">
                     ${imageUrl 
-                        ? `<img src="${imageUrl}" alt="${spread.title}" loading="lazy">`
+                        ? `<img src="${imageUrl}" alt="${story.title}" loading="lazy">`
                         : `<div class="placeholder">No image yet</div>`
                     }
                     <span class="card-status ${statusClass}">${statusText}</span>
                 </div>
                 <div class="card-content">
-                    <h3 class="card-title">${spread.title || 'Untitled'}</h3>
+                    <h3 class="card-title">${story.title || 'Untitled'}</h3>
                     <span class="card-book">
                         ${bookMatch}
                         ${passageRef ? `<span class="dot"></span>${passageRef}` : ''}
@@ -375,8 +481,8 @@ function renderSpreads() {
 }
 
 function updateStats() {
-    const total = allSpreads.length;
-    const complete = allSpreads.filter(s => s.status_text === 'done' && s.status_image === 'done').length;
+    const total = allStories.length;
+    const complete = allStories.filter(s => s.status_text === 'done' && s.status_image === 'done').length;
     const pending = total - complete;
     
     const completeEl = document.getElementById('completeCount');
@@ -387,47 +493,48 @@ function updateStats() {
 }
 
 // ============================================================================
-// Spread Page
+// Story Page
 // ============================================================================
 
-async function initSpreadPage() {
+async function initStoryPage() {
     const urlParams = new URLSearchParams(window.location.search);
-    const spreadId = urlParams.get('id');
+    const storyId = urlParams.get('id');
     
-    if (!spreadId) {
+    if (!storyId) {
         showError();
         return;
     }
     
-    // Load all spread codes for navigation
-    await loadSpreadCodes();
+    // Load all story codes for navigation
+    await loadStoryCodes();
     
     // Find current index
-    currentSpreadIndex = allSpreads.findIndex(s => s.spread_code === spreadId);
+    currentStoryIndex = allStories.findIndex(s => s.spread_code === storyId);
     
-    // Load and render spread
-    await loadSpread(spreadId);
+    // Load and render story
+    await loadStory(storyId);
     
     // Setup navigation and scroll indicator
     setupNavigation();
     setupScrollIndicator();
 }
 
-async function loadSpreadCodes() {
+async function loadStoryCodes() {
     try {
         const { data, error } = await supabase
             .from('grahams_devotional_spreads')
-            .select('spread_code')
-            .order('spread_code', { ascending: true });
+            .select('spread_code, book, start_chapter, start_verse');
         
         if (error) throw error;
-        allSpreads = data || [];
+        
+        // Sort in Biblical order for proper navigation
+        allStories = sortStoriesChronologically(data || []);
     } catch (err) {
-        console.error('Error loading spread codes:', err);
+        console.error('Error loading story codes:', err);
     }
 }
 
-async function loadSpread(spreadCode) {
+async function loadStory(spreadCode) {
     try {
         const { data, error } = await supabase
             .from('grahams_devotional_spreads')
@@ -440,35 +547,35 @@ async function loadSpread(spreadCode) {
             return;
         }
         
-        renderSpread(data);
+        renderStory(data);
         updateNavPosition();
         
     } catch (err) {
-        console.error('Error loading spread:', err);
+        console.error('Error loading story:', err);
         showError();
     }
 }
 
-function renderSpread(spread) {
-    const bookSpread = document.getElementById('bookSpread');
-    const template = document.getElementById('spreadTemplate');
+function renderStory(story) {
+    const bookStory = document.getElementById('bookStory');
+    const template = document.getElementById('storyTemplate');
     const content = template.content.cloneNode(true);
     
     // Fill in text content
-    content.getElementById('spreadTitle').textContent = spread.title || 'Untitled';
-    content.getElementById('verseRange').textContent = spread.kjv_passage_ref || '';
+    content.getElementById('storyTitle').textContent = story.title || 'Untitled';
+    content.getElementById('verseRange').textContent = story.kjv_passage_ref || '';
     // Strip ** markdown from key verse text
-    const keyVerseText = (spread.kjv_key_verse_text || '').replace(/\*\*/g, '');
+    const keyVerseText = (story.kjv_key_verse_text || '').replace(/\*\*/g, '');
     content.getElementById('keyVerseText').textContent = keyVerseText;
-    content.getElementById('keyVerseRef').textContent = spread.kjv_key_verse_ref ? `— ${spread.kjv_key_verse_ref}` : '';
-    content.getElementById('spreadCode').textContent = spread.spread_code;
-    content.getElementById('batchInfo').textContent = spread.spread_code;
+    content.getElementById('keyVerseRef').textContent = story.kjv_key_verse_ref ? `— ${story.kjv_key_verse_ref}` : '';
+    content.getElementById('storyCode').textContent = story.spread_code;
+    content.getElementById('batchInfo').textContent = story.spread_code;
     
     // Format and render summary text
     const summaryEl = content.getElementById('summaryText');
-    if (spread.paraphrase_text) {
+    if (story.paraphrase_text) {
         // Split into paragraphs if there are double line breaks
-        const paragraphs = spread.paraphrase_text.split(/\n\n+/).filter(p => p.trim());
+        const paragraphs = story.paraphrase_text.split(/\n\n+/).filter(p => p.trim());
         // Convert **bold** markdown to KJV quote styling
         const formattedParagraphs = paragraphs.map(p => {
             const formatted = p.trim().replace(/\*\*(.+?)\*\*/g, '<span class="kjv-quote">$1</span>');
@@ -479,26 +586,26 @@ function renderSpread(spread) {
         summaryEl.innerHTML = '<p class="placeholder"><em>Summary not yet generated</em></p>';
     }
     
-    // Store current spread data for selection functionality
-    currentSpreadData = spread;
+    // Store current story data for selection functionality
+    currentStoryData = story;
     
     // Render images with selection functionality
     const imageContainer = content.getElementById('imageContainer');
     const candidateImages = [
-        spread.image_url_1,
-        spread.image_url_2,
-        spread.image_url_3,
-        spread.image_url_4
+        story.image_url_1,
+        story.image_url_2,
+        story.image_url_3,
+        story.image_url_4
     ];
     const hasCandidates = candidateImages.some(url => url && url.trim());
-    const hasPrimary = spread.image_url && spread.image_url.trim();
+    const hasPrimary = story.image_url && story.image_url.trim();
     
     if (hasPrimary && !isExpanded) {
         // Show single primary image with expand option
         const singleTemplate = document.getElementById('singleImageTemplate');
         const imageContent = singleTemplate.content.cloneNode(true);
-        imageContent.getElementById('selectedImage').src = spread.image_url;
-        imageContent.getElementById('selectedImage').alt = spread.title;
+        imageContent.getElementById('selectedImage').src = story.image_url;
+        imageContent.getElementById('selectedImage').alt = story.title;
         
         // Setup expand button
         const expandBtn = imageContent.getElementById('expandOptionsBtn');
@@ -531,10 +638,10 @@ function renderSpread(spread) {
             if (imageUrl && imageUrl.trim()) {
                 const img = div.querySelector('img');
                 img.src = imageUrl;
-                img.alt = `${spread.title} - Option ${index + 1}`;
+                img.alt = `${story.title} - Option ${index + 1}`;
                 
                 // Mark current primary
-                const isCurrentPrimary = hasPrimary && imageUrl === spread.image_url;
+                const isCurrentPrimary = hasPrimary && imageUrl === story.image_url;
                 if (isCurrentPrimary) {
                     div.classList.add('is-primary');
                 }
@@ -552,7 +659,7 @@ function renderSpread(spread) {
                     imgEl.addEventListener('click', (e) => {
                         e.preventDefault();
                         e.stopPropagation();
-                        selectPrimaryImage(imageUrl, spread.spread_code);
+                        selectPrimaryImage(imageUrl, story.spread_code);
                     });
                 }
                 
@@ -581,24 +688,24 @@ function renderSpread(spread) {
     }
     
     // Clear and add to DOM
-    bookSpread.innerHTML = '';
-    bookSpread.appendChild(content);
+    bookStory.innerHTML = '';
+    bookStory.appendChild(content);
     
     // Update page title
-    document.title = `${spread.title || 'Spread'} — The Graham Devotional Bible`;
+    document.title = `${story.title || 'Story'} — The GRACE Bible`;
 }
 
 function setupNavigation() {
     const prevBtn = document.getElementById('prevBtn');
     const nextBtn = document.getElementById('nextBtn');
     
-    prevBtn.addEventListener('click', () => navigateSpread(-1));
-    nextBtn.addEventListener('click', () => navigateSpread(1));
+    prevBtn.addEventListener('click', () => navigateStory(-1));
+    nextBtn.addEventListener('click', () => navigateStory(1));
     
     // Keyboard navigation
     document.addEventListener('keydown', (e) => {
-        if (e.key === 'ArrowLeft') navigateSpread(-1);
-        if (e.key === 'ArrowRight') navigateSpread(1);
+        if (e.key === 'ArrowLeft') navigateStory(-1);
+        if (e.key === 'ArrowRight') navigateStory(1);
     });
     
     // Touch swipe navigation
@@ -612,14 +719,14 @@ function setupSwipeNavigation() {
     let touchEndX = 0;
     const minSwipeDistance = 50;
     
-    const bookSpread = document.getElementById('bookSpread');
-    if (!bookSpread) return;
+    const bookStory = document.getElementById('bookStory');
+    if (!bookStory) return;
     
-    bookSpread.addEventListener('touchstart', (e) => {
+    bookStory.addEventListener('touchstart', (e) => {
         touchStartX = e.changedTouches[0].screenX;
     }, { passive: true });
     
-    bookSpread.addEventListener('touchend', (e) => {
+    bookStory.addEventListener('touchend', (e) => {
         touchEndX = e.changedTouches[0].screenX;
         handleSwipe();
     }, { passive: true });
@@ -630,11 +737,11 @@ function setupSwipeNavigation() {
         if (Math.abs(swipeDistance) < minSwipeDistance) return;
         
         if (swipeDistance > 0) {
-            // Swipe right = previous spread
-            navigateSpread(-1);
+            // Swipe right = previous story
+            navigateStory(-1);
         } else {
-            // Swipe left = next spread
-            navigateSpread(1);
+            // Swipe left = next story
+            navigateStory(1);
         }
     }
 }
@@ -677,34 +784,34 @@ function setupScrollIndicator() {
     setTimeout(checkScroll, 500);
 }
 
-function navigateSpread(direction) {
-    const newIndex = currentSpreadIndex + direction;
+function navigateStory(direction) {
+    const newIndex = currentStoryIndex + direction;
     
-    if (newIndex < 0 || newIndex >= allSpreads.length) return;
+    if (newIndex < 0 || newIndex >= allStories.length) return;
     
-    const spreadLayout = document.querySelector('.spread-layout');
+    const storyLayout = document.querySelector('.story-layout');
     
-    // Reset expanded state for new spread
+    // Reset expanded state for new story
     isExpanded = false;
     
     // Fade out
-    if (spreadLayout) {
-        spreadLayout.classList.add('fade-out');
+    if (storyLayout) {
+        storyLayout.classList.add('fade-out');
     }
     
     setTimeout(() => {
-        currentSpreadIndex = newIndex;
-        const newSpreadCode = allSpreads[newIndex].spread_code;
+        currentStoryIndex = newIndex;
+        const newStoryCode = allStories[newIndex].spread_code;
         
         // Update URL without reload
-        window.history.pushState({}, '', `spread.html?id=${newSpreadCode}`);
+        window.history.pushState({}, '', `spread.html?id=${newStoryCode}`);
         
-        // Load new spread
-        loadSpread(newSpreadCode);
+        // Load new story
+        loadStory(newStoryCode);
         
         // Fade in after content loads
         setTimeout(() => {
-            const newLayout = document.querySelector('.spread-layout');
+            const newLayout = document.querySelector('.story-layout');
             if (newLayout) {
                 newLayout.classList.remove('fade-out');
             }
@@ -714,7 +821,7 @@ function navigateSpread(direction) {
 
 function updateNavPosition() {
     const position = document.getElementById('navPosition');
-    position.textContent = `${currentSpreadIndex + 1} / ${allSpreads.length}`;
+    position.textContent = `${currentStoryIndex + 1} / ${allStories.length}`;
     updateNavButtons();
 }
 
@@ -722,30 +829,30 @@ function updateNavButtons() {
     const prevBtn = document.getElementById('prevBtn');
     const nextBtn = document.getElementById('nextBtn');
     
-    prevBtn.disabled = currentSpreadIndex <= 0;
-    nextBtn.disabled = currentSpreadIndex >= allSpreads.length - 1;
+    prevBtn.disabled = currentStoryIndex <= 0;
+    nextBtn.disabled = currentStoryIndex >= allStories.length - 1;
 }
 
 function showError() {
-    const bookSpread = document.getElementById('bookSpread');
+    const bookStory = document.getElementById('bookStory');
     const template = document.getElementById('errorTemplate');
-    bookSpread.innerHTML = '';
-    bookSpread.appendChild(template.content.cloneNode(true));
+    bookStory.innerHTML = '';
+    bookStory.appendChild(template.content.cloneNode(true));
 }
 
 // ============================================================================
 // Image Selection
 // ============================================================================
 
-let currentSpreadData = null;
+let currentStoryData = null;
 let isExpanded = false;
 
 async function selectPrimaryImage(imageUrl, spreadCode) {
     // Skip if this image is already the primary
-    if (currentSpreadData && currentSpreadData.image_url === imageUrl) {
+    if (currentStoryData && currentStoryData.image_url === imageUrl) {
         showToast('This image is already selected');
         isExpanded = false;
-        renderSpread(currentSpreadData);
+        renderStory(currentStoryData);
         return;
     }
     
@@ -759,8 +866,8 @@ async function selectPrimaryImage(imageUrl, spreadCode) {
         if (error) throw error;
         
         // Update local data
-        if (currentSpreadData) {
-            currentSpreadData.image_url = imageUrl;
+        if (currentStoryData) {
+            currentStoryData.image_url = imageUrl;
         }
         
         // Show toast notification
@@ -768,7 +875,7 @@ async function selectPrimaryImage(imageUrl, spreadCode) {
         
         // Re-render with new primary image (collapsed view)
         isExpanded = false;
-        renderSpread(currentSpreadData);
+        renderStory(currentStoryData);
         
     } catch (err) {
         console.error('Error updating primary image:', err);
@@ -778,12 +885,12 @@ async function selectPrimaryImage(imageUrl, spreadCode) {
 
 function expandImageOptions() {
     isExpanded = true;
-    renderSpread(currentSpreadData);
+    renderStory(currentStoryData);
 }
 
 function collapseImageOptions() {
     isExpanded = false;
-    renderSpread(currentSpreadData);
+    renderStory(currentStoryData);
 }
 
 // ============================================================================
@@ -807,12 +914,12 @@ const REGEN_STAGES = [
 ];
 
 async function triggerRegeneration(slot) {
-    if (!currentSpreadData) {
-        showToast('No spread loaded', true);
+    if (!currentStoryData) {
+        showToast('No story loaded', true);
         return;
     }
     
-    const spreadCode = currentSpreadData.spread_code;
+    const spreadCode = currentStoryData.spread_code;
     
     // Show the regeneration modal
     showRegenerationModal(slot);
@@ -1017,12 +1124,12 @@ function showRegenerationOptions(optionUrls, slot, requestId) {
 }
 
 async function confirmRegeneration(imageUrl, slot, requestId) {
-    if (!currentSpreadData || !imageUrl) return;
+    if (!currentStoryData || !imageUrl) return;
     
-    const spreadCode = currentSpreadData.spread_code;
+    const spreadCode = currentStoryData.spread_code;
     
     try {
-        // Update the specific image_url_X slot in the spreads table
+        // Update the specific image_url_X slot in the stories table
         const updateField = `image_url_${slot}`;
         const { error: updateError } = await supabase
             .from('grahams_devotional_spreads')
@@ -1041,14 +1148,14 @@ async function confirmRegeneration(imageUrl, slot, requestId) {
             .eq('id', requestId);
         
         // Update local data
-        currentSpreadData[updateField] = imageUrl;
+        currentStoryData[updateField] = imageUrl;
         
         showToast(`✓ Image ${slot} replaced`);
         hideRegenerationModal();
         
-        // Re-render the spread
+        // Re-render the story
         isExpanded = true;
-        renderSpread(currentSpreadData);
+        renderStory(currentStoryData);
         
     } catch (err) {
         console.error('Error confirming regeneration:', err);

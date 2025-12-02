@@ -1,7 +1,7 @@
 /* ============================================================================
-   Graham Devotion — Web Viewer Styles
+   The GRACE Bible — Web Viewer Styles
    ============================================================================
-   A refined grayscale design for viewing devotional spreads
+   A refined grayscale design for viewing Biblical stories reimagined with art
    ============================================================================ */
 
 /* CSS Custom Properties */
@@ -103,20 +103,86 @@ body {
     color: #FFFFFF;
     letter-spacing: -0.01em;
     margin: 0;
+    display: flex;
+    align-items: baseline;
+    gap: 0.3em;
 }
 
-.brand-divider {
-    width: 1px;
-    height: 16px;
-    background: #444;
+/* Standard font for "The" */
+.grace-prefix {
+    font-family: 'Playfair Display', Georgia, serif;
+    font-weight: 500;
 }
 
+/* GRACE Acronym - Old timey KJV font */
+.grace-acronym {
+    display: inline-flex;
+    cursor: pointer;
+    position: relative;
+    font-family: 'IM Fell English', 'Times New Roman', serif;
+    font-weight: 400;
+    letter-spacing: 0.05em;
+}
+
+.grace-word {
+    display: inline-block;
+    transition: all 0.4s cubic-bezier(0.25, 0.1, 0.25, 1);
+    position: relative;
+}
+
+/* Hidden full word that appears on expansion */
+.grace-word::after {
+    content: attr(data-full);
+    position: absolute;
+    left: 100%;
+    opacity: 0;
+    white-space: nowrap;
+    transition: opacity 0.3s ease;
+    font-weight: 400;
+    letter-spacing: 0;
+    font-family: 'IM Fell English', 'Times New Roman', serif;
+}
+
+.grace-acronym.expanded .grace-word::after {
+    opacity: 1;
+}
+
+.grace-acronym.expanded .grace-word {
+    margin-right: 0.15em;
+}
+
+/* Standard font for "Bible" */
+.grace-suffix {
+    font-family: 'Playfair Display', Georgia, serif;
+    font-weight: 500;
+    margin-left: 0.3em;
+    transition: margin-left 0.4s ease;
+}
+
+.grace-acronym.expanded ~ .grace-suffix {
+    margin-left: 0.5em;
+}
+
+/* Tagline styling - uses KJV font for the full acronym name */
 .brand-tagline {
     font-family: 'Inter', -apple-system, sans-serif;
     font-size: 0.8125rem;
     font-weight: 400;
     color: #888;
     letter-spacing: 0.02em;
+}
+
+/* Full name in tagline uses KJV font */
+.tagline-grace-name {
+    font-family: 'IM Fell English', 'Times New Roman', serif;
+    font-style: italic;
+    color: #AAA;
+}
+
+.brand-divider {
+    width: 1px;
+    height: 16px;
+    background: #444;
 }
 
 .header-stats {
@@ -365,14 +431,14 @@ body {
     color: #888;
 }
 
-/* Spreads Grid - iOS Style */
-.spreads-grid {
+/* Stories Grid - iOS Style */
+.stories-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
     gap: var(--spacing-lg);
 }
 
-.spread-card {
+.story-card {
     background: #000;
     border-radius: 16px;  /* iOS standard */
     overflow: hidden;
@@ -387,7 +453,7 @@ body {
         0 8px 24px rgba(0, 0, 0, 0.16);  /* iOS layered shadow */
 }
 
-.spread-card:hover {
+.story-card:hover {
     transform: scale(1.02) translateY(-2px);
     box-shadow: 
         0 4px 12px rgba(0, 0, 0, 0.15),
@@ -516,15 +582,15 @@ body {
 }
 
 /* Skeleton Loading Cards - iOS Style */
-.spread-card.skeleton {
+.story-card.skeleton {
     pointer-events: none;
 }
 
-.spread-card.skeleton .card-image {
+.story-card.skeleton .card-image {
     background: #2A2A2A;
 }
 
-.spread-card.skeleton .card-content {
+.story-card.skeleton .card-content {
     background: #F5F5F5;
 }
 
@@ -537,7 +603,7 @@ body {
     animation: shimmer 1.5s infinite;
 }
 
-.spread-card.skeleton .skeleton-title {
+.story-card.skeleton .skeleton-title {
     height: 16px;
     width: 80%;
     background: #E0E0E0;
@@ -545,7 +611,7 @@ body {
     margin-bottom: 8px;
 }
 
-.spread-card.skeleton .skeleton-meta {
+.story-card.skeleton .skeleton-meta {
     height: 12px;
     width: 50%;
     background: #E8E8E8;
@@ -577,15 +643,15 @@ body {
 }
 
 /* Page Transitions */
-.spread-layout {
+.story-layout {
     transition: opacity 0.2s ease-out;
 }
 
-.spread-layout.fade-out {
+.story-layout.fade-out {
     opacity: 0;
 }
 
-.spread-layout.fade-in {
+.story-layout.fade-in {
     opacity: 1;
 }
 
@@ -606,15 +672,15 @@ body {
 }
 
 /* ============================================================================
-   Spread Page Styles
+   Story Page Styles
    ============================================================================ */
 
-.spread-page {
+.story-page {
     background: var(--color-charcoal);
 }
 
 /* Navigation */
-.spread-nav {
+.story-nav {
     position: fixed;
     top: 0;
     left: 0;
@@ -682,14 +748,14 @@ body {
     letter-spacing: 0.05em;
 }
 
-/* Book Spread Layout - Fixed Images + Scrolling Text */
-.book-spread {
+/* Book Story Layout - Fixed Images + Scrolling Text */
+.book-story {
     min-height: 100vh;
     padding-top: var(--nav-height);
     background: #F5F5F5;
 }
 
-.spread-layout {
+.story-layout {
     display: flex;
     min-height: calc(100vh - var(--nav-height));
 }
@@ -1171,11 +1237,11 @@ body {
     50% { transform: translateY(4px); }
 }
 
-.spread-header {
+.story-header {
     margin-bottom: var(--spacing-2xl);
 }
 
-.spread-title {
+.story-title {
     font-family: var(--font-title);
     font-size: clamp(2rem, 3.5vw, 3rem);
     font-weight: 400;
@@ -1260,8 +1326,8 @@ body {
     letter-spacing: 0.02em;
 }
 
-/* Spread Footer */
-.spread-footer {
+/* Story Footer */
+.story-footer {
     display: flex;
     justify-content: space-between;
     margin-top: var(--spacing-xl);
@@ -1316,7 +1382,7 @@ body {
 
 @media (max-width: 1024px) {
     /* Revert to stacked layout on tablets/mobile */
-    .spread-layout {
+    .story-layout {
         display: block;
     }
     
@@ -1423,12 +1489,12 @@ body {
     }
     
     /* Cards grid mobile */
-    .spreads-grid {
+    .stories-grid {
         grid-template-columns: repeat(2, 1fr);
         gap: var(--spacing-md);
     }
     
-    .spread-card {
+    .story-card {
         border-radius: 16px;
     }
     
@@ -1440,7 +1506,7 @@ body {
         font-size: 0.625rem;
     }
     
-    /* Spread page mobile - maintain 3:4 ratio capped at 50vh */
+    /* Story page mobile - maintain 3:4 ratio capped at 50vh */
     .left-page {
         height: min(calc(100vw * 1.333), 50vh);
     }
@@ -1473,7 +1539,7 @@ body {
         padding: 8px 6px;
     }
     
-    .spreads-grid {
+    .stories-grid {
         grid-template-columns: repeat(2, 1fr);
         gap: var(--spacing-sm);
     }
@@ -1563,7 +1629,7 @@ body {
 
 @media print {
     /* Hide non-essential elements */
-    .spread-nav,
+    .story-nav,
     .filter-bar,
     .filter-section,
     .filter-feedback,
@@ -1573,7 +1639,7 @@ body {
     .site-footer,
     .lightbox,
     .nav-controls,
-    .spread-footer,
+    .story-footer,
     .scroll-indicator,
     .hero-section {
         display: none !important;
@@ -1586,14 +1652,14 @@ body {
         print-color-adjust: exact;
     }
     
-    .book-spread {
+    .book-story {
         padding: 0 !important;
         min-height: auto !important;
         background: white !important;
     }
     
     /* Single column layout for print */
-    .spread-layout {
+    .story-layout {
         display: block !important;
         box-shadow: none !important;
         border-radius: 0 !important;
@@ -1633,7 +1699,7 @@ body {
         display: none !important;
     }
     
-    .spread-title {
+    .story-title {
         color: black !important;
         font-size: 24pt !important;
         margin-bottom: 8px;
@@ -1671,7 +1737,7 @@ body {
     }
     
     /* Page break handling */
-    .spread-layout {
+    .story-layout {
         page-break-after: always;
     }
     
