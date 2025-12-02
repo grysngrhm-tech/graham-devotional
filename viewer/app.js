@@ -820,104 +820,313 @@ function setupRegenerationButtons() {
     });
 }
 
+// ============================================================================
+// Image Regeneration
+// ============================================================================
+
+let activeRegenerationRequest = null;
+let regenerationPollInterval = null;
+let countdownInterval = null;
+let countdownStartTime = null;
+
+// Estimated regeneration time in seconds (based on execution 815: 86s, rounded up)
+const ESTIMATED_REGEN_TIME = 90;
+
+// Stage definitions for countdown display
+const REGEN_STAGES = [
+    { maxSeconds: 15, text: 'Analyzing passage...' },
+    { maxSeconds: 30, text: 'Generating prompts...' },
+    { maxSeconds: 80, text: 'Creating images...' },
+    { maxSeconds: 90, text: 'Finalizing...' }
+];
+
 async function triggerRegeneration(slot) {
     if (!currentStory) {
         showToast('No story loaded', true);
         return;
     }
     
-    // Show regeneration modal
-    const template = document.getElementById('regenerationModalTemplate');
-    if (!template) return;
+    const spreadCode = currentStory.spread_code;
     
-    const modal = template.content.cloneNode(true);
-    document.body.appendChild(modal);
+    // Show the regeneration modal
+    showRegenerationModal(slot);
     
-    const slotEl = document.getElementById('regenSlotNumber');
-    if (slotEl) slotEl.textContent = slot;
-    
-    // Setup cancel button
-    const cancelBtn = document.getElementById('cancelRegenBtn');
-    if (cancelBtn) {
-        cancelBtn.addEventListener('click', closeRegenerationModal);
-    }
-    
-    // Trigger regeneration via n8n webhook
     try {
+        // Get webhook URL from config
         const webhookUrl = window.N8N_CONFIG?.webhookUrl;
         if (!webhookUrl) {
             throw new Error('n8n webhook URL not configured');
         }
         
+        // Trigger the n8n workflow
         const response = await fetch(webhookUrl, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+                'Content-Type': 'application/json'
+            },
             body: JSON.stringify({
-                spread_code: currentStory.spread_code,
+                spread_code: spreadCode,
                 slot: slot
             })
         });
         
-        if (!response.ok) throw new Error('Regeneration request failed');
+        if (!response.ok) {
+            throw new Error(`Webhook failed: ${response.status}`);
+        }
         
-        // Start polling for completion
-        pollForRegeneration(slot);
+        const result = await response.json();
+        activeRegenerationRequest = result.request_id;
+        
+        // Start polling for results
+        startRegenerationPolling(result.request_id, slot);
         
     } catch (err) {
         console.error('Error triggering regeneration:', err);
-        closeRegenerationModal();
-        showToast('Error starting regeneration', true);
+        showToast('Failed to start regeneration', true);
+        hideRegenerationModal();
     }
 }
 
-function pollForRegeneration(slot) {
-    // Poll every 5 seconds for up to 3 minutes
-    let attempts = 0;
-    const maxAttempts = 36;
+function showRegenerationModal(slot) {
+    const modalTemplate = document.getElementById('regenerationModalTemplate');
+    if (!modalTemplate) return;
     
-    const poll = async () => {
-        attempts++;
+    const modalContent = modalTemplate.content.cloneNode(true);
+    
+    // Set the slot number in the modal
+    const slotSpan = modalContent.getElementById('regenSlotNumber');
+    if (slotSpan) slotSpan.textContent = slot;
+    
+    // Setup cancel button
+    const cancelBtn = modalContent.getElementById('cancelRegenBtn');
+    if (cancelBtn) {
+        cancelBtn.addEventListener('click', cancelRegeneration);
+    }
+    
+    // Add modal to page
+    document.body.appendChild(modalContent);
+    
+    // Start the countdown timer
+    startCountdown();
+}
+
+function startCountdown() {
+    countdownStartTime = Date.now();
+    const circumference = 2 * Math.PI * 45; // radius = 45
+    
+    // Update immediately, then every second
+    updateCountdown();
+    countdownInterval = setInterval(updateCountdown, 1000);
+    
+    function updateCountdown() {
+        const elapsed = (Date.now() - countdownStartTime) / 1000;
+        const remaining = Math.max(0, ESTIMATED_REGEN_TIME - elapsed);
+        const progress = Math.min(1, elapsed / ESTIMATED_REGEN_TIME);
+        
+        // Update progress ring
+        const ring = document.getElementById('progressRingFill');
+        if (ring) {
+            ring.style.strokeDashoffset = circumference * (1 - progress);
+        }
+        
+        // Update countdown text
+        const countdownText = document.getElementById('countdownText');
+        if (countdownText) {
+            if (remaining > 0) {
+                const mins = Math.floor(remaining / 60);
+                const secs = Math.ceil(remaining % 60);
+                countdownText.textContent = `~${mins}:${secs.toString().padStart(2, '0')}`;
+            } else {
+                countdownText.textContent = '...';
+            }
+        }
+        
+        // Update stage text
+        const stageText = document.getElementById('stageText');
+        if (stageText) {
+            if (elapsed > ESTIMATED_REGEN_TIME) {
+                stageText.textContent = 'Almost ready...';
+                stageText.classList.add('overtime');
+            } else {
+                const stage = REGEN_STAGES.find(s => elapsed < s.maxSeconds) || REGEN_STAGES[REGEN_STAGES.length - 1];
+                stageText.textContent = stage.text;
+                stageText.classList.remove('overtime');
+            }
+        }
+    }
+}
+
+function startRegenerationPolling(requestId, slot) {
+    // Poll every 3 seconds for up to 5 minutes
+    let pollCount = 0;
+    const maxPolls = 100; // 5 minutes at 3 second intervals
+    
+    regenerationPollInterval = setInterval(async () => {
+        pollCount++;
+        
+        if (pollCount > maxPolls) {
+            clearInterval(regenerationPollInterval);
+            showToast('Regeneration timed out', true);
+            hideRegenerationModal();
+            return;
+        }
         
         try {
             const { data, error } = await supabase
-                .from('grahams_devotional_spreads')
-                .select(`image_url_${slot}`)
-                .eq('spread_code', currentStory.spread_code)
+                .from('regeneration_requests')
+                .select('status, option_urls')
+                .eq('id', requestId)
                 .single();
             
             if (error) throw error;
             
-            const newUrl = data[`image_url_${slot}`];
-            const oldUrl = currentStory[`image_url_${slot}`];
-            
-            if (newUrl && newUrl !== oldUrl) {
-                // Image regenerated!
-                currentStory[`image_url_${slot}`] = newUrl;
-                closeRegenerationModal();
-                renderImages(currentStory);
-                showToast('New image generated');
-                return;
+            if (data.status === 'ready' && data.option_urls?.length > 0) {
+                clearInterval(regenerationPollInterval);
+                showRegenerationOptions(data.option_urls, slot, requestId);
+            } else if (data.status === 'cancelled' || data.status === 'error') {
+                clearInterval(regenerationPollInterval);
+                showToast('Regeneration failed', true);
+                hideRegenerationModal();
             }
-            
-            if (attempts < maxAttempts) {
-                setTimeout(poll, 5000);
-            } else {
-                closeRegenerationModal();
-                showToast('Regeneration timed out');
-            }
+            // Continue polling if status is still 'processing'
             
         } catch (err) {
-            console.error('Error polling for regeneration:', err);
-            closeRegenerationModal();
+            console.error('Error polling regeneration status:', err);
+            // Continue polling on error
         }
-    };
-    
-    setTimeout(poll, 5000);
+    }, 3000);
 }
 
-function closeRegenerationModal() {
+function showRegenerationOptions(optionUrls, slot, requestId) {
+    // Stop the countdown
+    if (countdownInterval) {
+        clearInterval(countdownInterval);
+        countdownInterval = null;
+    }
+    
+    // Hide countdown container, show options grid
+    const countdownContainer = document.getElementById('countdownContainer');
+    const optionsGrid = document.getElementById('newImageOptionsGrid');
+    
+    if (countdownContainer) countdownContainer.style.display = 'none';
+    if (!optionsGrid) return;
+    
+    optionsGrid.style.display = 'grid';
+    
+    // Clear skeleton loaders and add actual images
+    optionsGrid.innerHTML = optionUrls.map((url, index) => `
+        <div class="new-image-option" data-url="${url}" data-index="${index + 1}">
+            <img src="${url}" alt="Option ${index + 1}">
+            <span class="option-number">${index + 1}</span>
+        </div>
+    `).join('');
+    
+    // Add click handlers to select an option
+    let selectedUrl = null;
+    optionsGrid.querySelectorAll('.new-image-option').forEach(div => {
+        div.addEventListener('click', () => {
+            // Remove selection from all
+            optionsGrid.querySelectorAll('.new-image-option').forEach(d => d.classList.remove('selected'));
+            // Add selection to clicked
+            div.classList.add('selected');
+            selectedUrl = div.dataset.url;
+            
+            // Show the select button
+            const selectBtn = document.getElementById('selectNewImageBtn');
+            if (selectBtn) {
+                selectBtn.style.display = 'inline-flex';
+                selectBtn.onclick = () => confirmRegeneration(selectedUrl, slot, requestId);
+            }
+        });
+    });
+    
+    // Update modal text
+    const modalContent = document.querySelector('.modal-content');
+    if (modalContent) {
+        const heading = modalContent.querySelector('h2');
+        const desc = modalContent.querySelector('p');
+        if (heading) heading.textContent = 'Select New Image';
+        if (desc) desc.textContent = `Choose one of the 4 newly generated images to replace slot ${slot}.`;
+    }
+}
+
+async function confirmRegeneration(imageUrl, slot, requestId) {
+    if (!currentStory || !imageUrl) return;
+    
+    const spreadCode = currentStory.spread_code;
+    
+    try {
+        // Update the specific image_url_X slot in the spreads table
+        const updateField = `image_url_${slot}`;
+        const { error: updateError } = await supabase
+            .from('grahams_devotional_spreads')
+            .update({ [updateField]: imageUrl })
+            .eq('spread_code', spreadCode);
+        
+        if (updateError) throw updateError;
+        
+        // Update regeneration request status
+        await supabase
+            .from('regeneration_requests')
+            .update({ 
+                status: 'selected',
+                selected_url: imageUrl 
+            })
+            .eq('id', requestId);
+        
+        // Update local data
+        currentStory[updateField] = imageUrl;
+        
+        showToast(`✓ Image ${slot} replaced`);
+        hideRegenerationModal();
+        
+        // Re-render the images
+        showingGrid = true;
+        renderImages(currentStory);
+        
+    } catch (err) {
+        console.error('Error confirming regeneration:', err);
+        showToast('Error saving new image', true);
+    }
+}
+
+function cancelRegeneration() {
+    // Clear all intervals
+    if (regenerationPollInterval) {
+        clearInterval(regenerationPollInterval);
+        regenerationPollInterval = null;
+    }
+    if (countdownInterval) {
+        clearInterval(countdownInterval);
+        countdownInterval = null;
+    }
+    
+    // Update request status to cancelled if we have one
+    if (activeRegenerationRequest) {
+        supabase
+            .from('regeneration_requests')
+            .update({ status: 'cancelled' })
+            .eq('id', activeRegenerationRequest)
+            .then(() => {})
+            .catch(err => console.warn('Could not cancel request:', err));
+    }
+    
+    activeRegenerationRequest = null;
+    hideRegenerationModal();
+}
+
+function hideRegenerationModal() {
+    // Clear countdown interval
+    if (countdownInterval) {
+        clearInterval(countdownInterval);
+        countdownInterval = null;
+    }
+    
     const modal = document.querySelector('.modal-overlay');
-    if (modal) modal.remove();
+    if (modal) {
+        modal.remove();
+    }
+    activeRegenerationRequest = null;
 }
 
 function showError() {
