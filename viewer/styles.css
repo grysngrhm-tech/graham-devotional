@@ -99,10 +99,13 @@ body {
 
 .brand-title {
     font-family: 'Playfair Display', Georgia, serif;
-    font-size: 1.25rem;
-    font-weight: 500;
+    font-size: 1.5rem;
+    font-weight: 400;
     color: #FFFFFF;
     letter-spacing: -0.01em;
+    display: flex;
+    align-items: baseline;
+    gap: 0.3em;
     margin: 0;
     display: flex;
     align-items: baseline;
@@ -120,14 +123,20 @@ body {
     margin-left: 0.25em;
 }
 
-/* GRACE Toggle Container */
+/* Brand text (The, Bible) - standard font */
+.brand-text {
+    font-family: 'Playfair Display', Georgia, serif;
+    font-weight: 400;
+}
+
+/* GRACE Toggle Container - old-timey font */
 .grace-toggle {
     display: inline-flex;
     cursor: pointer;
     position: relative;
     font-family: 'IM Fell English', 'Times New Roman', serif;
     font-weight: 400;
-    letter-spacing: 0.05em;
+    letter-spacing: 0.02em;
 }
 
 /* Collapsed state: "GRACE" */
@@ -135,6 +144,7 @@ body {
     display: inline-block;
     opacity: 1;
     transition: opacity 0.3s ease;
+    font-weight: 400;
 }
 
 /* Expanded state: Full words */
@@ -142,7 +152,7 @@ body {
     display: none;
     opacity: 0;
     align-items: baseline;
-    gap: 0.35em;
+    gap: 0.25em;
     transition: opacity 0.3s ease;
 }
 
@@ -162,6 +172,7 @@ body {
     white-space: nowrap;
     animation: wordFadeIn 0.4s ease forwards;
     opacity: 0;
+    font-family: 'IM Fell English', 'Times New Roman', serif;
 }
 
 .grace-toggle.expanded .grace-word:nth-child(1) { animation-delay: 0ms; }
@@ -179,12 +190,6 @@ body {
         opacity: 1;
         transform: translateY(0);
     }
-}
-
-/* First letter styling */
-.grace-expanded .letter {
-    font-weight: 500;
-    color: #FFFFFF;
 }
 
 .header-stats {
@@ -218,69 +223,41 @@ body {
 }
 
 /* ============================================================================
-   Introduction Section - Compact & Centered
+   Introduction Section - Two Equal Columns
    ============================================================================ */
 
 .intro-section {
-    background: linear-gradient(to bottom, #F5F5F5 0%, #FAFAFA 100%);
+    background: linear-gradient(to bottom, #F8F8F8 0%, #FAFAFA 100%);
     border-bottom: 1px solid #E8E8E8;
     padding: var(--spacing-md) var(--spacing-xl);
-    text-align: center;
 }
 
 .intro-content {
-    max-width: 900px;
+    max-width: 1100px;
     margin: 0 auto;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: var(--spacing-lg);
-    flex-wrap: wrap;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--spacing-xl);
+    align-items: start;
+}
+
+.intro-column {
+    flex: 1;
 }
 
 .intro-text {
     font-family: 'Playfair Display', Georgia, serif;
     font-size: 0.9375rem;
-    line-height: 1.6;
+    line-height: 1.7;
     color: #555;
     margin: 0;
-    flex: 1;
-    min-width: 280px;
 }
 
-.intro-lead {
-    font-weight: 500;
-    color: #333;
-}
-
-.intro-curation {
-    display: flex;
-    align-items: center;
-    gap: var(--spacing-sm);
-    padding: 8px 16px;
-    background: rgba(0, 0, 0, 0.04);
-    border-radius: 100px;
-    flex-shrink: 0;
-}
-
-.intro-label {
-    font-family: 'Inter', -apple-system, sans-serif;
-    font-size: 0.625rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    color: #666;
-    white-space: nowrap;
-}
-
-.intro-detail {
-    font-family: 'Inter', -apple-system, sans-serif;
-    font-size: 0.75rem;
-    line-height: 1.5;
-    color: #777;
-    margin: 0;
-    max-width: 320px;
-    text-align: left;
+/* GRACE accent in intro - old-timey font */
+.grace-accent {
+    font-family: 'IM Fell English', 'Times New Roman', serif;
+    font-weight: 400;
+    letter-spacing: 0.02em;
 }
 
 /* Intro responsive */
@@ -290,23 +267,13 @@ body {
     }
     
     .intro-content {
-        flex-direction: column;
-        gap: var(--spacing-sm);
+        grid-template-columns: 1fr;
+        gap: var(--spacing-md);
     }
     
     .intro-text {
         font-size: 0.875rem;
-    }
-    
-    .intro-curation {
-        width: 100%;
-        justify-content: center;
-        flex-wrap: wrap;
-    }
-    
-    .intro-detail {
         text-align: center;
-        max-width: none;
     }
 }
 
@@ -1605,7 +1572,7 @@ body {
     }
     
     .brand-title {
-        font-size: 1.125rem;
+        font-size: 1.35rem;
     }
     
     .header-stats {
@@ -1663,7 +1630,7 @@ body {
 
 @media (max-width: 480px) {
     .brand-title {
-        font-size: 1rem;
+        font-size: 1.125rem;
     }
     
     .stat-pill {
