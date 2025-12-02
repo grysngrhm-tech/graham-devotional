@@ -111,6 +111,9 @@ document.addEventListener('DOMContentLoaded', () => {
 async function initIndexPage() {
     showSkeletonCards(12);
     
+    // Detect platform and update keyboard shortcut display
+    updateKeyboardShortcutDisplay();
+    
     // Load stories (testament/book now come from Supabase directly)
     await loadAllStories();
     
@@ -120,6 +123,17 @@ async function initIndexPage() {
     setupAcronymExpansion();
     applyFilters();
     updateStats();
+}
+
+// Detect platform and show appropriate keyboard shortcut
+function updateKeyboardShortcutDisplay() {
+    const shortcut = document.querySelector('.search-shortcut');
+    if (!shortcut) return;
+    
+    const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0 ||
+                  navigator.userAgent.toUpperCase().indexOf('MAC') >= 0;
+    
+    shortcut.textContent = isMac ? '⌘K' : 'Ctrl+K';
 }
 
 function showSkeletonCards(count) {
@@ -305,17 +319,35 @@ function setupKeyboardShortcuts() {
 
 // Setup GRACE acronym expansion interaction
 function setupAcronymExpansion() {
-    const acronym = document.getElementById('graceAcronym');
-    if (!acronym) return;
+    const toggle = document.getElementById('graceToggle');
+    if (!toggle) return;
     
-    // Desktop: hover to expand
-    acronym.addEventListener('mouseenter', () => acronym.classList.add('expanded'));
-    acronym.addEventListener('mouseleave', () => acronym.classList.remove('expanded'));
+    let isExpanded = false;
+    let hoverTimeout = null;
+    
+    // Desktop: hover to expand with slight delay for stability
+    toggle.addEventListener('mouseenter', () => {
+        clearTimeout(hoverTimeout);
+        hoverTimeout = setTimeout(() => {
+            toggle.classList.add('expanded');
+            isExpanded = true;
+        }, 100);
+    });
+    
+    toggle.addEventListener('mouseleave', () => {
+        clearTimeout(hoverTimeout);
+        hoverTimeout = setTimeout(() => {
+            toggle.classList.remove('expanded');
+            isExpanded = false;
+        }, 200);
+    });
     
     // Mobile: tap to toggle
-    acronym.addEventListener('click', (e) => {
+    toggle.addEventListener('click', (e) => {
         e.preventDefault();
-        acronym.classList.toggle('expanded');
+        e.stopPropagation();
+        isExpanded = !isExpanded;
+        toggle.classList.toggle('expanded', isExpanded);
     });
 }
 

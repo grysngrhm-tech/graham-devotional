@@ -17,19 +17,20 @@
         <!-- Compact Header -->
         <header class="compact-header">
             <div class="header-left">
-                <h1 class="brand-title">
+                <h1 class="brand-title" id="brandTitle">
                     <span class="brand-prefix">The</span>
-                    <span class="grace-acronym" id="graceAcronym"><!--
-                        --><span class="grace-word" data-full="raham">G</span><!--
-                        --><span class="grace-word" data-full="eimagined">R</span><!--
-                        --><span class="grace-word" data-full="rt &amp;">A</span><!--
-                        --><span class="grace-word" data-full="anon">C</span><!--
-                        --><span class="grace-word" data-full="xperience">E</span><!--
-                    --></span>
+                    <span class="grace-toggle" id="graceToggle">
+                        <span class="grace-collapsed">GRACE</span>
+                        <span class="grace-expanded">
+                            <span class="grace-word"><span class="letter">G</span>raham</span>
+                            <span class="grace-word"><span class="letter">R</span>eimagined</span>
+                            <span class="grace-word"><span class="letter">A</span>rt &amp;</span>
+                            <span class="grace-word"><span class="letter">C</span>anon</span>
+                            <span class="grace-word"><span class="letter">E</span>xperience</span>
+                        </span>
+                    </span>
                     <span class="brand-suffix">Bible</span>
                 </h1>
-                <span class="brand-divider"></span>
-                <span class="brand-tagline">500 Stories of Scripture, Reimagined with Art</span>
             </div>
             <div class="header-stats">
                 <span class="stat-pill complete">
@@ -40,6 +41,25 @@
                 </span>
             </div>
         </header>
+
+        <!-- Introduction Section -->
+        <section class="intro-section">
+            <div class="intro-content">
+                <p class="intro-text">
+                    <span class="intro-lead">Five hundred stories of Scripture</span>, from Genesis to Revelation, 
+                    each paired with sacred artwork generated in the tradition of the masters. 
+                    Every narrative draws from the World English Bible with reverent quotations from the King James Version.
+                </p>
+                <div class="intro-curation">
+                    <span class="intro-label">Curate the Collection</span>
+                    <p class="intro-detail">
+                        Each story presents four unique images for your discernment. Select the artwork that best captures 
+                        each passage's essence, or regenerate new options until the illustration feels complete. 
+                        Together, we refine this devotional through collaborative curation.
+                    </p>
+                </div>
+            </div>
+        </section>
 
         <main class="main-content">
             <!-- Filter Section -->
@@ -104,7 +124,12 @@
         </template>
 
         <footer class="site-footer">
-            <p>The GRACE Bible</p>
+            <p>
+                <span class="footer-brand">The GRACE Bible</span>
+                <span class="footer-tagline">Graham Reimagined Art & Canon Experience</span>
+                <span class="footer-divider"></span>
+                <span class="footer-copyright">A Family Devotional Project</span>
+            </p>
         </footer>
     </div>
 
