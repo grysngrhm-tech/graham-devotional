@@ -1,362 +1,427 @@
-# System Documentation
+# The Grahams' Devotional - System Reference
 
-Technical reference for the Graham Devotional Bible system.
-
----
-
-## Table of Contents
-
-1. [n8n Workflow Details](#n8n-workflow-details)
-2. [Supabase Configuration](#supabase-configuration)
-3. [API Integrations](#api-integrations)
-4. [Troubleshooting Guide](#troubleshooting-guide)
-5. [Common Operations](#common-operations)
+> Technical documentation for the automated devotional production pipeline.
 
 ---
 
-## n8n Workflow Details
+## Quick Start
 
-### Devotional - Outline Builder
-
-**Workflow ID:** `dRZE4EHTdCr1pSjX`
-**Status:** Inactive (manual execution only)
-
-#### Purpose
-Reads JSON outline files from Supabase storage and creates spread rows in the database.
-
-#### Input Parameters
-- `batch_id`: Integer batch number for grouping
-- `book_code`: 3-letter book abbreviation (e.g., "GEN", "EXO")
-
-#### Key Nodes
-
-| Node | Function |
-|------|----------|
-| Get Book Outline | Fetches JSON from `devotional-data/{book_code}.json` |
-| Parse Outline | Extracts chapter/verse boundaries and titles |
-| Prepare for Supabase | Formats data with testament, book name, spread_code |
-| Upsert Spreads | Inserts rows with conflict resolution on `spread_code` |
-
-#### Output Fields Set
-- `spread_code`: Format `{BOOK}-{NNN}` (e.g., "GEN-001")
-- `batch_id`: From input parameter
-- `testament`: "OT" or "NT" based on book
-- `book`: Full book name (e.g., "Genesis")
-- `start_chapter`, `start_verse`, `end_chapter`, `end_verse`: Passage boundaries
-- `title`: Story title from outline
-- `kjv_passage_ref`: Formatted reference (e.g., "Genesis 1:1-31")
-- `status_scripture`: "done" (outlines include this)
-- `status_text`: "pending"
-- `status_image`: "pending"
+1. **Upload `data/all-spreads.json`** to Supabase Storage bucket `devotional-data`
+2. **Run database migration** to create tables and indexes
+3. **Run Outline Builder** with batch number (0-49) to import 10 spreads at a time
+4. **Run Processing Pipeline** to generate summaries and images for that batch
+5. **Check results**, tweak prompts if needed, then repeat for next batch
+6. **Monitor progress** with SQL queries below
 
 ---
 
-### Devotional - Processing Pipeline
-
-**Workflow ID:** `Ixn36R5CgzjJn0WH`
-**Status:** Active
-**Triggers:** Schedule (15 min), Manual, Webhook
-
-#### Architecture
+## Architecture Overview
 
 ```
-┌─────────────────┐     ┌─────────────────┐
-│ Schedule Trigger│     │ Manual Trigger  │
-│ (Every 15 min)  │     │ (Button)        │
-└────────┬────────┘     └────────┬────────┘
-         │                       │
-         └───────────┬───────────┘
-                     │
-         ┌───────────▼───────────┐
-         │                       │
-    ┌────▼────┐            ┌─────▼─────┐
-    │Get Text │            │ Get Image │
-    │  Item   │            │   Item    │
-    └────┬────┘            └─────┬─────┘
-         │                       │
-    ┌────▼────┐            ┌─────▼─────┐
-    │ Process │            │  Process  │
-    │  Text   │            │  Images   │
-    └────┬────┘            └─────┬─────┘
-         │                       │
-         └───────────┬───────────┘
-                     │
-              ┌──────▼──────┐
-              │  Loop Wait  │
-              │  (3 sec)    │
-              └──────┬──────┘
-                     │
-                     └──────► (back to Get Items)
+┌─────────────────────────────────────────────────────────────────┐
+│                     OUTLINE BUILDER v6                          │
+│                    (Manual, Batch Processing)                   │
+├─────────────────────────────────────────────────────────────────┤
+│  Fetch JSON → Slice Batch → Build Refs → Fetch KJV → Merge KJV │
+│       → Fetch WEB → Merge WEB → Prepare for Supabase → Upsert  │
+│       ↓                                                         │
+│  status_scripture = 'done', status_text = 'pending'            │
+│  (Both KJV and WEB passage text populated)                     │
+└─────────────────────────────────────────────────────────────────┘
+                              ↓
+┌─────────────────────────────────────────────────────────────────┐
+│                   PROCESSING PIPELINE v6                        │
+│            (Continuous Loop + Parallel Processing)              │
+├─────────────────────────────────────────────────────────────────┤
+│  Branch 1: Get pending summary → GPT-4 (with WEB context)      │
+│       → Parse structured output (KEY_VERSE + SUMMARY)          │
+│       → Update (paraphrase_text, kjv_key_verse_ref/text)       │
+│       ↓                                                         │
+│  Branch 2: Get pending image → Abstract → 4 Prompts → Flux     │
+│       → Upload 4 images → Update URLs                          │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
-#### Text Generation Path
-
-**Query:** Find spreads where:
-- `status_scripture = 'done'`
-- `status_text = 'pending'`
-- `LIMIT 1, ORDER BY id ASC`
-
-**Steps:**
-1. **Generate Paraphrase** (OpenAI GPT-4o)
-   - System prompt: Child-friendly Bible storyteller
-   - Includes KJV quotes in bold for memorability
-   - ~150-200 words per spread
-
-2. **Extract Key Verse** (OpenAI)
-   - Identifies most memorable/quotable verse
-   - Returns reference and text
-
-3. **Update Spread**
-   - Sets `paraphrase_text`, `kjv_key_verse_ref`, `kjv_key_verse_text`
-   - Sets `status_text = 'done'`
-
-#### Image Generation Path
-
-**Query:** Find spreads where:
-- `status_text = 'done'`
-- `status_image = 'pending'` OR `image_url_1 IS NULL`
-- `LIMIT 1, ORDER BY id ASC`
-
-**Steps:**
-1. **Generate Abstract** (OpenAI GPT-4o)
-   - Creates visual description of the scene
-   - Captures mood, colors, composition
-
-2. **Prepare Prompt Data** (Code node)
-   - Safely extracts spread data from multiple sources
-   - Handles both batch and regeneration paths
-
-3. **Generate 4 Prompts** (OpenAI)
-   - Creates 4 unique image prompts from abstract
-   - Style: Watercolor, period-accurate, emotional depth
-
-4. **Generate Images** (Replicate - Flux Schnell)
-   - 4 parallel image generations
-   - Batch interval: 1 second between requests
-   - Resolution: 1024x1024
-
-5. **Upload to Storage** (Supabase)
-   - Uploads to `devotional-images/{spread_code}/`
-   - Generates public URLs
-
-6. **Update Spread**
-   - Sets `image_url_1` through `image_url_4`
-   - Sets `image_url` = `image_url_1` (default selection)
-   - Sets `status_image = 'done'`
-
-#### Regeneration Path (Webhook Trigger)
-
-**Webhook:** `POST /webhook/regenerate-image`
-
-**Payload:**
-```json
-{
-  "spread_code": "GEN-001",
-  "slot": 2
-}
-```
-
-**Steps:**
-1. Create `regeneration_requests` record with status "processing"
-2. Return request_id to caller immediately
-3. Fetch spread data
-4. Generate new abstract + 4 prompts
-5. Generate 4 images
-6. Update `regeneration_requests`:
-   - `status = 'ready'`
-   - `option_urls = [url1, url2, url3, url4]`
-7. UI polls and displays options
-8. User selection updates spread via separate Supabase call
+**Key Principles:**
+- Scripture is static data (fetched once at import)
+- Key verse is identified by AI during summary generation (not pre-defined)
+- WEB (World English Bible) provides modern context for AI understanding
+- All quotations in output are from KJV only
 
 ---
 
-## Supabase Configuration
+## Credentials Setup
 
-### Project Details
-- **URL:** `https://zekbemqgvupzmukpntog.supabase.co`
-- **Region:** (Check Supabase dashboard)
+You need **3 credentials** in n8n:
+
+### 1. Supabase API Key
+- **Name:** `Header Auth account` (or similar)
+- **Header Name:** `apikey`
+- **Header Value:** Your Supabase service role key
+
+### 2. Replicate API Key
+- **Name:** `Header Auth account 3`
+- **Header Name:** `Authorization`
+- **Header Value:** `Token r8_YourReplicateAPIKey` (note: "Token" prefix required!)
+
+### 3. OpenAI (via n8n Credentials)
+- Use n8n's built-in OpenAI credential manager
+- Add your API key there
+
+**Note:** bible-api.com requires NO authentication - just HTTP requests!
+
+---
+
+## Workflows
+
+| Workflow | ID | Purpose | Trigger |
+|----------|-----|---------|---------|
+| **Outline Builder** | `dRZE4EHTdCr1pSjX` | Import spreads + fetch KJV/WEB scripture | Manual |
+| **Processing Pipeline** | `Ixn36R5CgzjJn0WH` | Generate summaries + images | Every 15 min / Manual / Webhook |
+
+### Outline Builder
+
+**Flow:**
+```
+Manual Trigger
+    → Set Batch Number (0-49)
+    → Fetch JSON from Supabase Storage
+    → Slice to 10 spreads based on batch_number
+    → Build Bible Refs
+    → Fetch KJV Passage (bible-api.com?translation=kjv)
+    → Merge KJV Data
+    → Fetch WEB Passage (bible-api.com?translation=web)
+    → Merge WEB Data
+    → Prepare for Supabase
+    → Upsert to Supabase
+    → Summary
+```
+
+**How to use:**
+1. Open workflow in n8n
+2. Edit "Set Batch Number" node - change `BATCH_NUMBER` constant
+3. Click "Test workflow"
+4. Check Summary node for results
+5. Run Processing Pipeline to generate summaries/images for this batch
+6. Repeat with next batch_number
+
+**Batch calculation:**
+- Batch 0: spreads 0-9 (GEN-001 through GEN-010)
+- Batch 1: spreads 10-19
+- ...
+- Total: 50 batches × 10 spreads = 500 spreads
+
+**Output:** Records with `status_scripture='done'`, `status_text='pending'`, both `kjv_passage_text` and `web_passage_text` populated
+
+### Processing Pipeline
+
+**Flow:**
+```
+Manual "Start Batch Processing" or Scheduled Trigger (every 15 min backup)
+    ↓
+PARALLEL PROCESSING:
+    Branch 1: SUMMARY GENERATION
+        → Get 1 pending summary item (scripture=done, text=pending)
+        → Generate Summary (GPT-4o) with structured output
+        → Validate & Parse
+        → Update database
+        ↓
+    Branch 2: IMAGE GENERATION (4 variations per spread)
+        → Get 1 pending image item (text=done, image=pending)
+        → Generate Abstract (GPT-4o - visual analysis)
+        → Prepare Prompt Data (safely extract from multiple sources)
+        → Generate 4 Creative Prompts (GPT-4o - 4 unique interpretations)
+        → Split Prompts → 4 items
+        → Generate Image (Flux Schnell, batch interval: 1s) × 4
+        → Download Image × 4
+        → Upload to Storage ({spread_code}-1.png, -2.png, -3.png, -4.png)
+        → Aggregate URLs
+        → Update database (image_url_1, image_url_2, image_url_3, image_url_4)
+        ↓
+    Wait 3 seconds → LOOP BACK
+    ↓
+If no work found in both branches → STOP (queue empty)
+```
+
+**Key Features:**
+- **Parallel Processing**: Text and image generation run simultaneously
+- **Continuous Processing**: Workflow loops automatically until all pending work is complete
+- Generates **4 unique image variations** per spread for selection later
+- AI-powered prompt generation (not hardcoded templates)
+- Each image has different: focal symbol, artistic influence, sacred geometry
+- All images are black and white with cross-hatching style
+
+**Triggers:**
+- **"Start Batch Processing"** (Manual): Click to start continuous processing
+- **"Every 15 Minutes"** (Scheduled): Backup trigger to restart if workflow stopped
+- **"Regenerate Image"** (Webhook): For UI-triggered regeneration
+
+---
+
+## In-App Image Regeneration
+
+The web viewer includes an in-app regeneration feature that allows curators to regenerate individual image slots directly from the UI.
+
+**Flow:**
+```
+User clicks regenerate button on image slot
+    ↓
+Web app sends POST to n8n webhook (/webhook/regenerate-image)
+    → Payload: { spread_code, slot }
+    ↓
+n8n workflow:
+    1. Respond immediately with request_id
+    2. Create regeneration_requests entry (status: 'processing')
+    3. Fetch spread data from Supabase
+    4. Generate Abstract → 4 Prompts → 4 Images
+    5. Upload images to storage
+    6. Update regeneration_requests with option_urls (status: 'ready')
+    ↓
+Web app polls regeneration_requests table for status
+    → When status = 'ready', display 4 new options in modal
+    → Countdown timer shows ~90 second estimate
+    ↓
+User selects preferred image
+    → Web app updates grahams_devotional_spreads.image_url_X with new URL
+    → Web app updates regeneration_requests (status: 'selected')
+```
+
+**Configuration:**
+- n8n webhook URL configured in `viewer/config.js` as `N8N_WEBHOOK_URL`
+- RLS must allow web app to read/write `regeneration_requests` table
+
+---
+
+## Database Schema
+
+### Table: `grahams_devotional_spreads`
+
+```sql
+CREATE TABLE public.grahams_devotional_spreads (
+    id                      SERIAL PRIMARY KEY,
+    spread_code             TEXT UNIQUE NOT NULL,
+    batch_id                INTEGER,
+    testament               TEXT NOT NULL,           -- "OT" or "NT"
+    book                    TEXT NOT NULL,
+    start_chapter           INT NOT NULL,
+    start_verse             INT NOT NULL,
+    end_chapter             INT NOT NULL,
+    end_verse               INT NOT NULL,
+    title                   TEXT,
+    
+    -- KJV (primary output)
+    kjv_passage_ref         TEXT,
+    kjv_passage_text        TEXT,
+    kjv_key_verse_ref       TEXT,        -- AI-identified key verse reference
+    kjv_key_verse_text      TEXT,        -- AI-identified key verse text
+    
+    -- WEB (modern context for AI understanding)
+    web_passage_text        TEXT,        -- World English Bible translation
+    
+    -- Generated content
+    paraphrase_text         TEXT,        -- 440-520 word summary
+    mood_category           TEXT,        -- awe|peace|struggle|triumph|sorrow|mystery|joy|warning
+    image_abstract          TEXT,        -- Scene analysis from GPT-4
+    image_prompt            TEXT,        -- Primary image prompt (first of 4)
+    image_url               TEXT,        -- Primary/selected image URL
+    image_url_1             TEXT,        -- First artistic variation URL
+    image_url_2             TEXT,        -- Second artistic variation URL
+    image_url_3             TEXT,        -- Third artistic variation URL
+    image_url_4             TEXT,        -- Fourth artistic variation URL
+    
+    -- Status tracking (pending/done/error)
+    status_outline          TEXT DEFAULT 'pending',
+    status_scripture        TEXT DEFAULT 'pending',
+    status_text             TEXT DEFAULT 'pending',
+    status_image            TEXT DEFAULT 'pending',
+    
+    -- Error handling
+    error_message           TEXT,
+    retry_count             INT DEFAULT 0,
+    last_processed_at       TIMESTAMPTZ,
+    created_at              TIMESTAMPTZ DEFAULT NOW(),
+    updated_at              TIMESTAMPTZ DEFAULT NOW()
+);
+```
+
+### Table: `regeneration_requests`
+
+```sql
+CREATE TABLE regeneration_requests (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  spread_code TEXT NOT NULL,
+  slot INTEGER NOT NULL CHECK (slot BETWEEN 1 AND 4),
+  option_urls TEXT[] DEFAULT '{}',
+  status TEXT DEFAULT 'processing' CHECK (status IN ('processing', 'ready', 'completed', 'failed')),
+  error_message TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  completed_at TIMESTAMPTZ
+);
+```
 
 ### Storage Buckets
 
 | Bucket | Purpose | Access |
 |--------|---------|--------|
-| `devotional-data` | Source JSON outlines | Private |
-| `devotional-images` | Generated artwork | Public |
-
-### Row Level Security (RLS)
-
-**grahams_devotional_spreads:**
-- SELECT: Enabled for anon users
-- UPDATE: Enabled for anon users (for image selection)
-- INSERT/DELETE: Service role only
-
-**regeneration_requests:**
-- All operations enabled for anon users
-
-### Indexes
-
-Recommended indexes for performance:
-```sql
-CREATE INDEX idx_spreads_status ON grahams_devotional_spreads(status_text, status_image);
-CREATE INDEX idx_spreads_code ON grahams_devotional_spreads(spread_code);
-CREATE INDEX idx_spreads_book ON grahams_devotional_spreads(book, start_chapter, start_verse);
-```
+| `devotional-artwork` | Generated images | Public |
+| `devotional-data` | Source JSON outlines | Public |
+| `devotional-images` | Alternative image storage | Public |
 
 ---
 
-## API Integrations
+## Status Flow
 
-### OpenAI
-- **Model:** GPT-4o
-- **Usage:** Text generation, prompt creation
-- **Credential:** Stored in n8n
+```
+After Outline Builder:
+  status_outline    = done
+  status_scripture  = done (or error if API failed)
+  status_text       = pending
+  status_image      = pending
+  kjv_passage_text  = populated
+  web_passage_text  = populated
 
-### Replicate
-- **Model:** `black-forest-labs/flux-schnell`
-- **Usage:** Image generation
-- **Rate Limits:**
-  - < $5 credit: 1 req/min
-  - $5-$20 credit: 10 req/min
-  - > $20 credit: 600 req/min
-- **Credential:** Header Auth with format `Token {API_KEY}`
+After Processing Pipeline (summary pass):
+  status_text       = done (or error if word count wrong)
+  paraphrase_text   = populated (440-520 words)
+  kjv_key_verse_ref = populated (e.g., "Genesis 1:1")
+  kjv_key_verse_text = populated (exact KJV text)
 
-### Bible API
-- **Service:** api.bible or similar
-- **Usage:** Fetching KJV scripture text
-- **Note:** Some spreads may have pre-populated scripture
+After Processing Pipeline (image pass):
+  status_image      = done (or error if generation failed)
+  image_url_1/2/3/4 = populated
+```
+
+A spread is **complete** when all four statuses = `done`.
 
 ---
 
-## Troubleshooting Guide
+## API Reference
 
-### Workflow Stops at "Get Summary Item"
+### Bible API (bible-api.com)
 
-**Symptom:** Workflow runs but stops early, no text/image processing
+**Free, no authentication required!**
 
-**Cause:** When Supabase query returns 0 items, n8n doesn't execute downstream nodes
+**Base URL:** `https://bible-api.com`
 
-**Solution:** The "Extract Summary Item" node now:
-1. Has `alwaysOutputData: true`
-2. Returns `{ _empty: true }` when no items found
-3. "Has Summary Item?" if-node checks for this marker
+**Translations Available:**
+- `?translation=kjv` - King James Version (primary)
+- `?translation=web` - World English Bible (modern context)
 
-### Image Generation Rate Limit Errors
-
-**Error:** "The service is receiving too many requests"
-
-**Cause:** Replicate rate limits based on account credit
-
-**Solutions:**
-1. Add more credit to Replicate account (>$20 recommended)
-2. Increase batch interval in "Generate Image" node
-3. Current setting: 1 second between requests
-
-### Replicate Authentication Error
-
-**Error:** "Authorization failed - please check your credentials"
-
-**Cause:** Incorrect header format
-
-**Solution:** Header must be formatted as:
-- Name: `Authorization`
-- Value: `Token r8_xxxxxxxxxxxxx` (note the word "Token" with space)
-
-### Spreads Not Appearing in Viewer
-
-**Possible causes:**
-1. Missing `testament` or `book` columns
-2. Incorrect `status_text` or `status_image` values
-3. No `image_url` set
-
-**Diagnosis:**
-```sql
-SELECT spread_code, testament, book, status_text, status_image, image_url
-FROM grahams_devotional_spreads
-WHERE status_text = 'done'
-ORDER BY id DESC
-LIMIT 10;
+**Reference Format:**
+```
+{book}+{chapter}:{verse}-{verse}?translation=kjv
+Example: genesis+1:1-31?translation=kjv
 ```
 
-### Images Not Loading in Viewer
-
-**Possible causes:**
-1. Storage bucket not public
-2. Invalid URLs in database
-3. CORS issues
-
-**Solution:** Check Supabase storage policies:
-```sql
--- Make devotional-images bucket public
-UPDATE storage.buckets 
-SET public = true 
-WHERE name = 'devotional-images';
+**Multi-chapter format:**
 ```
+{book}+{start_chapter}:{start_verse}-{end_chapter}:{end_verse}
+Example: genesis+1:1-2:3?translation=web
+```
+
+**Rate Limiting:** Use 2-second delays between requests to avoid throttling.
+
+### Replicate API
+
+**Model:** `black-forest-labs/flux-schnell`
+
+**Rate Limits (based on account credit):**
+- < $5 credit: 1 req/min
+- $5-$20 credit: 10 req/min
+- > $20 credit: 600 req/min
+
+**Important:** Header must be `Authorization: Token r8_xxx` (note "Token" prefix)
 
 ---
 
-## Common Operations
+## Troubleshooting
 
-### Processing a New Batch
+### Scripture text is empty
+- Check `error_message` column in Supabase
+- Verify book name matches mapping in Build Bible Refs node
+- bible-api.com uses lowercase names: "genesis" not "Genesis"
 
-1. **Prepare outline JSON** in `devotional-data` bucket:
-```json
-{
-  "book": "Genesis",
-  "testament": "OT",
-  "spreads": [
-    {
-      "spread_number": 1,
-      "title": "Creation",
-      "start_chapter": 1,
-      "start_verse": 1,
-      "end_chapter": 2,
-      "end_verse": 3
-    }
-  ]
-}
-```
+### Summary word count error
+- `status_text = 'error'` with word count in error_message
+- Will retry on next pipeline run
+- Adjust prompt temperature if consistently failing
 
-2. **Run Outline Builder** with parameters:
-   - batch_id: Next batch number
-   - book_code: "GEN"
+### Replicate 401 Unauthorized
+- Check "Header Auth account 3" credential
+- Format: `Authorization: Token r8_YourKey`
+- Verify Replicate account has credits
 
-3. **Monitor Processing Pipeline** - runs automatically every 15 min
+### Replicate Rate Limit ("less than $5.0 in credit")
+- Add more funds to Replicate account (>$20 recommended for 600 req/min)
+- Current batch interval: 1 second between requests
+- If persisting, verify correct API token is configured (check for multiple accounts)
 
-4. **Check progress** in Supabase:
+### Image generation timeout
+- Flux Schnell usually responds in 10-30 seconds
+- If timeout, check Replicate status page
+- Reduce prompt length if consistently failing
+
+### Workflow stops at "Get Summary Item"
+- This is expected when no text work remains
+- Image generation runs in parallel and continues
+- Check both paths in workflow execution logs
+
+### Spreads not appearing in correct order
+- Viewer sorts by Biblical book order, then chapter, then verse
+- Ensure `book`, `start_chapter`, `start_verse` columns are populated
+- Run backfill SQL if columns are empty
+
+---
+
+## Useful SQL Queries
+
+### Count by status
 ```sql
 SELECT 
+  status_outline, status_scripture, status_text, status_image,
+  COUNT(*) 
+FROM grahams_devotional_spreads 
+GROUP BY 1,2,3,4
+ORDER BY 1,2,3,4;
+```
+
+### Find errors
+```sql
+SELECT spread_code, title, error_message 
+FROM grahams_devotional_spreads 
+WHERE error_message IS NOT NULL;
+```
+
+### Progress by book
+```sql
+SELECT 
+  testament, book,
   COUNT(*) as total,
+  SUM(CASE WHEN status_scripture = 'done' THEN 1 ELSE 0 END) as scripture_done,
   SUM(CASE WHEN status_text = 'done' THEN 1 ELSE 0 END) as text_done,
   SUM(CASE WHEN status_image = 'done' THEN 1 ELSE 0 END) as image_done
 FROM grahams_devotional_spreads
-WHERE batch_id = X;
+GROUP BY testament, book
+ORDER BY MIN(id);
 ```
 
-### Manually Triggering Regeneration
-
-From n8n:
-1. Open "Processing Pipeline" workflow
-2. Click "Start Batch Processing" button
-
-From command line:
-```bash
-curl -X POST https://grysngrhm.app.n8n.cloud/webhook/regenerate-image \
-  -H "Content-Type: application/json" \
-  -d '{"spread_code": "GEN-001", "slot": 2}'
-```
-
-### Resetting a Spread for Reprocessing
-
+### View completed spreads with all 4 images
 ```sql
--- Reset text generation
-UPDATE grahams_devotional_spreads
-SET status_text = 'pending',
-    paraphrase_text = NULL,
-    kjv_key_verse_ref = NULL,
-    kjv_key_verse_text = NULL
-WHERE spread_code = 'GEN-001';
+SELECT spread_code, title, image_url_1, image_url_2, image_url_3, image_url_4
+FROM grahams_devotional_spreads
+WHERE status_image = 'done'
+ORDER BY id;
+```
 
--- Reset image generation
+### Reset failed items for retry
+```sql
+UPDATE grahams_devotional_spreads
+SET status_scripture = 'pending', error_message = NULL
+WHERE status_scripture = 'error';
+```
+
+### Reset image generation for specific spread
+```sql
 UPDATE grahams_devotional_spreads
 SET status_image = 'pending',
     image_url = NULL,
@@ -367,23 +432,19 @@ SET status_image = 'pending',
 WHERE spread_code = 'GEN-001';
 ```
 
-### Backfilling Testament/Book Data
-
-If spreads are missing testament/book columns:
-
+### Backfill testament/book from spread_code
 ```sql
+-- See scripts/backfill-testament-book.sql for full script
 UPDATE grahams_devotional_spreads SET
   testament = CASE 
     WHEN spread_code LIKE 'GEN-%' THEN 'OT'
-    WHEN spread_code LIKE 'EXO-%' THEN 'OT'
-    -- ... (add all books)
     WHEN spread_code LIKE 'MAT-%' THEN 'NT'
-    WHEN spread_code LIKE 'REV-%' THEN 'NT'
+    -- ... etc
   END,
   book = CASE 
     WHEN spread_code LIKE 'GEN-%' THEN 'Genesis'
-    WHEN spread_code LIKE 'EXO-%' THEN 'Exodus'
-    -- ... (add all books)
+    WHEN spread_code LIKE 'MAT-%' THEN 'Matthew'
+    -- ... etc
   END
 WHERE testament IS NULL OR book IS NULL;
 ```
@@ -392,11 +453,12 @@ WHERE testament IS NULL OR book IS NULL;
 
 ## Version History
 
-| Date | Changes |
-|------|---------|
-| 2025-12-02 | Added Biblical chronological sorting to viewer |
-| 2025-12-02 | Fixed parallel text/image processing paths |
-| 2025-12-02 | Fixed Replicate authentication header format |
-| 2025-12-01 | Added image regeneration feature with countdown UI |
-| 2025-12-01 | Implemented book grouping filters (Torah, Gospels, etc.) |
-| 2025-12-01 | Fixed filter functionality using direct Supabase columns |
+| Date | Version | Changes |
+|------|---------|---------|
+| 2025-12-02 | v6.3 | Added Biblical chronological sorting to viewer |
+| 2025-12-02 | v6.2 | Fixed parallel text/image processing paths |
+| 2025-12-02 | v6.1 | Fixed Replicate authentication header format |
+| 2025-12-01 | v6.0 | Added image regeneration feature with countdown UI |
+| 2025-12-01 | v5.5 | Implemented book grouping filters (Torah, Gospels, etc.) |
+| 2025-12-01 | v5.4 | Fixed filter functionality using direct Supabase columns |
+| 2025-12-01 | v5.3 | Added "Prepare Prompt Data" node for robust batch/regen handling |
