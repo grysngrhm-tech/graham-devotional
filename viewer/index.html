@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Graham Devotional Bible</title>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Playfair+Display:wght@400;500;600&display=swap" rel="stylesheet">
+    
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="page-container index-page">
+        <!-- Compact Header -->
+        <header class="compact-header">
+            <div class="header-left">
+                <h1 class="brand-title">The Graham Devotional Bible</h1>
+                <span class="brand-divider"></span>
+                <span class="brand-tagline">500 Spreads Through Scripture</span>
+            </div>
+            <div class="header-stats">
+                <span class="stat-pill complete">
+                    <span id="completeCount">—</span> complete
+                </span>
+                <span class="stat-pill pending">
+                    <span id="pendingCount">—</span> pending
+                </span>
+            </div>
+        </header>
+
+        <main class="main-content">
+            <!-- Filter Section -->
+            <section class="filter-section">
+                <!-- Row 1: Testament + Book -->
+                <div class="filter-row primary-filters">
+                    <div class="segment-control" id="testamentFilter">
+                        <button class="segment active" data-value="all">All</button>
+                        <button class="segment" data-value="OT">Old Testament</button>
+                        <button class="segment" data-value="NT">New Testament</button>
+                    </div>
+                    
+                    <select id="bookFilter" class="book-select">
+                        <option value="all">All Books</option>
+                        <!-- Populated by JavaScript -->
+                    </select>
+                </div>
+                
+                <!-- Row 2: Status + Search -->
+                <div class="filter-row secondary-filters">
+                    <div class="status-pills" id="statusFilter">
+                        <button class="status-pill active" data-status="all">All</button>
+                        <button class="status-pill" data-status="complete">Complete</button>
+                        <button class="status-pill" data-status="pending">Pending</button>
+                    </div>
+                    
+                    <div class="search-wrapper">
+                        <svg class="search-icon" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd"/>
+                        </svg>
+                        <input type="search" id="searchInput" placeholder="Search titles or verses...">
+                        <kbd class="search-shortcut">⌘K</kbd>
+                    </div>
+                </div>
+            </section>
+            
+            <!-- Active Filters & Results Count -->
+            <section class="filter-feedback">
+                <div class="active-filters" id="activeFilters">
+                    <!-- Populated by JavaScript -->
+                </div>
+                <div class="results-count">
+                    Showing <span id="resultsCount">—</span> spreads
+                </div>
+            </section>
+
+            <!-- Spreads Grid -->
+            <section class="spreads-grid" id="spreadsGrid">
+                <!-- Cards populated by JavaScript -->
+            </section>
+        </main>
+
+        <!-- Skeleton Card Template -->
+        <template id="skeletonTemplate">
+            <div class="spread-card skeleton">
+                <div class="card-image skeleton-shimmer"></div>
+                <div class="card-content">
+                    <div class="skeleton-title skeleton-shimmer"></div>
+                    <div class="skeleton-meta skeleton-shimmer"></div>
+                </div>
+            </div>
+        </template>
+
+        <footer class="site-footer">
+            <p>The Graham Devotional Bible</p>
+        </footer>
+    </div>
+
+    <!-- Supabase JS Client -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="config.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
