@@ -15,14 +15,26 @@ const supabase = window.supabase.createClient(
 let allSpreads = [];
 let filteredSpreads = [];
 let currentSpreadIndex = 0;
-let spreadsMetadata = null; // From all-spreads.json
 
 // Filter state
 let currentFilters = {
     testament: 'all',
     book: 'all',
+    grouping: 'all',
     status: 'all',
     search: ''
+};
+
+// Book Groupings for filter options
+const BOOK_GROUPINGS = {
+    'Torah': ['Genesis', 'Exodus', 'Leviticus', 'Numbers', 'Deuteronomy'],
+    'History': ['Joshua', 'Judges', 'Ruth', '1 Samuel', '2 Samuel', '1 Kings', '2 Kings', '1 Chronicles', '2 Chronicles', 'Ezra', 'Nehemiah', 'Esther'],
+    'Poetry': ['Job', 'Psalms', 'Proverbs', 'Ecclesiastes', 'Song of Solomon'],
+    'Prophets': ['Isaiah', 'Jeremiah', 'Lamentations', 'Ezekiel', 'Daniel', 'Hosea', 'Joel', 'Amos', 'Obadiah', 'Jonah', 'Micah', 'Nahum', 'Habakkuk', 'Zephaniah', 'Haggai', 'Zechariah', 'Malachi'],
+    'Gospels': ['Matthew', 'Mark', 'Luke', 'John'],
+    'Acts': ['Acts'],
+    'Epistles': ['Romans', '1 Corinthians', '2 Corinthians', 'Galatians', 'Ephesians', 'Philippians', 'Colossians', '1 Thessalonians', '2 Thessalonians', '1 Timothy', '2 Timothy', 'Titus', 'Philemon', 'Hebrews', 'James', '1 Peter', '2 Peter', '1 John', '2 John', '3 John', 'Jude'],
+    'Revelation': ['Revelation']
 };
 
 // ============================================================================
@@ -46,11 +58,8 @@ document.addEventListener('DOMContentLoaded', () => {
 async function initIndexPage() {
     showSkeletonCards(12);
     
-    // Load metadata and spreads in parallel
-    await Promise.all([
-        loadSpreadsMetadata(),
-        loadAllSpreads()
-    ]);
+    // Load spreads (now includes testament/book from Supabase)
+    await loadAllSpreads();
     
     populateBookDropdown();
     setupFilters();
@@ -71,36 +80,16 @@ function showSkeletonCards(count) {
     }
 }
 
-async function loadSpreadsMetadata() {
-    try {
-        const response = await fetch('../data/all-spreads.json');
-        if (!response.ok) throw new Error('Failed to load metadata');
-        spreadsMetadata = await response.json();
-    } catch (err) {
-        console.warn('Could not load spreads metadata:', err);
-        spreadsMetadata = null;
-    }
-}
-
 async function loadAllSpreads() {
     try {
         const { data, error } = await supabase
             .from('grahams_devotional_spreads')
-            .select('spread_code, title, kjv_passage_ref, status_text, status_image, image_url, image_url_1')
+            .select('spread_code, title, kjv_passage_ref, status_text, status_image, image_url, image_url_1, testament, book')
             .order('spread_code', { ascending: true });
         
         if (error) throw error;
         
-        // Merge with metadata to get testament/book info
-        allSpreads = (data || []).map(spread => {
-            const meta = spreadsMetadata?.spreads?.find(m => m.spread_code === spread.spread_code);
-            return {
-                ...spread,
-                testament: meta?.testament || null,
-                book: meta?.book || null
-            };
-        });
-        
+        allSpreads = data || [];
         filteredSpreads = [...allSpreads];
         
     } catch (err) {
@@ -118,16 +107,18 @@ async function loadAllSpreads() {
 
 function populateBookDropdown() {
     const bookSelect = document.getElementById('bookFilter');
-    if (!bookSelect || !spreadsMetadata?.spreads) return;
+    if (!bookSelect) return;
     
-    // Count spreads per book and group by testament
+    // Count spreads per book from actual data
     const bookCounts = {};
     const otBooks = [];
     const ntBooks = [];
     
-    spreadsMetadata.spreads.forEach(spread => {
+    allSpreads.forEach(spread => {
         const book = spread.book;
         const testament = spread.testament;
+        
+        if (!book) return; // Skip if no book set
         
         if (!bookCounts[book]) {
             bookCounts[book] = { count: 0, testament };
@@ -137,9 +128,28 @@ function populateBookDropdown() {
         bookCounts[book].count++;
     });
     
+    // Calculate grouping counts
+    const groupingCounts = {};
+    Object.entries(BOOK_GROUPINGS).forEach(([groupName, books]) => {
+        groupingCounts[groupName] = books.reduce((sum, book) => {
+            return sum + (bookCounts[book]?.count || 0);
+        }, 0);
+    });
+    
     // Build dropdown HTML
     let html = '<option value="all">All Books</option>';
     
+    // Add groupings section
+    html += '<optgroup label="Book Groupings">';
+    Object.entries(BOOK_GROUPINGS).forEach(([groupName, books]) => {
+        const count = groupingCounts[groupName];
+        if (count > 0) {
+            html += `<option value="group:${groupName}">${groupName} (${count})</option>`;
+        }
+    });
+    html += '</optgroup>';
+    
+    // Add individual books by testament
     if (otBooks.length > 0) {
         html += '<optgroup label="Old Testament">';
         otBooks.forEach(book => {
@@ -170,6 +180,7 @@ function setupFilters() {
             
             // Reset book filter when testament changes
             currentFilters.book = 'all';
+            currentFilters.grouping = 'all';
             document.getElementById('bookFilter').value = 'all';
             
             applyFilters();
@@ -180,7 +191,17 @@ function setupFilters() {
     const bookFilter = document.getElementById('bookFilter');
     if (bookFilter) {
         bookFilter.addEventListener('change', () => {
-            currentFilters.book = bookFilter.value;
+            const value = bookFilter.value;
+            
+            // Check if it's a grouping or individual book
+            if (value.startsWith('group:')) {
+                currentFilters.grouping = value.replace('group:', '');
+                currentFilters.book = 'all';
+            } else {
+                currentFilters.book = value;
+                currentFilters.grouping = 'all';
+            }
+            
             applyFilters();
         });
     }
@@ -229,12 +250,20 @@ function setupKeyboardShortcuts() {
 }
 
 function applyFilters() {
-    const { testament, book, status, search } = currentFilters;
+    const { testament, book, grouping, status, search } = currentFilters;
     
     filteredSpreads = allSpreads.filter(spread => {
         // Testament filter
         if (testament !== 'all' && spread.testament !== testament) {
             return false;
+        }
+        
+        // Grouping filter (e.g., Torah, Gospels)
+        if (grouping !== 'all') {
+            const booksInGroup = BOOK_GROUPINGS[grouping] || [];
+            if (!booksInGroup.includes(spread.book)) {
+                return false;
+            }
         }
         
         // Book filter
@@ -282,6 +311,10 @@ function updateActiveFilters() {
         tags.push({ type: 'testament', label });
     }
     
+    if (currentFilters.grouping !== 'all') {
+        tags.push({ type: 'grouping', label: currentFilters.grouping });
+    }
+    
     if (currentFilters.book !== 'all') {
         tags.push({ type: 'book', label: currentFilters.book });
     }
@@ -308,6 +341,9 @@ function clearFilter(type) {
         currentFilters.testament = 'all';
         document.querySelectorAll('#testamentFilter .segment').forEach(b => b.classList.remove('active'));
         document.querySelector('#testamentFilter .segment[data-value="all"]')?.classList.add('active');
+    } else if (type === 'grouping') {
+        currentFilters.grouping = 'all';
+        document.getElementById('bookFilter').value = 'all';
     } else if (type === 'book') {
         currentFilters.book = 'all';
         document.getElementById('bookFilter').value = 'all';
