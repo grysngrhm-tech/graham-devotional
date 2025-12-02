@@ -1165,6 +1165,7 @@ function showToast(message, isError = false) {
 }
 
 function setupStoryNavigation() {
+    // Top navigation buttons
     const prevBtn = document.getElementById('prevBtn');
     const nextBtn = document.getElementById('nextBtn');
     
@@ -1174,6 +1175,18 @@ function setupStoryNavigation() {
     
     if (nextBtn) {
         nextBtn.addEventListener('click', () => navigateStory(1));
+    }
+    
+    // Floating navigation buttons (mobile)
+    const floatingPrevBtn = document.getElementById('floatingPrevBtn');
+    const floatingNextBtn = document.getElementById('floatingNextBtn');
+    
+    if (floatingPrevBtn) {
+        floatingPrevBtn.addEventListener('click', () => navigateStory(-1));
+    }
+    
+    if (floatingNextBtn) {
+        floatingNextBtn.addEventListener('click', () => navigateStory(1));
     }
 }
 
@@ -1202,17 +1215,30 @@ function updateNavPosition() {
     const posEl = document.getElementById('navPosition');
     const prevBtn = document.getElementById('prevBtn');
     const nextBtn = document.getElementById('nextBtn');
+    const floatingPrevBtn = document.getElementById('floatingPrevBtn');
+    const floatingNextBtn = document.getElementById('floatingNextBtn');
     
     if (posEl && storyList.length > 0) {
         posEl.textContent = `${currentStoryIndex + 1} / ${storyList.length}`;
     }
     
+    const atStart = currentStoryIndex <= 0;
+    const atEnd = currentStoryIndex >= storyList.length - 1;
+    
     if (prevBtn) {
-        prevBtn.disabled = currentStoryIndex <= 0;
+        prevBtn.disabled = atStart;
+    }
+    
+    if (floatingPrevBtn) {
+        floatingPrevBtn.disabled = atStart;
     }
     
     if (nextBtn) {
-        nextBtn.disabled = currentStoryIndex >= storyList.length - 1;
+        nextBtn.disabled = atEnd;
+    }
+    
+    if (floatingNextBtn) {
+        floatingNextBtn.disabled = atEnd;
     }
 }
 

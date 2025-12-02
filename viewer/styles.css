@@ -1551,16 +1551,68 @@ body {
     .left-page {
         position: relative;
         width: 100%;
-        /* Height = width * 4/3 for 3:4 aspect ratio, capped at 60vh */
-        height: min(calc(100vw * 1.333), 60vh);
+        /* Auto height - show full image without cropping */
+        height: auto;
         top: 0;
         border: none;  /* Clean edges */
+    }
+    
+    /* Full height images on mobile - no cropping */
+    .left-page .image-container {
+        height: auto;
+    }
+    
+    .left-page .single-image {
+        height: auto;
+        aspect-ratio: 3 / 4;
+    }
+    
+    .left-page .single-image img {
+        height: auto;
+        width: 100%;
+        object-fit: contain;
+        background: #000;
+    }
+    
+    /* Grid view on mobile - 2x2 with full images */
+    .left-page .image-grid {
+        height: auto;
+        aspect-ratio: 1 / 1;
+    }
+    
+    .left-page .grid-image img {
+        object-fit: contain;
+        background: #000;
+    }
+    
+    /* Primary image container */
+    .left-page .primary-image-container {
+        height: auto;
+    }
+    
+    .left-page .primary-image-container .single-image {
+        height: auto;
+        aspect-ratio: 3 / 4;
+    }
+    
+    .left-page .primary-image-container .single-image img {
+        object-fit: contain;
+    }
+    
+    /* Image selection grid on mobile */
+    .left-page .image-selection-grid {
+        height: auto;
+    }
+    
+    .left-page .image-selection-grid .image-grid {
+        aspect-ratio: 1 / 1;
     }
     
     .right-page {
         margin-left: 0;
         width: 100%;
         padding: var(--spacing-xl);
+        padding-bottom: calc(var(--spacing-xl) + 80px); /* Space for floating nav */
         min-height: auto;
     }
     
@@ -1579,6 +1631,16 @@ body {
     
     .text-content-wrapper {
         max-width: 100%;  /* Full width on mobile */
+    }
+    
+    /* Show floating nav on mobile */
+    .floating-story-nav {
+        display: flex;
+    }
+    
+    /* Hide top nav arrows on mobile (use floating instead) */
+    .story-nav .nav-controls {
+        display: none;
     }
 }
 
@@ -1974,5 +2036,90 @@ body {
     .regen-btn,
     .regenerate-btn {
         opacity: 0.8;
+    }
+}
+
+/* ============================================================================
+   Floating Story Navigation (Mobile)
+   ============================================================================ */
+
+.floating-story-nav {
+    display: none; /* Hidden by default, shown on mobile via media query */
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: var(--spacing-md);
+    padding-bottom: max(var(--spacing-md), env(safe-area-inset-bottom));
+    justify-content: space-between;
+    align-items: center;
+    z-index: 100;
+    pointer-events: none;
+}
+
+.floating-nav-btn {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: rgba(26, 26, 26, 0.9);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: #FFFFFF;
+    font-size: 1.5rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+    pointer-events: auto;
+}
+
+.floating-nav-btn:hover {
+    background: rgba(40, 40, 40, 0.95);
+    transform: scale(1.05);
+}
+
+.floating-nav-btn:active {
+    transform: scale(0.95);
+}
+
+.floating-nav-btn:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.floating-nav-btn:disabled:hover {
+    background: rgba(26, 26, 26, 0.9);
+    transform: none;
+}
+
+.floating-nav-btn span {
+    line-height: 1;
+}
+
+/* Larger touch targets on small screens */
+@media (max-width: 480px) {
+    .floating-nav-btn {
+        width: 60px;
+        height: 60px;
+        font-size: 1.75rem;
+    }
+    
+    /* Larger summary text for readability */
+    .summary-text {
+        font-size: 1.0625rem;
+        line-height: 1.85;
+    }
+    
+    .summary-text p {
+        margin-bottom: 1.25em;
+    }
+    
+    /* Larger key verse for readability */
+    .key-verse .verse-text {
+        font-size: 1.125rem;
     }
 }
