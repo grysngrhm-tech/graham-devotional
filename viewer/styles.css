@@ -94,25 +94,28 @@
     --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5);
 }
 
-/* Theme Toggle Button */
+/* Theme Toggle Button - iOS Style */
 .theme-toggle {
-    background: transparent;
+    background: rgba(255, 255, 255, 0.1);
     border: none;
     cursor: pointer;
-    padding: 8px;
+    width: 32px;
+    height: 32px;
     border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
     color: #FFFFFF;
-    font-size: 1.25rem;
-    transition: all 0.2s ease;
-    opacity: 0.8;
+    font-size: 1rem;
+    transition: all 0.15s ease;
 }
 
 .theme-toggle:hover {
-    opacity: 1;
-    background: rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.2);
+}
+
+.theme-toggle:active {
+    transform: scale(0.92);
 }
 
 .theme-toggle .icon-sun,
@@ -590,35 +593,30 @@ body {
     transition: background-color 0.3s ease, color 0.3s ease;
 }
 
-/* Surprise Me Button */
+/* Surprise Me Button - iOS Style */
 .surprise-btn {
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    padding: 10px 18px;
-    background: var(--bg-card);
-    border: 1px solid var(--border-color);
-    border-radius: 12px;
-    font-family: 'Inter', -apple-system, sans-serif;
-    font-size: 0.875rem;
+    padding: 8px 14px;
+    background: rgba(128, 128, 128, 0.12);
+    border: none;
+    border-radius: 18px;
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif;
+    font-size: 0.8125rem;
     font-weight: 500;
     color: var(--text-primary);
     cursor: pointer;
-    transition: all 0.2s cubic-bezier(0.25, 0.1, 0.25, 1);
-    box-shadow: var(--shadow-sm);
+    transition: all 0.15s ease;
     white-space: nowrap;
 }
 
 .surprise-btn:hover {
-    background: var(--text-primary);
-    color: var(--bg-primary);
-    border-color: var(--text-primary);
-    transform: translateY(-2px);
-    box-shadow: var(--shadow-md);
+    background: rgba(128, 128, 128, 0.2);
 }
 
 .surprise-btn:active {
-    transform: scale(0.97);
+    transform: scale(0.96);
 }
     pointer-events: none;
     border: 1px solid #E5E5E5;
@@ -712,21 +710,20 @@ body {
     }
 }
 
-/* Section Headers in Grid */
+/* Section Headers in Grid - iOS Style */
 .section-header {
-    grid-column: 1 / -1; /* Span full width */
-    padding: var(--spacing-md) 0;
+    grid-column: 1 / -1;
+    padding: 0;
 }
 
-/* Testament Header (OT/NT) - Large, prominent, sticky */
+/* Testament Header (OT/NT) - Compact, sticky */
 .testament-header {
     position: sticky;
-    top: 60px; /* Below main header */
+    top: 60px;
     z-index: 20;
     background: var(--bg-primary);
-    padding: var(--spacing-xl) 0 var(--spacing-lg);
-    margin-top: var(--spacing-xl);
-    border-bottom: 2px solid var(--color-gold);
+    padding: 12px 0 8px;
+    margin-top: 24px;
 }
 
 .testament-header:first-child {
@@ -734,57 +731,55 @@ body {
 }
 
 .testament-header h2 {
-    font-family: var(--font-title);
-    font-size: 2rem;
-    font-weight: 500;
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif;
+    font-size: 1.375rem;
+    font-weight: 700;
     color: var(--text-primary);
-    letter-spacing: 0.05em;
-    text-transform: uppercase;
+    letter-spacing: -0.02em;
     margin: 0;
 }
 
-/* Grouping Header (Torah, History, etc.) - Medium, sticky */
+/* Grouping Header (Torah, History, etc.) - Minimal, sticky */
 .grouping-header {
     position: sticky;
-    top: 140px; /* Below testament header */
+    top: 110px;
     z-index: 15;
     background: var(--bg-primary);
-    padding: var(--spacing-lg) 0 var(--spacing-md);
-    margin-top: var(--spacing-lg);
-    border-bottom: 1px solid var(--border-color);
+    padding: 8px 0 6px;
+    margin-top: 16px;
     display: flex;
-    align-items: baseline;
-    gap: var(--spacing-md);
+    align-items: center;
+    gap: 8px;
 }
 
 .grouping-header h3 {
-    font-family: var(--font-title);
-    font-size: 1.25rem;
-    font-weight: 500;
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif;
+    font-size: 0.9375rem;
+    font-weight: 600;
     color: var(--text-primary);
     margin: 0;
 }
 
 .grouping-description {
-    font-family: var(--font-body);
-    font-size: 0.875rem;
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif;
+    font-size: 0.8125rem;
     color: var(--text-muted);
-    font-style: italic;
+    font-weight: 400;
 }
 
-/* Book Header (Genesis, Exodus, etc.) - Small, non-sticky */
+/* Book Header (Genesis, Exodus, etc.) - Subtle, inline */
 .book-header {
-    padding: var(--spacing-md) 0 var(--spacing-sm);
-    margin-top: var(--spacing-md);
+    padding: 6px 0 4px;
+    margin-top: 8px;
 }
 
 .book-header h4 {
-    font-family: var(--font-body);
-    font-size: 0.875rem;
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif;
+    font-size: 0.6875rem;
     font-weight: 600;
-    color: var(--text-secondary);
+    color: var(--text-muted);
     text-transform: uppercase;
-    letter-spacing: 0.08em;
+    letter-spacing: 0.05em;
     margin: 0;
 }
 
@@ -792,25 +787,28 @@ body {
 @media (max-width: 768px) {
     .testament-header {
         top: 80px;
-        padding: var(--spacing-lg) 0 var(--spacing-md);
+        padding: 10px 0 6px;
     }
     
     .testament-header h2 {
-        font-size: 1.5rem;
+        font-size: 1.25rem;
     }
     
     .grouping-header {
-        top: 140px;
-        flex-direction: column;
-        gap: var(--spacing-xs);
+        top: 120px;
+        flex-wrap: wrap;
     }
     
     .grouping-header h3 {
-        font-size: 1.125rem;
+        font-size: 0.875rem;
+    }
+    
+    .grouping-description {
+        font-size: 0.75rem;
     }
     
     .book-header h4 {
-        font-size: 0.75rem;
+        font-size: 0.625rem;
     }
 }
 
@@ -1550,9 +1548,10 @@ body {
     display: flex;
     flex-direction: column;
     align-items: center;  /* Center the text wrapper */
-    background: #FFFFFF;
+    background: var(--bg-secondary);
     position: relative;
     box-sizing: border-box;
+    transition: background-color 0.3s ease;
 }
 
 /* Inner wrapper for readable text width */
@@ -1627,44 +1626,42 @@ body {
 
 .audio-btn {
     flex-shrink: 0;
-    width: 40px;
-    height: 40px;
-    background: var(--bg-card);
-    border: 1px solid var(--border-color);
+    width: 32px;
+    height: 32px;
+    background: rgba(128, 128, 128, 0.12);
+    border: none;
     border-radius: 50%;
-    font-size: 1rem;
+    font-size: 0.875rem;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: all 0.2s ease;
-    opacity: 0.7;
+    transition: all 0.15s ease;
 }
 
 .audio-btn:hover {
-    opacity: 1;
-    background: var(--text-primary);
-    color: var(--bg-primary);
-    border-color: var(--text-primary);
+    background: rgba(128, 128, 128, 0.2);
+}
+
+.audio-btn:active {
+    transform: scale(0.92);
 }
 
 .audio-btn.active {
     background: var(--color-gold);
-    border-color: var(--color-gold);
-    opacity: 1;
 }
 
-/* Audio Controls Panel */
+/* Audio Controls Panel - iOS Style */
 .audio-controls {
     display: none;
     align-items: center;
-    gap: var(--spacing-sm);
-    padding: var(--spacing-sm) var(--spacing-md);
-    background: var(--bg-card);
-    border: 1px solid var(--border-color);
-    border-radius: 24px;
-    margin-top: var(--spacing-sm);
-    animation: slideDown 0.2s ease;
+    gap: 8px;
+    padding: 6px 12px;
+    background: rgba(128, 128, 128, 0.1);
+    border: none;
+    border-radius: 20px;
+    margin-top: 8px;
+    animation: slideDown 0.15s ease;
 }
 
 .audio-controls.visible {
@@ -1674,7 +1671,7 @@ body {
 @keyframes slideDown {
     from {
         opacity: 0;
-        transform: translateY(-8px);
+        transform: translateY(-4px);
     }
     to {
         opacity: 1;
@@ -1683,24 +1680,26 @@ body {
 }
 
 .audio-control-btn {
-    width: 36px;
-    height: 36px;
+    width: 28px;
+    height: 28px;
     background: transparent;
-    border: 1px solid var(--border-color);
+    border: none;
     border-radius: 50%;
-    font-size: 0.875rem;
+    font-size: 0.75rem;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: all 0.2s ease;
+    transition: all 0.15s ease;
     color: var(--text-primary);
 }
 
 .audio-control-btn:hover {
-    background: var(--text-primary);
-    color: var(--bg-primary);
-    border-color: var(--text-primary);
+    background: rgba(128, 128, 128, 0.15);
+}
+
+.audio-control-btn:active {
+    transform: scale(0.9);
 }
 
 .audio-control-btn .play-icon,
@@ -1721,26 +1720,25 @@ body {
 }
 
 .speed-btn {
-    padding: 6px 12px;
+    padding: 4px 10px;
     background: transparent;
-    border: 1px solid var(--border-color);
-    border-radius: 16px;
-    font-family: 'Inter', -apple-system, sans-serif;
-    font-size: 0.75rem;
+    border: none;
+    border-radius: 12px;
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif;
+    font-size: 0.6875rem;
     font-weight: 600;
     color: var(--text-secondary);
     cursor: pointer;
-    transition: all 0.2s ease;
+    transition: all 0.15s ease;
 }
 
 .speed-btn:hover {
-    background: var(--border-color);
-    color: var(--text-primary);
+    background: rgba(128, 128, 128, 0.15);
 }
 
 .audio-status {
-    font-family: 'Inter', -apple-system, sans-serif;
-    font-size: 0.75rem;
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif;
+    font-size: 0.6875rem;
     color: var(--text-muted);
     margin-left: auto;
     white-space: nowrap;
