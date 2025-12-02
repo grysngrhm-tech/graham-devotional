@@ -73,7 +73,7 @@ function showSkeletonCards(count) {
 
 async function loadSpreadsMetadata() {
     try {
-        const response = await fetch('./data/all-spreads.json');
+        const response = await fetch('../data/all-spreads.json');
         if (!response.ok) throw new Error('Failed to load metadata');
         spreadsMetadata = await response.json();
     } catch (err) {
@@ -792,6 +792,19 @@ function collapseImageOptions() {
 
 let activeRegenerationRequest = null;
 let regenerationPollInterval = null;
+let countdownInterval = null;
+let countdownStartTime = null;
+
+// Estimated regeneration time in seconds (based on execution 815: 86s, rounded up)
+const ESTIMATED_REGEN_TIME = 90;
+
+// Stage definitions for countdown display
+const REGEN_STAGES = [
+    { maxSeconds: 15, text: 'Analyzing passage...' },
+    { maxSeconds: 30, text: 'Generating prompts...' },
+    { maxSeconds: 80, text: 'Creating images...' },
+    { maxSeconds: 90, text: 'Finalizing...' }
+];
 
 async function triggerRegeneration(slot) {
     if (!currentSpreadData) {
@@ -899,11 +912,72 @@ function showRegenerationModal(slot) {
     
     // Add modal to page
     document.body.appendChild(modalContent);
+    
+    // Start the countdown timer
+    startCountdown();
+}
+
+function startCountdown() {
+    countdownStartTime = Date.now();
+    const circumference = 2 * Math.PI * 45; // radius = 45
+    
+    // Update immediately, then every second
+    updateCountdown();
+    countdownInterval = setInterval(updateCountdown, 1000);
+    
+    function updateCountdown() {
+        const elapsed = (Date.now() - countdownStartTime) / 1000;
+        const remaining = Math.max(0, ESTIMATED_REGEN_TIME - elapsed);
+        const progress = Math.min(1, elapsed / ESTIMATED_REGEN_TIME);
+        
+        // Update progress ring
+        const ring = document.getElementById('progressRingFill');
+        if (ring) {
+            ring.style.strokeDashoffset = circumference * (1 - progress);
+        }
+        
+        // Update countdown text
+        const countdownText = document.getElementById('countdownText');
+        if (countdownText) {
+            if (remaining > 0) {
+                const mins = Math.floor(remaining / 60);
+                const secs = Math.ceil(remaining % 60);
+                countdownText.textContent = `~${mins}:${secs.toString().padStart(2, '0')}`;
+            } else {
+                countdownText.textContent = '...';
+            }
+        }
+        
+        // Update stage text
+        const stageText = document.getElementById('stageText');
+        if (stageText) {
+            if (elapsed > ESTIMATED_REGEN_TIME) {
+                stageText.textContent = 'Almost ready...';
+                stageText.classList.add('overtime');
+            } else {
+                const stage = REGEN_STAGES.find(s => elapsed < s.maxSeconds) || REGEN_STAGES[REGEN_STAGES.length - 1];
+                stageText.textContent = stage.text;
+                stageText.classList.remove('overtime');
+            }
+        }
+    }
 }
 
 function showRegenerationOptions(optionUrls, slot, requestId) {
+    // Stop the countdown
+    if (countdownInterval) {
+        clearInterval(countdownInterval);
+        countdownInterval = null;
+    }
+    
+    // Hide countdown container, show options grid
+    const countdownContainer = document.getElementById('countdownContainer');
     const optionsGrid = document.getElementById('newImageOptionsGrid');
+    
+    if (countdownContainer) countdownContainer.style.display = 'none';
     if (!optionsGrid) return;
+    
+    optionsGrid.style.display = 'grid';
     
     // Clear skeleton loaders and add actual images
     optionsGrid.innerHTML = optionUrls.map((url, index) => `
@@ -983,8 +1057,14 @@ async function confirmRegeneration(imageUrl, slot, requestId) {
 }
 
 function cancelRegeneration() {
+    // Clear all intervals
     if (regenerationPollInterval) {
         clearInterval(regenerationPollInterval);
+        regenerationPollInterval = null;
+    }
+    if (countdownInterval) {
+        clearInterval(countdownInterval);
+        countdownInterval = null;
     }
     
     // Update request status to cancelled if we have one
@@ -1002,6 +1082,12 @@ function cancelRegeneration() {
 }
 
 function hideRegenerationModal() {
+    // Clear countdown interval
+    if (countdownInterval) {
+        clearInterval(countdownInterval);
+        countdownInterval = null;
+    }
+    
     const modal = document.querySelector('.modal-overlay');
     if (modal) {
         modal.remove();

@@ -1785,6 +1785,74 @@ body {
     line-height: 1.6;
 }
 
+/* Progress Ring & Countdown Timer */
+.countdown-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--spacing-lg);
+    padding: var(--spacing-xl) 0;
+}
+
+.progress-ring-wrapper {
+    position: relative;
+    width: 120px;
+    height: 120px;
+}
+
+.progress-ring {
+    width: 100%;
+    height: 100%;
+    transform: rotate(-90deg);
+}
+
+.progress-ring-bg {
+    fill: none;
+    stroke: #F0F0F0;
+    stroke-width: 8;
+}
+
+.progress-ring-fill {
+    fill: none;
+    stroke: #1A1A1A;
+    stroke-width: 8;
+    stroke-linecap: round;
+    stroke-dasharray: 283; /* 2 * PI * 45 */
+    stroke-dashoffset: 283;
+    transition: stroke-dashoffset 1s ease;
+}
+
+.countdown-text {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-family: var(--font-title);
+    font-size: 1.5rem;
+    font-weight: 500;
+    color: #1A1A1A;
+    letter-spacing: -0.03em;
+}
+
+.stage-text {
+    font-family: var(--font-body);
+    font-size: 0.875rem;
+    color: #888;
+    text-align: center;
+    min-height: 1.2em;
+    transition: opacity 0.3s ease;
+}
+
+.stage-text.overtime {
+    color: #4CAF50;
+    animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
 /* New Image Options Grid */
 .new-image-options-grid {
     display: grid;
