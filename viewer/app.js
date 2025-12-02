@@ -608,26 +608,36 @@ function renderStory(story) {
     // Set verse range
     content.getElementById('verseRange').textContent = story.kjv_passage_ref || '';
     
-    // Set key verse
-    const keyVerseText = content.getElementById('keyVerseText');
-    const keyVerseRef = content.getElementById('keyVerseRef');
-    if (story.key_verse_text) {
-        keyVerseText.textContent = `"${story.key_verse_text}"`;
-        keyVerseRef.textContent = `— ${story.key_verse_ref || 'KJV'}`;
+    // Set key verse (use correct database field names)
+    const keyVerseTextEl = content.getElementById('keyVerseText');
+    const keyVerseRefEl = content.getElementById('keyVerseRef');
+    // Strip ** markdown from key verse text
+    const keyVerseText = (story.kjv_key_verse_text || '').replace(/\*\*/g, '');
+    if (keyVerseText) {
+        keyVerseTextEl.textContent = keyVerseText;
+        keyVerseRefEl.textContent = story.kjv_key_verse_ref ? `— ${story.kjv_key_verse_ref}` : '';
     } else {
-        keyVerseText.parentElement.style.display = 'none';
+        keyVerseTextEl.parentElement.style.display = 'none';
     }
     
-    // Set summary text
+    // Set summary text (use correct database field name: paraphrase_text)
     const summaryEl = content.getElementById('summaryText');
-    if (story.story_summary) {
-        // Format summary with paragraph breaks and KJV quotes
-        summaryEl.innerHTML = formatSummaryText(story.story_summary);
+    if (story.paraphrase_text) {
+        // Split into paragraphs if there are double line breaks
+        const paragraphs = story.paraphrase_text.split(/\n\n+/).filter(p => p.trim());
+        // Convert **bold** markdown to KJV quote styling
+        const formattedParagraphs = paragraphs.map(p => {
+            const formatted = p.trim().replace(/\*\*(.+?)\*\*/g, '<span class="kjv-quote">$1</span>');
+            return `<p>${formatted}</p>`;
+        });
+        summaryEl.innerHTML = formattedParagraphs.join('');
+    } else {
+        summaryEl.innerHTML = '<p class="placeholder"><em>Summary not yet generated</em></p>';
     }
     
     // Set footer info
     content.getElementById('storyCode').textContent = story.spread_code || '';
-    content.getElementById('batchInfo').textContent = story.batch_id ? `Batch ${story.batch_id}` : '';
+    content.getElementById('batchInfo').textContent = story.spread_code || '';
     
     // Clear and render
     container.innerHTML = '';
@@ -640,47 +650,37 @@ function renderStory(story) {
     document.title = `${story.title || 'Story'} | The GRACE Bible`;
 }
 
-function formatSummaryText(text) {
-    if (!text) return '';
-    
-    // Split into paragraphs
-    const paragraphs = text.split(/\n\n+/);
-    
-    return paragraphs.map(p => {
-        // Wrap KJV quotes in styled spans
-        let formatted = p.replace(/"([^"]+)"/g, '<span class="kjv-quote">"$1"</span>');
-        return `<p>${formatted}</p>`;
-    }).join('');
-}
-
 function renderImages(story) {
     const container = document.getElementById('imageContainer');
     if (!container) return;
     
-    // Collect available images
-    const images = [
+    // Collect available candidate images
+    const candidateImages = [
         story.image_url_1,
         story.image_url_2,
         story.image_url_3,
         story.image_url_4
-    ].filter(Boolean);
-    
-    const primaryIndex = story.selected_image || 1;
-    const primaryImage = story[`image_url_${primaryIndex}`] || story.image_url || images[0];
+    ];
+    const hasCandidates = candidateImages.some(url => url && url.trim());
+    const hasPrimary = story.image_url && story.image_url.trim();
     
     // Check if we should show grid or single image
-    if (images.length === 0) {
-        container.innerHTML = '<div class="placeholder">No images available</div>';
+    if (!hasPrimary && !hasCandidates) {
+        container.innerHTML = `
+            <div class="placeholder" style="display: flex; align-items: center; justify-content: center; height: 100%; color: var(--color-charcoal-light);">
+                <em>No images generated</em>
+            </div>
+        `;
         return;
     }
     
     // Default to single image view if there's a primary selected
-    if (primaryImage && !showingGrid) {
-        renderSingleImage(container, primaryImage, story.title, images.length > 1);
-    } else if (images.length > 1) {
-        renderImageGrid(container, images, primaryIndex);
+    if (hasPrimary && !showingGrid) {
+        renderSingleImage(container, story.image_url, story.title, hasCandidates);
+    } else if (hasCandidates) {
+        renderImageGrid(container, candidateImages, story.image_url);
     } else {
-        renderSingleImage(container, images[0], story.title, false);
+        renderSingleImage(container, story.image_url, story.title, false);
     }
 }
 
@@ -712,7 +712,7 @@ function renderSingleImage(container, imageUrl, title, canExpand) {
     }
 }
 
-function renderImageGrid(container, images, primaryIndex) {
+function renderImageGrid(container, candidateImages, primaryImageUrl) {
     const template = document.getElementById('gridImageTemplate');
     if (!template) return;
     
@@ -720,25 +720,49 @@ function renderImageGrid(container, images, primaryIndex) {
     container.innerHTML = '';
     container.appendChild(content);
     
+    // Update header text if we have a primary already
+    const selectionTitle = container.querySelector('.selection-title');
+    const collapseBtn = document.getElementById('collapseBtn');
+    
+    if (primaryImageUrl && selectionTitle) {
+        selectionTitle.textContent = 'Change Primary Image';
+        if (collapseBtn) {
+            collapseBtn.style.display = 'flex';
+            collapseBtn.addEventListener('click', () => {
+                showingGrid = false;
+                renderImages(currentStory);
+            });
+        }
+    }
+    
     // Populate images
     const gridImages = container.querySelectorAll('.grid-image');
     gridImages.forEach((gridImage, index) => {
         const img = gridImage.querySelector('img');
-        const imageUrl = images[index];
+        const imageUrl = candidateImages[index];
         
-        if (imageUrl) {
+        if (imageUrl && imageUrl.trim()) {
             img.src = imageUrl;
-            img.alt = `Option ${index + 1}`;
+            img.alt = `${currentStory?.title || 'Story'} - Option ${index + 1}`;
             
-            // Mark primary
-            if (index + 1 === primaryIndex) {
+            // Mark current primary
+            const isCurrentPrimary = primaryImageUrl && imageUrl === primaryImageUrl;
+            if (isCurrentPrimary) {
                 gridImage.classList.add('is-primary');
             }
             
-            // Click to select
+            // Update overlay text for current primary
+            const selectLabel = gridImage.querySelector('.select-label');
+            if (selectLabel && isCurrentPrimary) {
+                selectLabel.textContent = 'Keep as Primary';
+            }
+            
+            // Click to select as primary (on the whole card, but not the regen button)
             gridImage.addEventListener('click', (e) => {
                 if (!e.target.closest('.regen-btn')) {
-                    selectPrimaryImage(index + 1);
+                    e.preventDefault();
+                    e.stopPropagation();
+                    selectPrimaryImage(imageUrl);
                 }
             });
         } else {
@@ -746,36 +770,34 @@ function renderImageGrid(container, images, primaryIndex) {
         }
     });
     
-    // Setup collapse button
-    const collapseBtn = document.getElementById('collapseBtn');
-    if (collapseBtn) {
-        collapseBtn.style.display = 'flex';
-        collapseBtn.addEventListener('click', () => {
-            showingGrid = false;
-            renderImages(currentStory);
-        });
-    }
-    
     // Setup regeneration buttons
     setupRegenerationButtons();
 }
 
-async function selectPrimaryImage(imageIndex) {
+async function selectPrimaryImage(imageUrl) {
     if (!currentStory) return;
+    
+    // Skip if this image is already the primary
+    if (currentStory.image_url === imageUrl) {
+        showToast('This image is already selected');
+        showingGrid = false;
+        renderImages(currentStory);
+        return;
+    }
     
     try {
         const { error } = await supabase
             .from('grahams_devotional_spreads')
-            .update({ selected_image: imageIndex })
+            .update({ image_url: imageUrl })
             .eq('spread_code', currentStory.spread_code);
         
         if (error) throw error;
         
         // Update local state
-        currentStory.selected_image = imageIndex;
+        currentStory.image_url = imageUrl;
         
         // Show toast
-        showToast('Image saved as primary');
+        showToast('✓ Primary image updated');
         
         // Switch to single view
         showingGrid = false;
@@ -783,7 +805,7 @@ async function selectPrimaryImage(imageIndex) {
         
     } catch (err) {
         console.error('Error saving primary image:', err);
-        showToast('Error saving selection');
+        showToast('Error saving selection', true);
     }
 }
 
@@ -799,6 +821,11 @@ function setupRegenerationButtons() {
 }
 
 async function triggerRegeneration(slot) {
+    if (!currentStory) {
+        showToast('No story loaded', true);
+        return;
+    }
+    
     // Show regeneration modal
     const template = document.getElementById('regenerationModalTemplate');
     if (!template) return;
@@ -815,9 +842,14 @@ async function triggerRegeneration(slot) {
         cancelBtn.addEventListener('click', closeRegenerationModal);
     }
     
-    // Trigger regeneration via webhook
+    // Trigger regeneration via n8n webhook
     try {
-        const response = await fetch(window.SUPABASE_CONFIG.regenerateWebhookUrl, {
+        const webhookUrl = window.N8N_CONFIG?.webhookUrl;
+        if (!webhookUrl) {
+            throw new Error('n8n webhook URL not configured');
+        }
+        
+        const response = await fetch(webhookUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -834,7 +866,7 @@ async function triggerRegeneration(slot) {
     } catch (err) {
         console.error('Error triggering regeneration:', err);
         closeRegenerationModal();
-        showToast('Error starting regeneration');
+        showToast('Error starting regeneration', true);
     }
 }
 
@@ -898,18 +930,24 @@ function showError() {
     }
 }
 
-function showToast(message) {
+function showToast(message, isError = false) {
     const toast = document.getElementById('toast');
-    const messageEl = document.getElementById('toastMessage');
+    const toastMessage = document.getElementById('toastMessage');
+    const toastIcon = toast?.querySelector('.toast-icon');
     
-    if (toast && messageEl) {
-        messageEl.textContent = message;
-        toast.classList.add('show');
-        
-        setTimeout(() => {
-            toast.classList.remove('show');
-        }, 3000);
+    if (!toast) return;
+    
+    if (toastMessage) toastMessage.textContent = message;
+    if (toastIcon) {
+        toastIcon.textContent = isError ? '✕' : '✓';
+        toastIcon.style.background = isError ? '#F44336' : '#4CAF50';
     }
+    
+    toast.classList.add('show');
+    
+    setTimeout(() => {
+        toast.classList.remove('show');
+    }, 3000);
 }
 
 function setupStoryNavigation() {
