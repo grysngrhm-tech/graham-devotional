@@ -525,11 +525,465 @@ function updateStats() {
 }
 
 // ============================================================================
-// Story Page (stub for spread.html)
+// Story Page
 // ============================================================================
 
+let currentStory = null;
+let storyList = [];
+let showingGrid = false;
+
 async function initStoryPage() {
-    // Story page initialization handled in spread.html
+    const urlParams = new URLSearchParams(window.location.search);
+    const storyId = urlParams.get('id');
+    
+    if (!storyId) {
+        showError();
+        return;
+    }
+    
+    // Load all stories for navigation
+    await loadStoryList();
+    
+    // Load the specific story
+    await loadStory(storyId);
+    
+    // Setup navigation
+    setupStoryNavigation();
+    setupKeyboardNavigation();
+    setupScrollIndicator();
+}
+
+async function loadStoryList() {
+    try {
+        const { data, error } = await supabase
+            .from('grahams_devotional_spreads')
+            .select('spread_code, title, book, start_chapter, start_verse');
+        
+        if (error) throw error;
+        
+        storyList = sortStoriesChronologically(data || []);
+    } catch (err) {
+        console.error('Error loading story list:', err);
+        storyList = [];
+    }
+}
+
+async function loadStory(storyId) {
+    try {
+        const { data, error } = await supabase
+            .from('grahams_devotional_spreads')
+            .select('*')
+            .eq('spread_code', storyId)
+            .single();
+        
+        if (error || !data) {
+            showError();
+            return;
+        }
+        
+        currentStory = data;
+        currentStoryIndex = storyList.findIndex(s => s.spread_code === storyId);
+        
+        renderStory(data);
+        updateNavPosition();
+        
+    } catch (err) {
+        console.error('Error loading story:', err);
+        showError();
+    }
+}
+
+function renderStory(story) {
+    const container = document.getElementById('bookStory');
+    const template = document.getElementById('storyTemplate');
+    
+    if (!container || !template) return;
+    
+    // Clone and populate template
+    const content = template.content.cloneNode(true);
+    
+    // Set title
+    content.getElementById('storyTitle').textContent = story.title || 'Untitled Story';
+    
+    // Set verse range
+    content.getElementById('verseRange').textContent = story.kjv_passage_ref || '';
+    
+    // Set key verse
+    const keyVerseText = content.getElementById('keyVerseText');
+    const keyVerseRef = content.getElementById('keyVerseRef');
+    if (story.key_verse_text) {
+        keyVerseText.textContent = `"${story.key_verse_text}"`;
+        keyVerseRef.textContent = `— ${story.key_verse_ref || 'KJV'}`;
+    } else {
+        keyVerseText.parentElement.style.display = 'none';
+    }
+    
+    // Set summary text
+    const summaryEl = content.getElementById('summaryText');
+    if (story.story_summary) {
+        // Format summary with paragraph breaks and KJV quotes
+        summaryEl.innerHTML = formatSummaryText(story.story_summary);
+    }
+    
+    // Set footer info
+    content.getElementById('storyCode').textContent = story.spread_code || '';
+    content.getElementById('batchInfo').textContent = story.batch_id ? `Batch ${story.batch_id}` : '';
+    
+    // Clear and render
+    container.innerHTML = '';
+    container.appendChild(content);
+    
+    // Render images
+    renderImages(story);
+    
+    // Update page title
+    document.title = `${story.title || 'Story'} | The GRACE Bible`;
+}
+
+function formatSummaryText(text) {
+    if (!text) return '';
+    
+    // Split into paragraphs
+    const paragraphs = text.split(/\n\n+/);
+    
+    return paragraphs.map(p => {
+        // Wrap KJV quotes in styled spans
+        let formatted = p.replace(/"([^"]+)"/g, '<span class="kjv-quote">"$1"</span>');
+        return `<p>${formatted}</p>`;
+    }).join('');
+}
+
+function renderImages(story) {
+    const container = document.getElementById('imageContainer');
+    if (!container) return;
+    
+    // Collect available images
+    const images = [
+        story.image_url_1,
+        story.image_url_2,
+        story.image_url_3,
+        story.image_url_4
+    ].filter(Boolean);
+    
+    const primaryIndex = story.selected_image || 1;
+    const primaryImage = story[`image_url_${primaryIndex}`] || story.image_url || images[0];
+    
+    // Check if we should show grid or single image
+    if (images.length === 0) {
+        container.innerHTML = '<div class="placeholder">No images available</div>';
+        return;
+    }
+    
+    // Default to single image view if there's a primary selected
+    if (primaryImage && !showingGrid) {
+        renderSingleImage(container, primaryImage, story.title, images.length > 1);
+    } else if (images.length > 1) {
+        renderImageGrid(container, images, primaryIndex);
+    } else {
+        renderSingleImage(container, images[0], story.title, false);
+    }
+}
+
+function renderSingleImage(container, imageUrl, title, canExpand) {
+    const template = document.getElementById('singleImageTemplate');
+    if (!template) {
+        container.innerHTML = `<div class="single-image"><img src="${imageUrl}" alt="${title}"></div>`;
+        return;
+    }
+    
+    const content = template.content.cloneNode(true);
+    const img = content.getElementById('selectedImage');
+    img.src = imageUrl;
+    img.alt = title || 'Story illustration';
+    
+    container.innerHTML = '';
+    container.appendChild(content);
+    
+    // Setup expand button
+    const expandBtn = document.getElementById('expandOptionsBtn');
+    if (expandBtn && canExpand) {
+        expandBtn.style.display = 'flex';
+        expandBtn.addEventListener('click', () => {
+            showingGrid = true;
+            renderImages(currentStory);
+        });
+    } else if (expandBtn) {
+        expandBtn.style.display = 'none';
+    }
+}
+
+function renderImageGrid(container, images, primaryIndex) {
+    const template = document.getElementById('gridImageTemplate');
+    if (!template) return;
+    
+    const content = template.content.cloneNode(true);
+    container.innerHTML = '';
+    container.appendChild(content);
+    
+    // Populate images
+    const gridImages = container.querySelectorAll('.grid-image');
+    gridImages.forEach((gridImage, index) => {
+        const img = gridImage.querySelector('img');
+        const imageUrl = images[index];
+        
+        if (imageUrl) {
+            img.src = imageUrl;
+            img.alt = `Option ${index + 1}`;
+            
+            // Mark primary
+            if (index + 1 === primaryIndex) {
+                gridImage.classList.add('is-primary');
+            }
+            
+            // Click to select
+            gridImage.addEventListener('click', (e) => {
+                if (!e.target.closest('.regen-btn')) {
+                    selectPrimaryImage(index + 1);
+                }
+            });
+        } else {
+            gridImage.style.display = 'none';
+        }
+    });
+    
+    // Setup collapse button
+    const collapseBtn = document.getElementById('collapseBtn');
+    if (collapseBtn) {
+        collapseBtn.style.display = 'flex';
+        collapseBtn.addEventListener('click', () => {
+            showingGrid = false;
+            renderImages(currentStory);
+        });
+    }
+    
+    // Setup regeneration buttons
+    setupRegenerationButtons();
+}
+
+async function selectPrimaryImage(imageIndex) {
+    if (!currentStory) return;
+    
+    try {
+        const { error } = await supabase
+            .from('grahams_devotional_spreads')
+            .update({ selected_image: imageIndex })
+            .eq('spread_code', currentStory.spread_code);
+        
+        if (error) throw error;
+        
+        // Update local state
+        currentStory.selected_image = imageIndex;
+        
+        // Show toast
+        showToast('Image saved as primary');
+        
+        // Switch to single view
+        showingGrid = false;
+        renderImages(currentStory);
+        
+    } catch (err) {
+        console.error('Error saving primary image:', err);
+        showToast('Error saving selection');
+    }
+}
+
+function setupRegenerationButtons() {
+    const regenBtns = document.querySelectorAll('.regen-btn');
+    regenBtns.forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const slot = parseInt(btn.dataset.slot);
+            triggerRegeneration(slot);
+        });
+    });
+}
+
+async function triggerRegeneration(slot) {
+    // Show regeneration modal
+    const template = document.getElementById('regenerationModalTemplate');
+    if (!template) return;
+    
+    const modal = template.content.cloneNode(true);
+    document.body.appendChild(modal);
+    
+    const slotEl = document.getElementById('regenSlotNumber');
+    if (slotEl) slotEl.textContent = slot;
+    
+    // Setup cancel button
+    const cancelBtn = document.getElementById('cancelRegenBtn');
+    if (cancelBtn) {
+        cancelBtn.addEventListener('click', closeRegenerationModal);
+    }
+    
+    // Trigger regeneration via webhook
+    try {
+        const response = await fetch(window.SUPABASE_CONFIG.regenerateWebhookUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                spread_code: currentStory.spread_code,
+                slot: slot
+            })
+        });
+        
+        if (!response.ok) throw new Error('Regeneration request failed');
+        
+        // Start polling for completion
+        pollForRegeneration(slot);
+        
+    } catch (err) {
+        console.error('Error triggering regeneration:', err);
+        closeRegenerationModal();
+        showToast('Error starting regeneration');
+    }
+}
+
+function pollForRegeneration(slot) {
+    // Poll every 5 seconds for up to 3 minutes
+    let attempts = 0;
+    const maxAttempts = 36;
+    
+    const poll = async () => {
+        attempts++;
+        
+        try {
+            const { data, error } = await supabase
+                .from('grahams_devotional_spreads')
+                .select(`image_url_${slot}`)
+                .eq('spread_code', currentStory.spread_code)
+                .single();
+            
+            if (error) throw error;
+            
+            const newUrl = data[`image_url_${slot}`];
+            const oldUrl = currentStory[`image_url_${slot}`];
+            
+            if (newUrl && newUrl !== oldUrl) {
+                // Image regenerated!
+                currentStory[`image_url_${slot}`] = newUrl;
+                closeRegenerationModal();
+                renderImages(currentStory);
+                showToast('New image generated');
+                return;
+            }
+            
+            if (attempts < maxAttempts) {
+                setTimeout(poll, 5000);
+            } else {
+                closeRegenerationModal();
+                showToast('Regeneration timed out');
+            }
+            
+        } catch (err) {
+            console.error('Error polling for regeneration:', err);
+            closeRegenerationModal();
+        }
+    };
+    
+    setTimeout(poll, 5000);
+}
+
+function closeRegenerationModal() {
+    const modal = document.querySelector('.modal-overlay');
+    if (modal) modal.remove();
+}
+
+function showError() {
+    const container = document.getElementById('bookStory');
+    const template = document.getElementById('errorTemplate');
+    
+    if (container && template) {
+        container.innerHTML = '';
+        container.appendChild(template.content.cloneNode(true));
+    }
+}
+
+function showToast(message) {
+    const toast = document.getElementById('toast');
+    const messageEl = document.getElementById('toastMessage');
+    
+    if (toast && messageEl) {
+        messageEl.textContent = message;
+        toast.classList.add('show');
+        
+        setTimeout(() => {
+            toast.classList.remove('show');
+        }, 3000);
+    }
+}
+
+function setupStoryNavigation() {
+    const prevBtn = document.getElementById('prevBtn');
+    const nextBtn = document.getElementById('nextBtn');
+    
+    if (prevBtn) {
+        prevBtn.addEventListener('click', () => navigateStory(-1));
+    }
+    
+    if (nextBtn) {
+        nextBtn.addEventListener('click', () => navigateStory(1));
+    }
+}
+
+function setupKeyboardNavigation() {
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'ArrowLeft') {
+            navigateStory(-1);
+        } else if (e.key === 'ArrowRight') {
+            navigateStory(1);
+        } else if (e.key === 'Escape') {
+            window.location.href = 'index.html';
+        }
+    });
+}
+
+function navigateStory(direction) {
+    const newIndex = currentStoryIndex + direction;
+    
+    if (newIndex >= 0 && newIndex < storyList.length) {
+        const newStory = storyList[newIndex];
+        window.location.href = `spread.html?id=${newStory.spread_code}`;
+    }
+}
+
+function updateNavPosition() {
+    const posEl = document.getElementById('navPosition');
+    const prevBtn = document.getElementById('prevBtn');
+    const nextBtn = document.getElementById('nextBtn');
+    
+    if (posEl && storyList.length > 0) {
+        posEl.textContent = `${currentStoryIndex + 1} / ${storyList.length}`;
+    }
+    
+    if (prevBtn) {
+        prevBtn.disabled = currentStoryIndex <= 0;
+    }
+    
+    if (nextBtn) {
+        nextBtn.disabled = currentStoryIndex >= storyList.length - 1;
+    }
+}
+
+function setupScrollIndicator() {
+    const rightPage = document.getElementById('rightPage');
+    const indicator = document.getElementById('scrollIndicator');
+    
+    if (!rightPage || !indicator) return;
+    
+    // Show indicator if content is scrollable
+    const checkScroll = () => {
+        const isScrollable = rightPage.scrollHeight > rightPage.clientHeight;
+        const isAtBottom = rightPage.scrollTop + rightPage.clientHeight >= rightPage.scrollHeight - 20;
+        
+        indicator.classList.toggle('visible', isScrollable && !isAtBottom);
+        rightPage.classList.toggle('scrolled', rightPage.scrollTop > 10);
+    };
+    
+    rightPage.addEventListener('scroll', checkScroll);
+    window.addEventListener('resize', checkScroll);
+    
+    // Initial check
+    setTimeout(checkScroll, 100);
 }
 
 // ============================================================================
