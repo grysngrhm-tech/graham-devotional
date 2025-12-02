@@ -25,6 +25,31 @@ let currentFilters = {
     search: ''
 };
 
+// Biblical book order (canonical Protestant order)
+const BIBLE_BOOK_ORDER = [
+    // Old Testament
+    'Genesis', 'Exodus', 'Leviticus', 'Numbers', 'Deuteronomy',
+    'Joshua', 'Judges', 'Ruth', '1 Samuel', '2 Samuel', '1 Kings', '2 Kings',
+    '1 Chronicles', '2 Chronicles', 'Ezra', 'Nehemiah', 'Esther',
+    'Job', 'Psalms', 'Proverbs', 'Ecclesiastes', 'Song of Solomon',
+    'Isaiah', 'Jeremiah', 'Lamentations', 'Ezekiel', 'Daniel',
+    'Hosea', 'Joel', 'Amos', 'Obadiah', 'Jonah', 'Micah', 'Nahum',
+    'Habakkuk', 'Zephaniah', 'Haggai', 'Zechariah', 'Malachi',
+    // New Testament
+    'Matthew', 'Mark', 'Luke', 'John', 'Acts',
+    'Romans', '1 Corinthians', '2 Corinthians', 'Galatians', 'Ephesians',
+    'Philippians', 'Colossians', '1 Thessalonians', '2 Thessalonians',
+    '1 Timothy', '2 Timothy', 'Titus', 'Philemon', 'Hebrews',
+    'James', '1 Peter', '2 Peter', '1 John', '2 John', '3 John', 'Jude',
+    'Revelation'
+];
+
+// Create a lookup map for fast ordering
+const BOOK_ORDER_MAP = BIBLE_BOOK_ORDER.reduce((map, book, index) => {
+    map[book] = index;
+    return map;
+}, {});
+
 // Book Groupings for filter options
 const BOOK_GROUPINGS = {
     'Torah': ['Genesis', 'Exodus', 'Leviticus', 'Numbers', 'Deuteronomy'],
@@ -36,6 +61,33 @@ const BOOK_GROUPINGS = {
     'Epistles': ['Romans', '1 Corinthians', '2 Corinthians', 'Galatians', 'Ephesians', 'Philippians', 'Colossians', '1 Thessalonians', '2 Thessalonians', '1 Timothy', '2 Timothy', 'Titus', 'Philemon', 'Hebrews', 'James', '1 Peter', '2 Peter', '1 John', '2 John', '3 John', 'Jude'],
     'Revelation': ['Revelation']
 };
+
+// Sort spreads in Biblical order (book → chapter → verse)
+function sortSpreadsChronologically(spreads) {
+    return spreads.sort((a, b) => {
+        // Get book order (unknown books go to end)
+        const bookOrderA = BOOK_ORDER_MAP[a.book] ?? 999;
+        const bookOrderB = BOOK_ORDER_MAP[b.book] ?? 999;
+        
+        if (bookOrderA !== bookOrderB) {
+            return bookOrderA - bookOrderB;
+        }
+        
+        // Same book - sort by chapter
+        const chapterA = a.start_chapter || 0;
+        const chapterB = b.start_chapter || 0;
+        
+        if (chapterA !== chapterB) {
+            return chapterA - chapterB;
+        }
+        
+        // Same chapter - sort by verse
+        const verseA = a.start_verse || 0;
+        const verseB = b.start_verse || 0;
+        
+        return verseA - verseB;
+    });
+}
 
 // ============================================================================
 // Initialization
@@ -58,7 +110,7 @@ document.addEventListener('DOMContentLoaded', () => {
 async function initIndexPage() {
     showSkeletonCards(12);
     
-    // Load spreads (now includes testament/book from Supabase)
+    // Load spreads (testament/book now come from Supabase directly)
     await loadAllSpreads();
     
     populateBookDropdown();
@@ -84,12 +136,12 @@ async function loadAllSpreads() {
     try {
         const { data, error } = await supabase
             .from('grahams_devotional_spreads')
-            .select('spread_code, title, kjv_passage_ref, status_text, status_image, image_url, image_url_1, testament, book')
-            .order('spread_code', { ascending: true });
+            .select('spread_code, title, kjv_passage_ref, status_text, status_image, image_url, image_url_1, testament, book, start_chapter, start_verse');
         
         if (error) throw error;
         
-        allSpreads = data || [];
+        // Sort in Biblical order (book → chapter → verse)
+        allSpreads = sortSpreadsChronologically(data || []);
         filteredSpreads = [...allSpreads];
         
     } catch (err) {
@@ -111,28 +163,28 @@ function populateBookDropdown() {
     
     // Count spreads per book from actual data
     const bookCounts = {};
-    const otBooks = [];
-    const ntBooks = [];
+    const booksWithData = new Set();
     
     allSpreads.forEach(spread => {
         const book = spread.book;
-        const testament = spread.testament;
-        
         if (!book) return; // Skip if no book set
         
+        booksWithData.add(book);
         if (!bookCounts[book]) {
-            bookCounts[book] = { count: 0, testament };
-            if (testament === 'OT') otBooks.push(book);
-            else if (testament === 'NT') ntBooks.push(book);
+            bookCounts[book] = 0;
         }
-        bookCounts[book].count++;
+        bookCounts[book]++;
     });
+    
+    // Get OT and NT books that have data, in Biblical order
+    const otBooks = BIBLE_BOOK_ORDER.slice(0, 39).filter(book => booksWithData.has(book));
+    const ntBooks = BIBLE_BOOK_ORDER.slice(39).filter(book => booksWithData.has(book));
     
     // Calculate grouping counts
     const groupingCounts = {};
     Object.entries(BOOK_GROUPINGS).forEach(([groupName, books]) => {
         groupingCounts[groupName] = books.reduce((sum, book) => {
-            return sum + (bookCounts[book]?.count || 0);
+            return sum + (bookCounts[book] || 0);
         }, 0);
     });
     
@@ -149,11 +201,11 @@ function populateBookDropdown() {
     });
     html += '</optgroup>';
     
-    // Add individual books by testament
+    // Add individual books by testament (in Biblical order)
     if (otBooks.length > 0) {
         html += '<optgroup label="Old Testament">';
         otBooks.forEach(book => {
-            html += `<option value="${book}">${book} (${bookCounts[book].count})</option>`;
+            html += `<option value="${book}">${book} (${bookCounts[book]})</option>`;
         });
         html += '</optgroup>';
     }
@@ -161,7 +213,7 @@ function populateBookDropdown() {
     if (ntBooks.length > 0) {
         html += '<optgroup label="New Testament">';
         ntBooks.forEach(book => {
-            html += `<option value="${book}">${book} (${bookCounts[book].count})</option>`;
+            html += `<option value="${book}">${book} (${bookCounts[book]})</option>`;
         });
         html += '</optgroup>';
     }
@@ -187,7 +239,7 @@ function setupFilters() {
         });
     });
     
-    // Book dropdown
+    // Book dropdown (handles both individual books and groupings)
     const bookFilter = document.getElementById('bookFilter');
     if (bookFilter) {
         bookFilter.addEventListener('change', () => {
@@ -453,11 +505,12 @@ async function loadSpreadCodes() {
     try {
         const { data, error } = await supabase
             .from('grahams_devotional_spreads')
-            .select('spread_code')
-            .order('spread_code', { ascending: true });
+            .select('spread_code, book, start_chapter, start_verse');
         
         if (error) throw error;
-        allSpreads = data || [];
+        
+        // Sort in Biblical order for proper navigation
+        allSpreads = sortSpreadsChronologically(data || []);
     } catch (err) {
         console.error('Error loading spread codes:', err);
     }
@@ -582,14 +635,15 @@ function renderSpread(spread) {
                     selectLabel.style.display = 'block';
                 }
                 
-                // Click to select as primary (on the grid-image div, excluding regen button)
-                div.addEventListener('click', (e) => {
-                    // Don't trigger if clicking on the regenerate button
-                    if (e.target.closest('.regen-btn')) return;
-                    
-                    e.preventDefault();
-                    selectPrimaryImage(imageUrl, spread.spread_code);
-                });
+                // Click to select as primary (on image, not regenerate button)
+                const imgEl = div.querySelector('img');
+                if (imgEl) {
+                    imgEl.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        selectPrimaryImage(imageUrl, spread.spread_code);
+                    });
+                }
                 
                 // Regenerate button
                 const regenBtn = div.querySelector('.regen-btn');
