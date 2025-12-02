@@ -73,7 +73,7 @@ function showSkeletonCards(count) {
 
 async function loadSpreadsMetadata() {
     try {
-        const response = await fetch('../data/all-spreads.json');
+        const response = await fetch('./data/all-spreads.json');
         if (!response.ok) throw new Error('Failed to load metadata');
         spreadsMetadata = await response.json();
     } catch (err) {

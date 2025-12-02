@@ -1,4 +1,4 @@
-# Deploy viewer folder to GitHub Pages
+# Deploy to GitHub Pages
 name: Deploy to GitHub Pages
 
 on:
@@ -26,10 +26,15 @@ jobs:
         uses: actions/checkout@v4
       - name: Setup Pages
         uses: actions/configure-pages@v4
+      - name: Prepare deploy folder
+        run: |
+          mkdir -p deploy
+          cp -r viewer/* deploy/
+          cp -r data deploy/
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: 'viewer'
+          path: 'deploy'
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
