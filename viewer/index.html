@@ -11,6 +11,14 @@
     <link href="https://fonts.googleapis.com/css2?family=IM+Fell+English:ital@0;1&family=Inter:wght@300;400;500;600&family=Playfair+Display:wght@400;500;600&display=swap" rel="stylesheet">
     
     <link rel="stylesheet" href="styles.css">
+    
+    <!-- PWA -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#000000">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="GRACE Bible">
+    <link rel="apple-touch-icon" href="icons/icon.svg">
 </head>
 <body>
     <div class="page-container index-page">
@@ -39,6 +47,10 @@
                 <span class="stat-pill pending">
                     <span id="pendingCount">—</span> pending
                 </span>
+                <button class="theme-toggle" id="themeToggle" title="Toggle dark mode">
+                    <span class="icon-sun">☀️</span>
+                    <span class="icon-moon">🌙</span>
+                </button>
             </div>
         </header>
 
@@ -92,6 +104,10 @@
                         <input type="search" id="searchInput" placeholder="Search titles or verses...">
                         <kbd class="search-shortcut">⌘K</kbd>
                     </div>
+                    
+                    <button class="surprise-btn" id="surpriseBtn" title="Go to a random story">
+                        🎲 Surprise Me
+                    </button>
                 </div>
             </section>
             

@@ -26,6 +26,51 @@ let currentFilters = {
     search: ''
 };
 
+// ============================================================================
+// Theme Management
+// ============================================================================
+
+function initTheme() {
+    // Check for saved preference, then system preference
+    const savedTheme = localStorage.getItem('grace-theme');
+    const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    
+    const theme = savedTheme || (systemPrefersDark ? 'dark' : 'light');
+    setTheme(theme);
+    
+    // Listen for system theme changes
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+        if (!localStorage.getItem('grace-theme')) {
+            setTheme(e.matches ? 'dark' : 'light');
+        }
+    });
+    
+    // Setup toggle button
+    const themeToggle = document.getElementById('themeToggle');
+    if (themeToggle) {
+        themeToggle.addEventListener('click', toggleTheme);
+    }
+}
+
+function setTheme(theme) {
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('grace-theme', theme);
+}
+
+function toggleTheme() {
+    const currentTheme = document.documentElement.getAttribute('data-theme') || 'light';
+    const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+    setTheme(newTheme);
+}
+
+// Initialize theme immediately to prevent flash
+(function() {
+    const savedTheme = localStorage.getItem('grace-theme');
+    const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    const theme = savedTheme || (systemPrefersDark ? 'dark' : 'light');
+    document.documentElement.setAttribute('data-theme', theme);
+})();
+
 // Biblical book order (canonical Protestant order)
 const BIBLE_BOOK_ORDER = [
     // Old Testament
@@ -63,6 +108,26 @@ const BOOK_GROUPINGS = {
     'Revelation': ['Revelation']
 };
 
+// Create reverse lookup for book -> grouping
+const BOOK_TO_GROUPING = {};
+Object.entries(BOOK_GROUPINGS).forEach(([grouping, books]) => {
+    books.forEach(book => {
+        BOOK_TO_GROUPING[book] = grouping;
+    });
+});
+
+// Group descriptions for display
+const GROUPING_DESCRIPTIONS = {
+    'Torah': 'The Five Books of Moses',
+    'History': 'Historical Narratives',
+    'Poetry': 'Wisdom & Poetry',
+    'Prophets': 'The Prophetic Books',
+    'Gospels': 'The Life of Jesus',
+    'Acts': 'The Early Church',
+    'Epistles': 'Letters to the Churches',
+    'Revelation': 'Apocalyptic Vision'
+};
+
 // Sort stories in Biblical order (book → chapter → verse)
 function sortStoriesChronologically(stories) {
     return stories.sort((a, b) => {
@@ -95,6 +160,12 @@ function sortStoriesChronologically(stories) {
 // ============================================================================
 
 document.addEventListener('DOMContentLoaded', () => {
+    // Initialize theme toggle
+    initTheme();
+    
+    // Register service worker for PWA
+    registerServiceWorker();
+    
     const isStoryPage = document.body.classList.contains('story-page');
     
     if (isStoryPage) {
@@ -103,6 +174,19 @@ document.addEventListener('DOMContentLoaded', () => {
         initIndexPage();
     }
 });
+
+// Register service worker for PWA functionality
+function registerServiceWorker() {
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('./sw.js')
+            .then((registration) => {
+                console.log('Service Worker registered:', registration.scope);
+            })
+            .catch((error) => {
+                console.log('Service Worker registration failed:', error);
+            });
+    }
+}
 
 // ============================================================================
 // Index Page
@@ -293,6 +377,26 @@ function setupFilters() {
             applyFilters();
         }, 300));
     }
+    
+    // Surprise Me button
+    const surpriseBtn = document.getElementById('surpriseBtn');
+    if (surpriseBtn) {
+        surpriseBtn.addEventListener('click', goToRandomStory);
+    }
+}
+
+function goToRandomStory() {
+    // Use filtered stories if there are active filters, otherwise use all stories
+    const storiesToChooseFrom = filteredStories.length > 0 ? filteredStories : allStories;
+    
+    if (storiesToChooseFrom.length === 0) {
+        return;
+    }
+    
+    const randomIndex = Math.floor(Math.random() * storiesToChooseFrom.length);
+    const randomStory = storiesToChooseFrom[randomIndex];
+    
+    window.location.href = `spread.html?id=${randomStory.spread_code}`;
 }
 
 function setupKeyboardShortcuts() {
@@ -302,6 +406,12 @@ function setupKeyboardShortcuts() {
             e.preventDefault();
             const searchInput = document.getElementById('searchInput');
             if (searchInput) searchInput.focus();
+        }
+        
+        // R key for random story (when not in input)
+        if (e.key === 'r' && !e.target.matches('input, textarea') && !e.metaKey && !e.ctrlKey) {
+            e.preventDefault();
+            goToRandomStory();
         }
         
         // Escape to clear search
@@ -481,17 +591,71 @@ function renderStories() {
         return;
     }
     
-    grid.innerHTML = filteredStories.map(story => {
+    // Check if we should show section headers (only when no filters active)
+    const showHeaders = currentFilters.testament === 'all' && 
+                        currentFilters.book === 'all' && 
+                        currentFilters.grouping === 'all' &&
+                        currentFilters.status === 'all' &&
+                        !currentFilters.search;
+    
+    let html = '';
+    let currentTestament = null;
+    let currentGrouping = null;
+    let currentBook = null;
+    
+    filteredStories.forEach(story => {
+        const testament = story.testament;
+        const book = story.book;
+        const grouping = BOOK_TO_GROUPING[book];
+        
+        // Insert section headers if showing all stories
+        if (showHeaders) {
+            // Testament header (OT/NT)
+            if (testament && testament !== currentTestament) {
+                currentTestament = testament;
+                currentGrouping = null; // Reset grouping when testament changes
+                currentBook = null;
+                const testamentName = testament === 'OT' ? 'Old Testament' : 'New Testament';
+                html += `
+                    <div class="section-header testament-header">
+                        <h2>${testamentName}</h2>
+                    </div>
+                `;
+            }
+            
+            // Grouping header (Torah, History, etc.)
+            if (grouping && grouping !== currentGrouping) {
+                currentGrouping = grouping;
+                currentBook = null; // Reset book when grouping changes
+                const description = GROUPING_DESCRIPTIONS[grouping] || '';
+                html += `
+                    <div class="section-header grouping-header">
+                        <h3>${grouping}</h3>
+                        ${description ? `<span class="grouping-description">${description}</span>` : ''}
+                    </div>
+                `;
+            }
+            
+            // Book header (Genesis, Exodus, etc.)
+            if (book && book !== currentBook) {
+                currentBook = book;
+                html += `
+                    <div class="section-header book-header">
+                        <h4>${book}</h4>
+                    </div>
+                `;
+            }
+        }
+        
+        // Story card
         const isComplete = story.status_text === 'done' && story.status_image === 'done';
         const statusClass = isComplete ? 'complete' : 'pending';
         const statusText = isComplete ? 'Complete' : 'Pending';
         const imageUrl = story.image_url || story.image_url_1;
-        
-        // Parse book and chapter from passage ref
         const passageRef = story.kjv_passage_ref || '';
         const bookMatch = story.book || passageRef.split(/\d/)[0]?.trim() || '';
         
-        return `
+        html += `
             <a href="spread.html?id=${story.spread_code}" class="story-card">
                 <div class="card-image">
                     ${imageUrl 
@@ -509,7 +673,9 @@ function renderStories() {
                 </div>
             </a>
         `;
-    }).join('');
+    });
+    
+    grid.innerHTML = html;
 }
 
 function updateStats() {
@@ -551,6 +717,9 @@ async function initStoryPage() {
     setupStoryNavigation();
     setupKeyboardNavigation();
     setupScrollIndicator();
+    
+    // Setup audio narration
+    setupAudioControls();
 }
 
 async function loadStoryList() {
@@ -1262,6 +1431,210 @@ function setupScrollIndicator() {
     
     // Initial check
     setTimeout(checkScroll, 100);
+}
+
+// ============================================================================
+// Audio Narration (Web Speech API)
+// ============================================================================
+
+let speechSynthesis = window.speechSynthesis;
+let currentUtterance = null;
+let audioSpeeds = [0.75, 1, 1.25, 1.5];
+let currentSpeedIndex = 1; // Default to 1x
+let isAudioPlaying = false;
+let audioTextParts = []; // Store text parts for reading
+let currentPartIndex = 0;
+
+function setupAudioControls() {
+    const audioBtn = document.getElementById('audioBtn');
+    const audioControls = document.getElementById('audioControls');
+    const playPauseBtn = document.getElementById('playPauseBtn');
+    const stopBtn = document.getElementById('stopBtn');
+    const speedBtn = document.getElementById('speedBtn');
+    
+    if (!audioBtn || !speechSynthesis) return;
+    
+    // Toggle audio controls visibility
+    audioBtn.addEventListener('click', () => {
+        audioControls.classList.toggle('visible');
+        audioBtn.classList.toggle('active', audioControls.classList.contains('visible'));
+        
+        // If showing controls for first time, prepare text
+        if (audioControls.classList.contains('visible') && audioTextParts.length === 0) {
+            prepareAudioText();
+        }
+    });
+    
+    // Play/Pause button
+    if (playPauseBtn) {
+        playPauseBtn.addEventListener('click', togglePlayPause);
+    }
+    
+    // Stop button
+    if (stopBtn) {
+        stopBtn.addEventListener('click', stopAudio);
+    }
+    
+    // Speed button
+    if (speedBtn) {
+        speedBtn.addEventListener('click', cycleSpeed);
+    }
+}
+
+function prepareAudioText() {
+    audioTextParts = [];
+    
+    // Get key verse
+    const keyVerseText = document.getElementById('keyVerseText')?.textContent;
+    const keyVerseRef = document.getElementById('keyVerseRef')?.textContent;
+    
+    if (keyVerseText) {
+        audioTextParts.push({
+            type: 'verse',
+            text: keyVerseText + (keyVerseRef ? ' ' + keyVerseRef : '')
+        });
+    }
+    
+    // Get summary text (strip HTML, keep paragraph breaks)
+    const summaryEl = document.getElementById('summaryText');
+    if (summaryEl) {
+        const paragraphs = summaryEl.querySelectorAll('p');
+        paragraphs.forEach(p => {
+            const text = p.textContent.trim();
+            if (text) {
+                audioTextParts.push({ type: 'summary', text });
+            }
+        });
+    }
+    
+    updateAudioStatus('Ready');
+}
+
+function togglePlayPause() {
+    const playPauseBtn = document.getElementById('playPauseBtn');
+    
+    if (isAudioPlaying) {
+        if (speechSynthesis.paused) {
+            speechSynthesis.resume();
+            updateAudioStatus('Speaking...');
+        } else {
+            speechSynthesis.pause();
+            updateAudioStatus('Paused');
+        }
+    } else {
+        startReading();
+    }
+}
+
+function startReading() {
+    if (audioTextParts.length === 0) {
+        prepareAudioText();
+    }
+    
+    if (audioTextParts.length === 0) {
+        updateAudioStatus('No text to read');
+        return;
+    }
+    
+    currentPartIndex = 0;
+    readNextPart();
+}
+
+function readNextPart() {
+    if (currentPartIndex >= audioTextParts.length) {
+        // Finished reading all parts
+        stopAudio();
+        updateAudioStatus('Finished');
+        return;
+    }
+    
+    const part = audioTextParts[currentPartIndex];
+    const playPauseBtn = document.getElementById('playPauseBtn');
+    
+    currentUtterance = new SpeechSynthesisUtterance(part.text);
+    currentUtterance.rate = audioSpeeds[currentSpeedIndex];
+    currentUtterance.pitch = 1;
+    currentUtterance.volume = 1;
+    
+    // Use a good voice if available
+    const voices = speechSynthesis.getVoices();
+    const preferredVoice = voices.find(v => 
+        v.lang.startsWith('en') && (v.name.includes('Samantha') || v.name.includes('Daniel') || v.name.includes('Google'))
+    ) || voices.find(v => v.lang.startsWith('en'));
+    
+    if (preferredVoice) {
+        currentUtterance.voice = preferredVoice;
+    }
+    
+    currentUtterance.onstart = () => {
+        isAudioPlaying = true;
+        playPauseBtn?.classList.add('playing');
+        updateAudioStatus(part.type === 'verse' ? 'Key verse...' : 'Reading...');
+        document.getElementById('audioStatus')?.classList.add('speaking');
+    };
+    
+    currentUtterance.onend = () => {
+        currentPartIndex++;
+        // Small pause between parts
+        setTimeout(() => {
+            if (isAudioPlaying) {
+                readNextPart();
+            }
+        }, 500);
+    };
+    
+    currentUtterance.onerror = (e) => {
+        console.error('Speech error:', e);
+        stopAudio();
+        updateAudioStatus('Error');
+    };
+    
+    speechSynthesis.speak(currentUtterance);
+}
+
+function stopAudio() {
+    speechSynthesis.cancel();
+    isAudioPlaying = false;
+    currentPartIndex = 0;
+    
+    const playPauseBtn = document.getElementById('playPauseBtn');
+    const audioStatus = document.getElementById('audioStatus');
+    
+    playPauseBtn?.classList.remove('playing');
+    audioStatus?.classList.remove('speaking');
+    updateAudioStatus('Ready');
+}
+
+function cycleSpeed() {
+    currentSpeedIndex = (currentSpeedIndex + 1) % audioSpeeds.length;
+    const speedBtn = document.getElementById('speedBtn');
+    if (speedBtn) {
+        speedBtn.textContent = audioSpeeds[currentSpeedIndex] + '×';
+    }
+    
+    // If currently playing, update the rate
+    if (currentUtterance && isAudioPlaying) {
+        // Need to restart with new speed
+        const wasPlaying = isAudioPlaying;
+        speechSynthesis.cancel();
+        if (wasPlaying) {
+            readNextPart();
+        }
+    }
+}
+
+function updateAudioStatus(text) {
+    const audioStatus = document.getElementById('audioStatus');
+    if (audioStatus) {
+        audioStatus.textContent = text;
+    }
+}
+
+// Load voices when available
+if (speechSynthesis) {
+    speechSynthesis.onvoiceschanged = () => {
+        // Voices loaded
+    };
 }
 
 // ============================================================================
