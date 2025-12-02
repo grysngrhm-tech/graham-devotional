@@ -546,15 +546,14 @@ function renderSpread(spread) {
                     selectLabel.style.display = 'block';
                 }
                 
-                // Click to select as primary (on image, not regenerate button)
-                const imgEl = div.querySelector('img');
-                if (imgEl) {
-                    imgEl.addEventListener('click', (e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        selectPrimaryImage(imageUrl, spread.spread_code);
-                    });
-                }
+                // Click to select as primary (on the grid-image div, excluding regen button)
+                div.addEventListener('click', (e) => {
+                    // Don't trigger if clicking on the regenerate button
+                    if (e.target.closest('.regen-btn')) return;
+                    
+                    e.preventDefault();
+                    selectPrimaryImage(imageUrl, spread.spread_code);
+                });
                 
                 // Regenerate button
                 const regenBtn = div.querySelector('.regen-btn');
@@ -1177,5 +1176,3 @@ function debounce(func, wait) {
         timeout = setTimeout(later, wait);
     };
 }
-
-
