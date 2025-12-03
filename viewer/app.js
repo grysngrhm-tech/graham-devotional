@@ -205,6 +205,7 @@ async function initIndexPage() {
     setupFilters();
     setupKeyboardShortcuts();
     setupAcronymExpansion();
+    setupBreadcrumbClicks();
     applyFilters();
     updateStats();
 }
@@ -257,7 +258,7 @@ async function loadAllStories() {
     }
 }
 
-function populateBookDropdown() {
+function populateBookDropdown(testamentFilter = 'all') {
     const bookSelect = document.getElementById('bookFilter');
     if (!bookSelect) return;
     
@@ -267,7 +268,7 @@ function populateBookDropdown() {
     
     allStories.forEach(story => {
         const book = story.book;
-        if (!book) return; // Skip if no book set
+        if (!book) return;
         
         booksWithData.add(book);
         if (!bookCounts[book]) {
@@ -280,6 +281,10 @@ function populateBookDropdown() {
     const otBooks = BIBLE_BOOK_ORDER.slice(0, 39).filter(book => booksWithData.has(book));
     const ntBooks = BIBLE_BOOK_ORDER.slice(39).filter(book => booksWithData.has(book));
     
+    // OT groupings and NT groupings
+    const otGroupings = ['Torah', 'History', 'Poetry', 'Prophets'];
+    const ntGroupings = ['Gospels', 'Acts', 'Epistles', 'Revelation'];
+    
     // Calculate grouping counts
     const groupingCounts = {};
     Object.entries(BOOK_GROUPINGS).forEach(([groupName, books]) => {
@@ -288,21 +293,31 @@ function populateBookDropdown() {
         }, 0);
     });
     
-    // Build dropdown HTML
+    // Build dropdown HTML based on testament filter
     let html = '<option value="all">All Books</option>';
     
-    // Add groupings section
-    html += '<optgroup label="Book Groupings">';
-    Object.entries(BOOK_GROUPINGS).forEach(([groupName, books]) => {
-        const count = groupingCounts[groupName];
-        if (count > 0) {
-            html += `<option value="group:${groupName}">${groupName} (${count})</option>`;
-        }
-    });
-    html += '</optgroup>';
+    // Determine which groupings and books to show
+    const showOT = testamentFilter === 'all' || testamentFilter === 'OT';
+    const showNT = testamentFilter === 'all' || testamentFilter === 'NT';
     
-    // Add individual books by testament (in Biblical order)
-    if (otBooks.length > 0) {
+    // Add groupings section
+    const groupingsToShow = [];
+    if (showOT) groupingsToShow.push(...otGroupings);
+    if (showNT) groupingsToShow.push(...ntGroupings);
+    
+    if (groupingsToShow.length > 0) {
+        html += '<optgroup label="Book Groupings">';
+        groupingsToShow.forEach(groupName => {
+            const count = groupingCounts[groupName];
+            if (count > 0) {
+                html += `<option value="group:${groupName}">${groupName} (${count})</option>`;
+            }
+        });
+        html += '</optgroup>';
+    }
+    
+    // Add individual books
+    if (showOT && otBooks.length > 0) {
         html += '<optgroup label="Old Testament">';
         otBooks.forEach(book => {
             html += `<option value="${book}">${book} (${bookCounts[book]})</option>`;
@@ -310,7 +325,7 @@ function populateBookDropdown() {
         html += '</optgroup>';
     }
     
-    if (ntBooks.length > 0) {
+    if (showNT && ntBooks.length > 0) {
         html += '<optgroup label="New Testament">';
         ntBooks.forEach(book => {
             html += `<option value="${book}">${book} (${bookCounts[book]})</option>`;
@@ -333,7 +348,9 @@ function setupFilters() {
             // Reset book filter when testament changes
             currentFilters.book = 'all';
             currentFilters.grouping = 'all';
-            document.getElementById('bookFilter').value = 'all';
+            
+            // Repopulate book dropdown with only relevant books
+            populateBookDropdown(currentFilters.testament);
             
             applyFilters();
         });
@@ -591,12 +608,14 @@ function renderStories() {
         return;
     }
     
-    // Check if we should show section headers (only when no filters active)
-    const showHeaders = currentFilters.testament === 'all' && 
-                        currentFilters.book === 'all' && 
-                        currentFilters.grouping === 'all' &&
-                        currentFilters.status === 'all' &&
-                        !currentFilters.search;
+    // Determine which headers to show based on active filters
+    // Only show headers for levels that aren't already filtered
+    const showTestamentHeaders = currentFilters.testament === 'all';
+    const showGroupingHeaders = currentFilters.grouping === 'all';
+    const showBookHeaders = currentFilters.book === 'all';
+    
+    // Show any headers if at least one level isn't filtered
+    const showAnyHeaders = showTestamentHeaders || showGroupingHeaders || showBookHeaders;
     
     let html = '';
     let currentTestament = null;
@@ -608,43 +627,50 @@ function renderStories() {
         const book = story.book;
         const grouping = BOOK_TO_GROUPING[book];
         
-        // Insert section headers if showing all stories
-        if (showHeaders) {
-            // Testament header (OT/NT)
-            if (testament && testament !== currentTestament) {
-                currentTestament = testament;
-                currentGrouping = null; // Reset grouping when testament changes
-                currentBook = null;
-                const testamentName = testament === 'OT' ? 'Old Testament' : 'New Testament';
-                html += `
-                    <div class="section-header testament-header">
-                        <h2>${testamentName}</h2>
-                    </div>
-                `;
-            }
-            
-            // Grouping header (Torah, History, etc.)
-            if (grouping && grouping !== currentGrouping) {
-                currentGrouping = grouping;
-                currentBook = null; // Reset book when grouping changes
-                const description = GROUPING_DESCRIPTIONS[grouping] || '';
-                html += `
-                    <div class="section-header grouping-header">
-                        <h3>${grouping}</h3>
-                        ${description ? `<span class="grouping-description">${description}</span>` : ''}
-                    </div>
-                `;
-            }
-            
-            // Book header (Genesis, Exodus, etc.)
-            if (book && book !== currentBook) {
-                currentBook = book;
-                html += `
-                    <div class="section-header book-header">
-                        <h4>${book}</h4>
-                    </div>
-                `;
-            }
+        // Insert section headers based on what's not filtered
+        // Testament header (OT/NT) - only if testament filter is "all"
+        if (showTestamentHeaders && testament && testament !== currentTestament) {
+            currentTestament = testament;
+            currentGrouping = null;
+            currentBook = null;
+            const testamentName = testament === 'OT' ? 'Old Testament' : 'New Testament';
+            html += `
+                <div class="section-header testament-header" data-testament="${testamentName}">
+                    <h2>${testamentName}</h2>
+                </div>
+            `;
+        } else if (!showTestamentHeaders && testament !== currentTestament) {
+            // Track testament even if not showing header
+            currentTestament = testament;
+        }
+        
+        // Grouping header - only if grouping filter is "all"
+        if (showGroupingHeaders && grouping && grouping !== currentGrouping) {
+            currentGrouping = grouping;
+            currentBook = null;
+            const description = GROUPING_DESCRIPTIONS[grouping] || '';
+            const testamentName = currentTestament === 'OT' ? 'Old Testament' : 'New Testament';
+            html += `
+                <div class="section-header grouping-header" data-grouping="${grouping}" data-testament="${testamentName}">
+                    <h3>${grouping}</h3>
+                    ${description ? `<span class="grouping-description">${description}</span>` : ''}
+                </div>
+            `;
+        } else if (!showGroupingHeaders && grouping !== currentGrouping) {
+            currentGrouping = grouping;
+        }
+        
+        // Book header - only if book filter is "all"
+        if (showBookHeaders && book && book !== currentBook) {
+            currentBook = book;
+            const testamentName = currentTestament === 'OT' ? 'Old Testament' : 'New Testament';
+            html += `
+                <div class="section-header book-header" data-book="${book}" data-grouping="${currentGrouping}" data-testament="${testamentName}">
+                    <h4>${book}</h4>
+                </div>
+            `;
+        } else if (!showBookHeaders && book !== currentBook) {
+            currentBook = book;
         }
         
         // Story card
@@ -676,6 +702,234 @@ function renderStories() {
     });
     
     grid.innerHTML = html;
+    
+    // Always setup breadcrumb - it shows current context whether from scroll or filters
+    setupBreadcrumbObserver(showAnyHeaders);
+}
+
+// Breadcrumb scroll tracking
+let breadcrumbObserver = null;
+
+function setupBreadcrumbObserver(hasHeaders) {
+    const breadcrumb = document.getElementById('sectionBreadcrumb');
+    if (!breadcrumb) return;
+    
+    // Cleanup previous observer
+    if (breadcrumbObserver) {
+        breadcrumbObserver.disconnect();
+        breadcrumbObserver = null;
+    }
+    
+    // Show breadcrumb
+    breadcrumb.classList.add('visible');
+    
+    // Set initial breadcrumb based on filters and first story
+    setInitialBreadcrumb();
+    
+    // If we have headers to observe, set up scroll tracking
+    if (hasHeaders) {
+        const headers = document.querySelectorAll('.section-header');
+        if (headers.length > 0) {
+            // Create intersection observer
+            const observerOptions = {
+                root: null,
+                rootMargin: '-60px 0px -80% 0px',
+                threshold: 0
+            };
+            
+            breadcrumbObserver = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        const header = entry.target;
+                        
+                        if (header.classList.contains('book-header')) {
+                            updateBreadcrumb(
+                                header.dataset.testament,
+                                header.dataset.grouping,
+                                header.dataset.book
+                            );
+                        } else if (header.classList.contains('grouping-header')) {
+                            updateBreadcrumbPartial({ grouping: header.dataset.grouping, testament: header.dataset.testament });
+                        } else if (header.classList.contains('testament-header')) {
+                            updateBreadcrumbPartial({ testament: header.dataset.testament });
+                        }
+                    }
+                });
+            }, observerOptions);
+            
+            headers.forEach(header => {
+                breadcrumbObserver.observe(header);
+            });
+        }
+    }
+}
+
+function setInitialBreadcrumb() {
+    // Determine initial breadcrumb from filters and first visible story
+    let testament = null;
+    let grouping = null;
+    let book = null;
+    
+    // If testament is filtered, use that
+    if (currentFilters.testament !== 'all') {
+        testament = currentFilters.testament === 'OT' ? 'Old Testament' : 'New Testament';
+    }
+    
+    // If grouping is filtered, use that
+    if (currentFilters.grouping !== 'all') {
+        grouping = currentFilters.grouping;
+        // Also set testament based on grouping
+        const otGroupings = ['Torah', 'History', 'Poetry', 'Prophets'];
+        testament = otGroupings.includes(grouping) ? 'Old Testament' : 'New Testament';
+    }
+    
+    // If book is filtered, use that
+    if (currentFilters.book !== 'all') {
+        book = currentFilters.book;
+        grouping = BOOK_TO_GROUPING[book];
+        // Determine testament from book
+        const bookIndex = BIBLE_BOOK_ORDER.indexOf(book);
+        testament = bookIndex < 39 ? 'Old Testament' : 'New Testament';
+    }
+    
+    // If nothing is filtered, get from first story
+    if (!testament && filteredStories.length > 0) {
+        const firstStory = filteredStories[0];
+        testament = firstStory.testament === 'OT' ? 'Old Testament' : 'New Testament';
+        grouping = BOOK_TO_GROUPING[firstStory.book];
+        book = firstStory.book;
+    }
+    
+    updateBreadcrumb(testament, grouping, book);
+}
+
+// Track current breadcrumb state
+let currentBreadcrumbState = { testament: null, grouping: null, book: null };
+
+function updateBreadcrumb(testament, grouping, book) {
+    currentBreadcrumbState = { testament, grouping, book };
+    
+    const testamentEl = document.getElementById('breadcrumbTestament');
+    const groupingEl = document.getElementById('breadcrumbGrouping');
+    const bookEl = document.getElementById('breadcrumbBook');
+    const countEl = document.getElementById('breadcrumbCount');
+    const seps = document.querySelectorAll('.section-breadcrumb .breadcrumb-sep');
+    
+    if (testamentEl) {
+        if (testament) {
+            testamentEl.textContent = testament;
+            testamentEl.style.display = '';
+        } else {
+            testamentEl.style.display = 'none';
+        }
+    }
+    
+    if (groupingEl) {
+        if (grouping) {
+            groupingEl.textContent = grouping;
+            groupingEl.style.display = '';
+            if (seps[0]) seps[0].style.display = '';
+        } else {
+            groupingEl.style.display = 'none';
+            if (seps[0]) seps[0].style.display = 'none';
+        }
+    }
+    
+    if (bookEl) {
+        if (book) {
+            bookEl.textContent = book;
+            bookEl.style.display = '';
+            if (seps[1]) seps[1].style.display = '';
+        } else {
+            bookEl.style.display = 'none';
+            if (seps[1]) seps[1].style.display = 'none';
+        }
+    }
+    
+    // Update count
+    if (countEl) {
+        countEl.textContent = `${filteredStories.length} stories`;
+    }
+}
+
+function setupBreadcrumbClicks() {
+    const testamentEl = document.getElementById('breadcrumbTestament');
+    const groupingEl = document.getElementById('breadcrumbGrouping');
+    
+    if (testamentEl) {
+        testamentEl.addEventListener('click', () => {
+            const testament = currentBreadcrumbState.testament;
+            if (testament) {
+                // Set testament filter
+                const testamentValue = testament === 'Old Testament' ? 'OT' : 'NT';
+                currentFilters.testament = testamentValue;
+                currentFilters.grouping = 'all';
+                currentFilters.book = 'all';
+                
+                // Update UI
+                document.querySelectorAll('#testamentFilter .segment').forEach(btn => {
+                    btn.classList.toggle('active', btn.dataset.value === testamentValue);
+                });
+                populateBookDropdown(testamentValue);
+                document.getElementById('bookFilter').value = 'all';
+                
+                applyFilters();
+            }
+        });
+    }
+    
+    if (groupingEl) {
+        groupingEl.addEventListener('click', () => {
+            const grouping = currentBreadcrumbState.grouping;
+            if (grouping) {
+                // Determine testament from grouping
+                const otGroupings = ['Torah', 'History', 'Poetry', 'Prophets'];
+                const testamentValue = otGroupings.includes(grouping) ? 'OT' : 'NT';
+                
+                currentFilters.testament = testamentValue;
+                currentFilters.grouping = grouping;
+                currentFilters.book = 'all';
+                
+                // Update UI
+                document.querySelectorAll('#testamentFilter .segment').forEach(btn => {
+                    btn.classList.toggle('active', btn.dataset.value === testamentValue);
+                });
+                populateBookDropdown(testamentValue);
+                document.getElementById('bookFilter').value = `group:${grouping}`;
+                
+                applyFilters();
+            }
+        });
+    }
+}
+
+function updateBreadcrumbPartial(updates) {
+    // Merge updates with current state
+    const newState = { ...currentBreadcrumbState };
+    
+    if (updates.testament !== undefined) {
+        newState.testament = updates.testament;
+    }
+    if (updates.grouping !== undefined) {
+        newState.grouping = updates.grouping;
+    }
+    if (updates.book !== undefined) {
+        newState.book = updates.book;
+    }
+    
+    updateBreadcrumb(newState.testament, newState.grouping, newState.book);
+}
+
+function hideBreadcrumb() {
+    const breadcrumb = document.getElementById('sectionBreadcrumb');
+    if (breadcrumb) {
+        breadcrumb.classList.remove('visible');
+    }
+    
+    if (breadcrumbObserver) {
+        breadcrumbObserver.disconnect();
+        breadcrumbObserver = null;
+    }
 }
 
 function updateStats() {

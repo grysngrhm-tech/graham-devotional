@@ -710,43 +710,101 @@ body {
     }
 }
 
-/* Section Headers in Grid - iOS Style */
+/* Unified Section Breadcrumb - Full Width Sticky Header */
+.section-breadcrumb {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    background: var(--bg-primary);
+    border-bottom: 1px solid var(--border-color);
+    padding: 10px var(--spacing-xl);
+    margin: 0 calc(-1 * var(--spacing-xl));
+    width: calc(100% + var(--spacing-xl) * 2);
+    display: none; /* Hidden until headers are active */
+    align-items: center;
+    gap: 6px;
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    transition: opacity 0.2s ease;
+}
+
+.section-breadcrumb.visible {
+    display: flex;
+}
+
+.section-breadcrumb .breadcrumb-segment {
+    background: none;
+    border: none;
+    padding: 4px 8px;
+    margin: -4px -8px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background-color 0.15s ease;
+    font: inherit;
+}
+
+.section-breadcrumb .breadcrumb-segment:hover {
+    background: rgba(128, 128, 128, 0.15);
+}
+
+.section-breadcrumb .breadcrumb-testament {
+    color: var(--text-primary);
+    font-weight: 600;
+}
+
+.section-breadcrumb .breadcrumb-grouping {
+    color: var(--text-secondary);
+}
+
+.section-breadcrumb .breadcrumb-book {
+    color: var(--text-muted);
+}
+
+.section-breadcrumb .breadcrumb-sep {
+    color: var(--text-muted);
+    opacity: 0.5;
+    font-size: 0.75rem;
+}
+
+.section-breadcrumb .breadcrumb-count {
+    margin-left: auto;
+    color: var(--text-muted);
+    font-size: 0.75rem;
+    font-weight: 400;
+}
+
+/* Section Headers in Grid - Visual Dividers Only (Non-Sticky) */
 .section-header {
     grid-column: 1 / -1;
     padding: 0;
 }
 
-/* Testament Header (OT/NT) - Compact, sticky */
+/* Testament Header (OT/NT) - Visual divider */
 .testament-header {
-    position: sticky;
-    top: 60px;
-    z-index: 20;
-    background: var(--bg-primary);
-    padding: 12px 0 8px;
-    margin-top: 24px;
+    padding: 20px 0 10px;
+    margin-top: 32px;
+    border-bottom: 1px solid var(--border-color);
 }
 
 .testament-header:first-child {
     margin-top: 0;
+    padding-top: 8px;
 }
 
 .testament-header h2 {
     font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif;
-    font-size: 1.375rem;
+    font-size: 1.125rem;
     font-weight: 700;
     color: var(--text-primary);
-    letter-spacing: -0.02em;
+    letter-spacing: -0.01em;
     margin: 0;
 }
 
-/* Grouping Header (Torah, History, etc.) - Minimal, sticky */
+/* Grouping Header (Torah, History, etc.) - Visual divider */
 .grouping-header {
-    position: sticky;
-    top: 110px;
-    z-index: 15;
-    background: var(--bg-primary);
-    padding: 8px 0 6px;
-    margin-top: 16px;
+    padding: 12px 0 6px;
+    margin-top: 20px;
     display: flex;
     align-items: center;
     gap: 8px;
@@ -754,28 +812,28 @@ body {
 
 .grouping-header h3 {
     font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif;
-    font-size: 0.9375rem;
+    font-size: 0.8125rem;
     font-weight: 600;
-    color: var(--text-primary);
+    color: var(--text-secondary);
     margin: 0;
 }
 
 .grouping-description {
     font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif;
-    font-size: 0.8125rem;
+    font-size: 0.75rem;
     color: var(--text-muted);
     font-weight: 400;
 }
 
-/* Book Header (Genesis, Exodus, etc.) - Subtle, inline */
+/* Book Header (Genesis, Exodus, etc.) - Subtle divider */
 .book-header {
-    padding: 6px 0 4px;
-    margin-top: 8px;
+    padding: 8px 0 4px;
+    margin-top: 12px;
 }
 
 .book-header h4 {
     font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif;
-    font-size: 0.6875rem;
+    font-size: 0.625rem;
     font-weight: 600;
     color: var(--text-muted);
     text-transform: uppercase;
@@ -785,30 +843,37 @@ body {
 
 /* Mobile adjustments for section headers */
 @media (max-width: 768px) {
+    .section-breadcrumb {
+        padding: 8px var(--spacing-md);
+        margin: 0 calc(-1 * var(--spacing-md));
+        width: calc(100% + var(--spacing-md) * 2);
+        font-size: 0.75rem;
+    }
+    
     .testament-header {
-        top: 80px;
-        padding: 10px 0 6px;
+        padding: 16px 0 8px;
+        margin-top: 24px;
     }
     
     .testament-header h2 {
-        font-size: 1.25rem;
+        font-size: 1rem;
     }
     
     .grouping-header {
-        top: 120px;
+        margin-top: 16px;
         flex-wrap: wrap;
     }
     
     .grouping-header h3 {
-        font-size: 0.875rem;
-    }
-    
-    .grouping-description {
         font-size: 0.75rem;
     }
     
+    .grouping-description {
+        font-size: 0.6875rem;
+    }
+    
     .book-header h4 {
-        font-size: 0.625rem;
+        font-size: 0.5625rem;
     }
 }
 
@@ -1053,7 +1118,7 @@ body {
    ============================================================================ */
 
 .story-page {
-    background: var(--color-charcoal);
+    background: var(--bg-primary);
 }
 
 /* Navigation */
@@ -1129,7 +1194,7 @@ body {
 .book-story {
     min-height: 100vh;
     padding-top: var(--nav-height);
-    background: #F5F5F5;
+    background: var(--bg-primary);
 }
 
 .story-layout {
@@ -2183,7 +2248,7 @@ body {
 
 /* Modal Content */
 .modal-content {
-    background: #FFFFFF;
+    background: var(--bg-secondary);
     border-radius: 20px;
     padding: var(--spacing-2xl);
     max-width: 600px;
