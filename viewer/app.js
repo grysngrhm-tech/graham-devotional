@@ -617,82 +617,122 @@ async function loadAllStories() {
     }
 }
 
-function populateBookDropdown(testamentFilter = 'all') {
-    const bookSelect = document.getElementById('bookFilter');
-    if (!bookSelect) return;
+// OT and NT grouping definitions
+const OT_GROUPINGS = ['Torah', 'History', 'Poetry', 'Prophets'];
+const NT_GROUPINGS = ['Gospels', 'Acts', 'Epistles', 'Revelation'];
+
+// Populate the grouping slider based on selected testament
+function populateGroupingSlider(testament) {
+    const groupingFilter = document.getElementById('groupingFilter');
+    const groupingRow = document.getElementById('groupingFilterRow');
+    if (!groupingFilter || !groupingRow) return;
     
-    // Count stories per book from actual data
-    const bookCounts = {};
-    const booksWithData = new Set();
+    // Hide if "All" is selected
+    if (testament === 'all') {
+        groupingRow.classList.remove('visible');
+        return;
+    }
     
-    allStories.forEach(story => {
-        const book = story.book;
-        if (!book) return;
-        
-        booksWithData.add(book);
-        if (!bookCounts[book]) {
-            bookCounts[book] = 0;
-        }
-        bookCounts[book]++;
-    });
+    // Get groupings for this testament
+    const groupings = testament === 'OT' ? OT_GROUPINGS : NT_GROUPINGS;
     
-    // Get OT and NT books that have data, in Biblical order
-    const otBooks = BIBLE_BOOK_ORDER.slice(0, 39).filter(book => booksWithData.has(book));
-    const ntBooks = BIBLE_BOOK_ORDER.slice(39).filter(book => booksWithData.has(book));
-    
-    // OT groupings and NT groupings
-    const otGroupings = ['Torah', 'History', 'Poetry', 'Prophets'];
-    const ntGroupings = ['Gospels', 'Acts', 'Epistles', 'Revelation'];
-    
-    // Calculate grouping counts
+    // Calculate story counts per grouping
     const groupingCounts = {};
-    Object.entries(BOOK_GROUPINGS).forEach(([groupName, books]) => {
-        groupingCounts[groupName] = books.reduce((sum, book) => {
-            return sum + (bookCounts[book] || 0);
-        }, 0);
+    groupings.forEach(groupName => {
+        const books = BOOK_GROUPINGS[groupName] || [];
+        groupingCounts[groupName] = allStories.filter(s => books.includes(s.book)).length;
     });
     
-    // Build dropdown HTML based on testament filter
-    let html = '<option value="all">All Books</option>';
+    // Build segment buttons
+    let html = '<button class="segment active" data-value="all">All</button>';
+    groupings.forEach(groupName => {
+        const count = groupingCounts[groupName];
+        if (count > 0) {
+            html += `<button class="segment" data-value="${groupName}">${groupName}</button>`;
+        }
+    });
     
-    // Determine which groupings and books to show
-    const showOT = testamentFilter === 'all' || testamentFilter === 'OT';
-    const showNT = testamentFilter === 'all' || testamentFilter === 'NT';
+    groupingFilter.innerHTML = html;
+    groupingRow.classList.add('visible');
     
-    // Add groupings section
-    const groupingsToShow = [];
-    if (showOT) groupingsToShow.push(...otGroupings);
-    if (showNT) groupingsToShow.push(...ntGroupings);
-    
-    if (groupingsToShow.length > 0) {
-        html += '<optgroup label="Book Groupings">';
-        groupingsToShow.forEach(groupName => {
-            const count = groupingCounts[groupName];
-            if (count > 0) {
-                html += `<option value="group:${groupName}">${groupName} (${count})</option>`;
-            }
+    // Set up click handlers
+    setupGroupingFilterHandlers();
+}
+
+// Set up grouping filter click handlers
+function setupGroupingFilterHandlers() {
+    const groupingBtns = document.querySelectorAll('#groupingFilter .segment');
+    groupingBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            groupingBtns.forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            
+            const value = btn.dataset.value;
+            currentFilters.grouping = value;
+            currentFilters.book = 'all';
+            
+            // Populate book slider if grouping selected
+            populateBookSlider(value);
+            
+            applyFilters();
         });
-        html += '</optgroup>';
+    });
+}
+
+// Populate the book slider based on selected grouping
+function populateBookSlider(grouping) {
+    const bookFilter = document.getElementById('bookFilter');
+    const bookRow = document.getElementById('bookFilterRow');
+    if (!bookFilter || !bookRow) return;
+    
+    // Hide if "All" grouping is selected
+    if (grouping === 'all') {
+        bookRow.classList.remove('visible');
+        return;
     }
     
-    // Add individual books
-    if (showOT && otBooks.length > 0) {
-        html += '<optgroup label="Old Testament">';
-        otBooks.forEach(book => {
-            html += `<option value="${book}">${book} (${bookCounts[book]})</option>`;
-        });
-        html += '</optgroup>';
-    }
+    // Get books for this grouping
+    const books = BOOK_GROUPINGS[grouping] || [];
     
-    if (showNT && ntBooks.length > 0) {
-        html += '<optgroup label="New Testament">';
-        ntBooks.forEach(book => {
-            html += `<option value="${book}">${book} (${bookCounts[book]})</option>`;
-        });
-        html += '</optgroup>';
-    }
+    // Calculate story counts per book
+    const bookCounts = {};
+    books.forEach(book => {
+        bookCounts[book] = allStories.filter(s => s.book === book).length;
+    });
     
-    bookSelect.innerHTML = html;
+    // Build segment buttons (only books with stories)
+    let html = '<button class="segment active" data-value="all">All</button>';
+    books.forEach(book => {
+        const count = bookCounts[book];
+        if (count > 0) {
+            html += `<button class="segment" data-value="${book}">${book}</button>`;
+        }
+    });
+    
+    bookFilter.innerHTML = html;
+    bookRow.classList.add('visible');
+    
+    // Set up click handlers
+    setupBookFilterHandlers();
+}
+
+// Set up book filter click handlers
+function setupBookFilterHandlers() {
+    const bookBtns = document.querySelectorAll('#bookFilter .segment');
+    bookBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            bookBtns.forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            
+            currentFilters.book = btn.dataset.value;
+            applyFilters();
+        });
+    });
+}
+
+// Legacy function for backwards compatibility
+function populateBookDropdown(testamentFilter = 'all') {
+    populateGroupingSlider(testamentFilter);
 }
 
 function setupFilters() {
@@ -704,38 +744,23 @@ function setupFilters() {
             btn.classList.add('active');
             currentFilters.testament = btn.dataset.value;
             
-            // Reset book filter when testament changes
+            // Reset cascading filters when testament changes
             currentFilters.book = 'all';
             currentFilters.grouping = 'all';
             
-            // Repopulate book dropdown with only relevant books
-            populateBookDropdown(currentFilters.testament);
+            // Hide book slider
+            const bookRow = document.getElementById('bookFilterRow');
+            if (bookRow) bookRow.classList.remove('visible');
+            
+            // Populate grouping slider (or hide if "All")
+            populateGroupingSlider(currentFilters.testament);
             
             applyFilters();
         });
     });
     
-    // Book dropdown (handles both individual books and groupings)
-    const bookFilter = document.getElementById('bookFilter');
-    if (bookFilter) {
-        bookFilter.addEventListener('change', () => {
-            const value = bookFilter.value;
-            
-            // Check if it's a grouping or individual book
-            if (value.startsWith('group:')) {
-                currentFilters.grouping = value.replace('group:', '');
-                currentFilters.book = 'all';
-            } else {
-                currentFilters.book = value;
-                currentFilters.grouping = 'all';
-            }
-            
-            applyFilters();
-        });
-    }
-    
-    // Status pills
-    const statusBtns = document.querySelectorAll('#statusFilter .status-pill');
+    // Status filter buttons in header
+    const statusBtns = document.querySelectorAll('#statusFilter .stat-btn');
     statusBtns.forEach(btn => {
         btn.addEventListener('click', () => {
             statusBtns.forEach(b => b.classList.remove('active'));
@@ -930,18 +955,27 @@ function updateActiveFilters() {
 function clearFilter(type) {
     if (type === 'testament') {
         currentFilters.testament = 'all';
+        currentFilters.grouping = 'all';
+        currentFilters.book = 'all';
         document.querySelectorAll('#testamentFilter .segment').forEach(b => b.classList.remove('active'));
         document.querySelector('#testamentFilter .segment[data-value="all"]')?.classList.add('active');
+        // Hide cascading sliders
+        document.getElementById('groupingFilterRow')?.classList.remove('visible');
+        document.getElementById('bookFilterRow')?.classList.remove('visible');
     } else if (type === 'grouping') {
         currentFilters.grouping = 'all';
-        document.getElementById('bookFilter').value = 'all';
+        currentFilters.book = 'all';
+        document.querySelectorAll('#groupingFilter .segment').forEach(b => b.classList.remove('active'));
+        document.querySelector('#groupingFilter .segment[data-value="all"]')?.classList.add('active');
+        document.getElementById('bookFilterRow')?.classList.remove('visible');
     } else if (type === 'book') {
         currentFilters.book = 'all';
-        document.getElementById('bookFilter').value = 'all';
+        document.querySelectorAll('#bookFilter .segment').forEach(b => b.classList.remove('active'));
+        document.querySelector('#bookFilter .segment[data-value="all"]')?.classList.add('active');
     } else if (type === 'status') {
         currentFilters.status = 'all';
-        document.querySelectorAll('#statusFilter .status-pill').forEach(b => b.classList.remove('active'));
-        document.querySelector('#statusFilter .status-pill[data-status="all"]')?.classList.add('active');
+        document.querySelectorAll('#statusFilter .stat-btn').forEach(b => b.classList.remove('active'));
+        document.querySelector('#statusFilter .stat-btn[data-status="all"]')?.classList.add('active');
     } else if (type === 'search') {
         currentFilters.search = '';
         document.getElementById('searchInput').value = '';
@@ -1274,8 +1308,10 @@ function setupBreadcrumbClicks() {
                 document.querySelectorAll('#testamentFilter .segment').forEach(btn => {
                     btn.classList.toggle('active', btn.dataset.value === testamentValue);
                 });
-                populateBookDropdown(testamentValue);
-                document.getElementById('bookFilter').value = 'all';
+                
+                // Show grouping slider, hide book slider
+                populateGroupingSlider(testamentValue);
+                document.getElementById('bookFilterRow')?.classList.remove('visible');
                 
                 applyFilters();
             }
@@ -1298,8 +1334,13 @@ function setupBreadcrumbClicks() {
                 document.querySelectorAll('#testamentFilter .segment').forEach(btn => {
                     btn.classList.toggle('active', btn.dataset.value === testamentValue);
                 });
-                populateBookDropdown(testamentValue);
-                document.getElementById('bookFilter').value = `group:${grouping}`;
+                
+                // Show grouping slider with selection, hide book slider
+                populateGroupingSlider(testamentValue);
+                document.querySelectorAll('#groupingFilter .segment').forEach(btn => {
+                    btn.classList.toggle('active', btn.dataset.value === grouping);
+                });
+                populateBookSlider(grouping);
                 
                 applyFilters();
             }
@@ -1324,9 +1365,11 @@ function updateStats() {
     const complete = allStories.filter(s => s.status_text === 'done' && s.status_image === 'done').length;
     const pending = total - complete;
     
+    const totalEl = document.getElementById('totalCount');
     const completeEl = document.getElementById('completeCount');
     const pendingEl = document.getElementById('pendingCount');
     
+    if (totalEl) totalEl.textContent = total;
     if (completeEl) completeEl.textContent = complete;
     if (pendingEl) pendingEl.textContent = pending;
 }

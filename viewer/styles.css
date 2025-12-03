@@ -404,32 +404,49 @@ body {
 
 .header-stats {
     display: flex;
-    gap: 10px;
+    gap: 6px;
+    align-items: center;
 }
 
-.stat-pill {
+/* Status Filter Buttons in Header */
+.stat-btn {
     display: inline-flex;
     align-items: center;
-    gap: 5px;
-    padding: 7px 14px;
+    gap: 4px;
+    padding: 6px 12px;
     border-radius: 100px;
     font-family: 'Inter', -apple-system, sans-serif;
-    font-size: 0.75rem;
+    font-size: 0.6875rem;
     font-weight: 500;
     font-variant-numeric: tabular-nums;
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    color: rgba(255, 255, 255, 0.6);
+    cursor: pointer;
     transition: all 0.2s ease;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
 }
 
-.stat-pill.complete {
-    background: rgba(255, 255, 255, 0.12);
-    color: #FFFFFF;
-    border: 1px solid rgba(255, 255, 255, 0.1);
+.stat-btn:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: rgba(255, 255, 255, 0.9);
+    border-color: rgba(255, 255, 255, 0.25);
 }
 
-.stat-pill.pending {
-    background: rgba(255, 255, 255, 0.06);
-    color: #777;
-    border: 1px solid rgba(255, 255, 255, 0.05);
+.stat-btn.active {
+    background: rgba(201, 162, 39, 0.15);
+    color: var(--color-gold);
+    border-color: rgba(201, 162, 39, 0.4);
+    font-weight: 600;
+}
+
+.stat-btn.active:hover {
+    background: rgba(201, 162, 39, 0.25);
+}
+
+.stat-btn span {
+    font-weight: 700;
 }
 
 /* ============================================================================
@@ -555,6 +572,86 @@ body {
     transform: scale(0.97);
 }
 
+/* Scrollable Segment Control for cascading filters */
+.segment-control.scrollable {
+    overflow-x: auto;
+    overflow-y: hidden;
+    white-space: nowrap;
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* IE/Edge */
+    -webkit-overflow-scrolling: touch;
+    max-width: 100%;
+    position: relative;
+}
+
+.segment-control.scrollable::-webkit-scrollbar {
+    display: none;
+}
+
+/* Fade indicators for scrollable content */
+.filter-row.grouping-row,
+.filter-row.book-row {
+    position: relative;
+}
+
+.filter-row.grouping-row::before,
+.filter-row.grouping-row::after,
+.filter-row.book-row::before,
+.filter-row.book-row::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 30px;
+    pointer-events: none;
+    z-index: 2;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+
+.filter-row.grouping-row::before,
+.filter-row.book-row::before {
+    left: 0;
+    background: linear-gradient(to right, var(--bg-primary), transparent);
+}
+
+.filter-row.grouping-row::after,
+.filter-row.book-row::after {
+    right: 0;
+    background: linear-gradient(to left, var(--bg-primary), transparent);
+}
+
+.filter-row.grouping-row.can-scroll-left::before,
+.filter-row.book-row.can-scroll-left::before,
+.filter-row.grouping-row.can-scroll-right::after,
+.filter-row.book-row.can-scroll-right::after {
+    opacity: 1;
+}
+
+/* Cascading filter rows - hidden by default with slide animation */
+.filter-row.grouping-row,
+.filter-row.book-row {
+    max-height: 0;
+    opacity: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease, opacity 0.3s ease, margin 0.3s ease;
+    margin-top: 0;
+}
+
+.filter-row.grouping-row.visible,
+.filter-row.book-row.visible {
+    max-height: 60px;
+    opacity: 1;
+    margin-top: var(--spacing-sm);
+}
+
+/* Smaller segments for cascading filters */
+.filter-row.grouping-row .segment,
+.filter-row.book-row .segment {
+    padding: 6px 12px;
+    font-size: 0.75rem;
+}
+
 .segment.active {
     background: var(--bg-card);
     color: var(--text-primary);
@@ -562,75 +659,10 @@ body {
 }
 
 /* Book Select - iOS Style */
-.book-select {
-    padding: 10px 16px;
-    padding-right: 36px;
-    border: 1px solid var(--border-color);
-    background: var(--bg-card);
-    border-radius: 12px;
-    font-family: 'Inter', -apple-system, sans-serif;
-    font-size: 0.875rem;
-    font-weight: 500;
-    color: var(--text-primary);
-    cursor: pointer;
-    transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease;
-    box-shadow: 
-        0 1px 2px rgba(0, 0, 0, 0.06),
-        0 2px 6px rgba(0, 0, 0, 0.06);
-    appearance: none;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23666' d='M3 4.5L6 7.5L9 4.5'/%3E%3C/svg%3E");
-    background-repeat: no-repeat;
-    background-position: right 12px center;
-    min-width: 160px;
-    transition: all 0.2s cubic-bezier(0.25, 0.1, 0.25, 1);
-}
-
-.book-select:hover {
-    box-shadow: 
-        0 2px 4px rgba(0, 0, 0, 0.08),
-        0 4px 12px rgba(0, 0, 0, 0.08);
-}
-
-.book-select:focus {
-    outline: none;
-    box-shadow: 0 0 0 4px rgba(0, 0, 0, 0.08);
-}
+/* Book select dropdown replaced with cascading segment controls */
 
 /* Status Pills - iOS Style */
-.status-pills {
-    display: inline-flex;
-    gap: 8px;
-}
-
-.status-pill {
-    padding: 8px 16px;
-    border: 1px solid var(--border-color);
-    background: var(--bg-card);
-    border-radius: 100px;
-    font-family: 'Inter', -apple-system, sans-serif;
-    font-size: 0.8125rem;
-    font-weight: 500;
-    color: var(--text-secondary);
-    cursor: pointer;
-    transition: all 0.2s cubic-bezier(0.25, 0.1, 0.25, 1);
-}
-
-.status-pill:hover {
-    border-color: var(--text-muted);
-    color: var(--text-primary);
-    transform: translateY(-1px);
-}
-
-.status-pill:active {
-    transform: scale(0.97);
-}
-
-.status-pill.active {
-    background: var(--text-primary);
-    border-color: var(--text-primary);
-    color: var(--bg-primary);
-    box-shadow: var(--shadow-md);
-}
+/* Status filter moved to header as .stat-btn */
 
 /* Search Wrapper - iOS Style */
 .search-wrapper {
@@ -726,9 +758,6 @@ body {
 
 .surprise-btn:active {
     transform: scale(0.96);
-}
-    pointer-events: none;
-    border: 1px solid #E5E5E5;
 }
 
 /* Filter Feedback */
@@ -2231,10 +2260,6 @@ body {
 }
 
 @media (max-width: 768px) {
-    .compact-header {
-        /* Already flex-direction: column in desktop */
-    }
-    
     .header-row.header-primary {
         flex-direction: column;
         gap: var(--spacing-sm);
@@ -2281,13 +2306,21 @@ body {
         font-size: 0.75rem;
     }
     
-    .book-select {
-        width: 100%;
+    /* Cascading filter sliders on mobile - allow horizontal scroll */
+    .segment-control.scrollable {
+        justify-content: flex-start;
+        padding: 3px;
     }
     
-    .status-pills {
-        width: 100%;
-        justify-content: center;
+    .segment-control.scrollable .segment {
+        flex: 0 0 auto;
+        white-space: nowrap;
+        padding: 8px 14px;
+    }
+    
+    .filter-row.grouping-row.visible,
+    .filter-row.book-row.visible {
+        margin-top: var(--spacing-xs);
     }
     
     .search-wrapper {
@@ -2318,9 +2351,10 @@ body {
         font-size: 1.125rem;
     }
     
-    .stat-pill {
-        font-size: 0.6875rem;
+    .stat-btn {
+        font-size: 0.5625rem;
         padding: 4px 8px;
+        gap: 2px;
     }
     
     .segment {

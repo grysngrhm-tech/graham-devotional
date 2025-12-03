@@ -10,7 +10,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=IM+Fell+English:ital@0;1&family=Inter:wght@300;400;500;600&family=Playfair+Display:wght@400;500;600&display=swap" rel="stylesheet">
     
-    <link rel="stylesheet" href="styles.css?v=6">
+    <link rel="stylesheet" href="styles.css?v=7">
     
     <!-- PWA -->
     <link rel="manifest" href="manifest.json">
@@ -46,13 +46,16 @@
                         <span class="brand-text">Bible</span>
                     </h1>
                 </div>
-                <div class="header-stats">
-                    <span class="stat-pill complete">
-                        <span id="completeCount">—</span> complete
-                    </span>
-                    <span class="stat-pill pending">
-                        <span id="pendingCount">—</span> pending
-                    </span>
+                <div class="header-stats" id="statusFilter">
+                    <button class="stat-btn active" data-status="all" title="Show all stories">
+                        <span id="totalCount">—</span> Total
+                    </button>
+                    <button class="stat-btn" data-status="complete" title="Show complete stories">
+                        <span id="completeCount">—</span> Complete
+                    </button>
+                    <button class="stat-btn" data-status="pending" title="Show pending stories">
+                        <span id="pendingCount">—</span> Pending
+                    </button>
                     <button class="theme-toggle" id="themeToggle" title="Toggle dark mode">
                         <span class="icon-sun">☀️</span>
                         <span class="icon-moon">🌙</span>
@@ -90,30 +93,33 @@
         </section>
 
         <main class="main-content">
-            <!-- Filter Section -->
+            <!-- Filter Section - Cascading Sliders -->
             <section class="filter-section">
-                <!-- Row 1: Testament + Book -->
-                <div class="filter-row primary-filters">
+                <!-- Row 1: Testament - Always visible -->
+                <div class="filter-row testament-row">
                     <div class="segment-control" id="testamentFilter">
                         <button class="segment active" data-value="all">All</button>
                         <button class="segment" data-value="OT">Old Testament</button>
                         <button class="segment" data-value="NT">New Testament</button>
                     </div>
-                    
-                    <select id="bookFilter" class="book-select">
-                        <option value="all">All Books</option>
-                        <!-- Populated by JavaScript -->
-                    </select>
                 </div>
                 
-                <!-- Row 2: Status + Search -->
-                <div class="filter-row secondary-filters">
-                    <div class="status-pills" id="statusFilter">
-                        <button class="status-pill active" data-status="all">All</button>
-                        <button class="status-pill" data-status="complete">Complete</button>
-                        <button class="status-pill" data-status="pending">Pending</button>
+                <!-- Row 2: Book Grouping - Hidden until OT/NT selected -->
+                <div class="filter-row grouping-row" id="groupingFilterRow">
+                    <div class="segment-control scrollable" id="groupingFilter">
+                        <!-- Populated dynamically by JavaScript -->
                     </div>
-                    
+                </div>
+                
+                <!-- Row 3: Individual Books - Hidden until grouping selected -->
+                <div class="filter-row book-row" id="bookFilterRow">
+                    <div class="segment-control scrollable" id="bookFilter">
+                        <!-- Populated dynamically by JavaScript -->
+                    </div>
+                </div>
+                
+                <!-- Row 4: Search + Surprise -->
+                <div class="filter-row search-row">
                     <div class="search-wrapper">
                         <svg class="search-icon" viewBox="0 0 20 20" fill="currentColor">
                             <path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd"/>
@@ -168,6 +174,6 @@
     <!-- Supabase JS Client -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="config.js"></script>
-    <script src="app.js?v=6"></script>
+    <script src="app.js?v=7"></script>
 </body>
 </html>
