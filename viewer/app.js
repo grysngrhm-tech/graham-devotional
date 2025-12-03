@@ -180,12 +180,130 @@ function registerServiceWorker() {
     if ('serviceWorker' in navigator) {
         navigator.serviceWorker.register('./sw.js')
             .then((registration) => {
-                console.log('Service Worker registered:', registration.scope);
+                console.log('[PWA] Service Worker registered:', registration.scope);
+                
+                // Check for updates
+                registration.addEventListener('updatefound', () => {
+                    const newWorker = registration.installing;
+                    console.log('[PWA] New service worker installing...');
+                    
+                    newWorker.addEventListener('statechange', () => {
+                        if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                            // New version available
+                            console.log('[PWA] New version available!');
+                            showUpdateNotification(registration);
+                        }
+                    });
+                });
+                
+                // Check for updates periodically (every hour)
+                setInterval(() => {
+                    registration.update();
+                }, 60 * 60 * 1000);
             })
             .catch((error) => {
-                console.log('Service Worker registration failed:', error);
+                console.log('[PWA] Service Worker registration failed:', error);
             });
+        
+        // Handle controller change (when update is applied)
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+            console.log('[PWA] New service worker activated');
+        });
     }
+}
+
+// Show update notification toast
+function showUpdateNotification(registration) {
+    // Create toast element if it doesn't exist
+    let toast = document.getElementById('pwa-update-toast');
+    if (!toast) {
+        toast = document.createElement('div');
+        toast.id = 'pwa-update-toast';
+        toast.innerHTML = `
+            <div class="pwa-toast-content">
+                <span class="pwa-toast-message">A new version is available!</span>
+                <button class="pwa-toast-btn" id="pwa-refresh-btn">Refresh</button>
+                <button class="pwa-toast-close" id="pwa-close-btn">×</button>
+            </div>
+        `;
+        document.body.appendChild(toast);
+        
+        // Add styles dynamically
+        const style = document.createElement('style');
+        style.textContent = `
+            #pwa-update-toast {
+                position: fixed;
+                bottom: 20px;
+                left: 50%;
+                transform: translateX(-50%) translateY(100px);
+                background: #1A1A1A;
+                color: #F5F5F5;
+                padding: 12px 16px;
+                border-radius: 12px;
+                box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+                z-index: 10000;
+                opacity: 0;
+                transition: all 0.3s ease;
+                border: 1px solid rgba(201, 162, 39, 0.3);
+            }
+            #pwa-update-toast.visible {
+                transform: translateX(-50%) translateY(0);
+                opacity: 1;
+            }
+            .pwa-toast-content {
+                display: flex;
+                align-items: center;
+                gap: 12px;
+            }
+            .pwa-toast-message {
+                font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+                font-size: 0.875rem;
+            }
+            .pwa-toast-btn {
+                background: #C9A227;
+                color: #1A1A1A;
+                border: none;
+                padding: 6px 12px;
+                border-radius: 6px;
+                font-size: 0.8125rem;
+                font-weight: 600;
+                cursor: pointer;
+                transition: background 0.2s;
+            }
+            .pwa-toast-btn:hover {
+                background: #D4AF37;
+            }
+            .pwa-toast-close {
+                background: none;
+                border: none;
+                color: #888;
+                font-size: 1.25rem;
+                cursor: pointer;
+                padding: 0 4px;
+                line-height: 1;
+            }
+            .pwa-toast-close:hover {
+                color: #FFF;
+            }
+        `;
+        document.head.appendChild(style);
+    }
+    
+    // Show toast
+    setTimeout(() => toast.classList.add('visible'), 100);
+    
+    // Handle refresh button
+    document.getElementById('pwa-refresh-btn').addEventListener('click', () => {
+        if (registration.waiting) {
+            registration.waiting.postMessage('skipWaiting');
+        }
+        window.location.reload();
+    });
+    
+    // Handle close button
+    document.getElementById('pwa-close-btn').addEventListener('click', () => {
+        toast.classList.remove('visible');
+    });
 }
 
 // ============================================================================

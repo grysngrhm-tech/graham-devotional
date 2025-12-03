@@ -2,6 +2,7 @@
   "name": "The GRACE Bible",
   "short_name": "GRACE Bible",
   "description": "The Graham Reimagined Art & Canon Experience Bible - 500 illustrated Biblical stories",
+  "id": "/viewer/",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
@@ -10,13 +11,52 @@
   "orientation": "any",
   "icons": [
     {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "icons/icon-180.png",
+      "sizes": "180x180",
+      "type": "image/png"
+    },
+    {
+      "src": "icons/icon-maskable-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "icons/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
       "src": "icons/icon.svg",
       "sizes": "any",
-      "type": "image/svg+xml",
-      "purpose": "any"
+      "type": "image/svg+xml"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Old Testament",
+      "short_name": "OT",
+      "url": "./index.html?testament=ot",
+      "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "New Testament",
+      "short_name": "NT",
+      "url": "./index.html?testament=nt",
+      "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }]
     }
   ],
   "categories": ["books", "education", "lifestyle"],
   "lang": "en-US"
 }
-

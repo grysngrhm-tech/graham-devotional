@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Offline - The GRACE Bible</title>
+    <meta name="theme-color" content="#000000">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Georgia', 'Times New Roman', serif;
+            background: #121212;
+            color: #F5F5F5;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+            text-align: center;
+        }
+        
+        .offline-container {
+            max-width: 400px;
+        }
+        
+        .icon {
+            width: 80px;
+            height: 80px;
+            margin-bottom: 1.5rem;
+            opacity: 0.8;
+        }
+        
+        h1 {
+            font-family: 'Playfair Display', Georgia, serif;
+            font-size: 2rem;
+            font-weight: 400;
+            margin-bottom: 0.5rem;
+            color: #C9A227;
+        }
+        
+        .subtitle {
+            font-size: 1rem;
+            color: #888;
+            margin-bottom: 2rem;
+        }
+        
+        p {
+            font-size: 1rem;
+            line-height: 1.7;
+            color: #BBBBBB;
+            margin-bottom: 1.5rem;
+        }
+        
+        .retry-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 12px 24px;
+            background: #C9A227;
+            color: #1A1A1A;
+            border: none;
+            border-radius: 8px;
+            font-family: inherit;
+            font-size: 1rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .retry-btn:hover {
+            background: #D4AF37;
+            transform: translateY(-1px);
+        }
+        
+        .retry-btn:active {
+            transform: translateY(0);
+        }
+        
+        .status {
+            margin-top: 2rem;
+            font-size: 0.875rem;
+            color: #666;
+        }
+        
+        .status.online {
+            color: #4CAF50;
+        }
+    </style>
+</head>
+<body>
+    <div class="offline-container">
+        <svg class="icon" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect width="512" height="512" fill="#1A1A1A" rx="64"/>
+            <text x="256" y="320" font-family="Georgia, serif" font-size="240" font-weight="bold" fill="#C9A227" text-anchor="middle">G</text>
+            <rect x="96" y="380" width="320" height="4" fill="#C9A227" rx="2"/>
+        </svg>
+        
+        <h1>You're Offline</h1>
+        <p class="subtitle">The GRACE Bible</p>
+        
+        <p>
+            It looks like you've lost your internet connection. 
+            The stories you're looking for require an active connection to load.
+        </p>
+        
+        <button class="retry-btn" onclick="location.reload()">
+            <span>↻</span>
+            Try Again
+        </button>
+        
+        <p class="status" id="status">Waiting for connection...</p>
+    </div>
+    
+    <script>
+        // Update status when connection changes
+        function updateStatus() {
+            const status = document.getElementById('status');
+            if (navigator.onLine) {
+                status.textContent = 'Connection restored! Tap "Try Again" to reload.';
+                status.classList.add('online');
+            } else {
+                status.textContent = 'Waiting for connection...';
+                status.classList.remove('online');
+            }
+        }
+        
+        window.addEventListener('online', updateStatus);
+        window.addEventListener('offline', updateStatus);
+        updateStatus();
+        
+        // Auto-reload when connection is restored
+        window.addEventListener('online', () => {
+            setTimeout(() => {
+                location.reload();
+            }, 1000);
+        });
+    </script>
+</body>
+</html>
+
