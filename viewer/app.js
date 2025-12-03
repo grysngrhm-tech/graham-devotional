@@ -166,6 +166,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // Register service worker for PWA
     registerServiceWorker();
     
+    // Set up smooth image loading
+    setupImageFadeIn();
+    
     const isStoryPage = document.body.classList.contains('story-page');
     
     if (isStoryPage) {
@@ -174,6 +177,38 @@ document.addEventListener('DOMContentLoaded', () => {
         initIndexPage();
     }
 });
+
+// Add 'loaded' class to images for fade-in effect
+function setupImageFadeIn() {
+    // Handle existing images
+    document.querySelectorAll('img').forEach(img => {
+        if (img.complete) {
+            img.classList.add('loaded');
+        } else {
+            img.addEventListener('load', () => img.classList.add('loaded'));
+        }
+    });
+    
+    // Use MutationObserver for dynamically added images
+    const observer = new MutationObserver((mutations) => {
+        mutations.forEach(mutation => {
+            mutation.addedNodes.forEach(node => {
+                if (node.nodeType === 1) { // Element node
+                    const images = node.tagName === 'IMG' ? [node] : node.querySelectorAll?.('img') || [];
+                    images.forEach(img => {
+                        if (img.complete) {
+                            img.classList.add('loaded');
+                        } else {
+                            img.addEventListener('load', () => img.classList.add('loaded'));
+                        }
+                    });
+                }
+            });
+        });
+    });
+    
+    observer.observe(document.body, { childList: true, subtree: true });
+}
 
 // Register service worker for PWA functionality
 function registerServiceWorker() {
@@ -503,6 +538,35 @@ async function initIndexPage() {
     setupBreadcrumbClicks();
     applyFilters();
     updateStats();
+    
+    // Restore scroll position if returning from story page
+    restoreScrollPosition();
+    
+    // Save scroll position when clicking on story cards
+    setupScrollMemory();
+}
+
+// Save scroll position when navigating to story
+function setupScrollMemory() {
+    document.addEventListener('click', (e) => {
+        const storyCard = e.target.closest('.story-card');
+        if (storyCard) {
+            sessionStorage.setItem('indexScrollY', window.scrollY.toString());
+        }
+    });
+}
+
+// Restore scroll position when returning to index
+function restoreScrollPosition() {
+    const savedY = sessionStorage.getItem('indexScrollY');
+    if (savedY) {
+        // Wait for content to render, then scroll
+        requestAnimationFrame(() => {
+            window.scrollTo(0, parseInt(savedY));
+            // Clear after restoring so refresh starts at top
+            sessionStorage.removeItem('indexScrollY');
+        });
+    }
 }
 
 // Detect platform and show appropriate keyboard shortcut
@@ -698,6 +762,9 @@ function setupFilters() {
 }
 
 function goToRandomStory() {
+    // Haptic feedback for surprise action
+    hapticFeedback('medium');
+    
     // Use filtered stories if there are active filters, otherwise use all stories
     const storiesToChooseFrom = filteredStories.length > 0 ? filteredStories : allStories;
     
@@ -1522,6 +1589,20 @@ function renderImageGrid(container, candidateImages, primaryImageUrl) {
     setupRegenerationButtons();
 }
 
+// Provide haptic feedback on supported devices
+function hapticFeedback(type = 'light') {
+    if ('vibrate' in navigator) {
+        const patterns = {
+            light: 10,
+            medium: 20,
+            heavy: 30,
+            success: [10, 50, 10],
+            error: [50, 30, 50]
+        };
+        navigator.vibrate(patterns[type] || patterns.light);
+    }
+}
+
 async function selectPrimaryImage(imageUrl) {
     if (!currentStory) return;
     
@@ -1533,6 +1614,9 @@ async function selectPrimaryImage(imageUrl) {
         return;
     }
     
+    // Haptic feedback on selection
+    hapticFeedback('light');
+    
     try {
         const { error } = await supabase
             .from('grahams_devotional_spreads')
@@ -1543,6 +1627,9 @@ async function selectPrimaryImage(imageUrl) {
         
         // Update local state
         currentStory.image_url = imageUrl;
+        
+        // Success haptic
+        hapticFeedback('success');
         
         // Show toast
         showToast('✓ Primary image updated');
