@@ -94,6 +94,44 @@
     --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5);
 }
 
+/* Dark mode - Story page specific overrides */
+[data-theme="dark"] .right-page {
+    background: #1A1A1A;
+}
+
+[data-theme="dark"] .story-title {
+    color: #F5F5F5;
+}
+
+[data-theme="dark"] .verse-text {
+    color: #E0E0E0;
+}
+
+[data-theme="dark"] .summary-text {
+    color: #D0D0D0;
+}
+
+[data-theme="dark"] .summary-text .kjv-quote {
+    color: #F0F0F0;
+}
+
+[data-theme="dark"] .verse-ref {
+    color: #999999;
+}
+
+[data-theme="dark"] .verse-range {
+    color: #888888;
+}
+
+[data-theme="dark"] .key-verse {
+    border-color: #444444;
+}
+
+[data-theme="dark"] .story-footer {
+    border-color: #444444;
+    color: #888888;
+}
+
 /* Theme Toggle Button - iOS Style */
 .theme-toggle {
     background: rgba(255, 255, 255, 0.1);
