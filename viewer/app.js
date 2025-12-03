@@ -707,33 +707,71 @@ function setupScrollRevealBreadcrumb() {
     const headerBreadcrumb = document.getElementById('headerBreadcrumb');
     const header = document.getElementById('mainHeader');
     
+    // Detect mobile for enhanced logging
+    const isMobile = window.innerWidth <= 768 || /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    const logPrefix = isMobile ? '[GRACE-MOBILE]' : '[GRACE]';
+    
+    console.log(logPrefix, 'Setting up scroll-reveal breadcrumb');
+    console.log(logPrefix, 'Viewport:', window.innerWidth, 'x', window.innerHeight);
+    console.log(logPrefix, 'User Agent:', navigator.userAgent.substring(0, 50) + '...');
+    
     if (!headerBreadcrumb) {
-        console.log('[GRACE] No header breadcrumb element found');
+        console.log(logPrefix, 'ERROR: No header breadcrumb element found (#headerBreadcrumb)');
         return;
+    }
+    console.log(logPrefix, 'Header breadcrumb element found:', headerBreadcrumb);
+    
+    if (!header) {
+        console.log(logPrefix, 'WARNING: No main header element found (#mainHeader)');
+    } else {
+        console.log(logPrefix, 'Main header element found, height:', header.offsetHeight);
     }
     
     // Remove old scroll handler if exists
     if (window._breadcrumbScrollHandler) {
         window.removeEventListener('scroll', window._breadcrumbScrollHandler);
+        window.removeEventListener('touchmove', window._breadcrumbScrollHandler);
+        console.log(logPrefix, 'Removed old scroll handlers');
     }
     
     // Get all section headers in the grid
     const sectionHeaders = document.querySelectorAll('.section-header');
-    console.log('[GRACE] Found', sectionHeaders.length, 'section headers for scroll tracking');
+    console.log(logPrefix, 'Found', sectionHeaders.length, 'section headers for scroll tracking');
     
     if (sectionHeaders.length === 0) {
-        console.log('[GRACE] No section headers to track');
+        console.log(logPrefix, 'ERROR: No section headers to track - breadcrumb will not work');
         return;
+    }
+    
+    // Log first few section headers for debugging
+    if (isMobile) {
+        sectionHeaders.forEach((sh, i) => {
+            if (i < 3) {
+                console.log(logPrefix, `Header ${i}:`, sh.dataset.testament, sh.dataset.grouping, sh.dataset.book);
+            }
+        });
     }
     
     // Get header height for threshold calculation
     const getHeaderBottom = () => {
-        return header ? header.getBoundingClientRect().bottom : 60;
+        const bottom = header ? header.getBoundingClientRect().bottom : 60;
+        return bottom;
     };
+    
+    // Track scroll events for mobile debugging
+    let scrollEventCount = 0;
     
     // Scroll handler
     const onScroll = () => {
         const headerBottom = getHeaderBottom();
+        
+        // Log periodically on mobile for debugging
+        if (isMobile) {
+            scrollEventCount++;
+            if (scrollEventCount <= 5 || scrollEventCount % 50 === 0) {
+                console.log(logPrefix, `Scroll event #${scrollEventCount}, headerBottom: ${headerBottom.toFixed(0)}, scrollY: ${window.scrollY.toFixed(0)}`);
+            }
+        }
         
         let shouldShow = false;
         let activeTestament = '';
@@ -764,11 +802,11 @@ function setupScrollRevealBreadcrumb() {
         if (shouldShow && !breadcrumbVisible) {
             headerBreadcrumb.classList.add('visible');
             breadcrumbVisible = true;
-            console.log('[GRACE] Breadcrumb row shown');
+            console.log(logPrefix, 'Breadcrumb row shown');
         } else if (!shouldShow && breadcrumbVisible) {
             headerBreadcrumb.classList.remove('visible');
             breadcrumbVisible = false;
-            console.log('[GRACE] Breadcrumb row hidden');
+            console.log(logPrefix, 'Breadcrumb row hidden');
         }
         
         // Update breadcrumb text if values changed
@@ -793,10 +831,16 @@ function setupScrollRevealBreadcrumb() {
         }
     };
     
+    // Add both scroll and touchmove listeners for iOS compatibility
     window.addEventListener('scroll', window._breadcrumbScrollHandler, { passive: true });
+    window.addEventListener('touchmove', window._breadcrumbScrollHandler, { passive: true });
+    
+    console.log(logPrefix, 'Scroll and touchmove listeners attached');
     
     // Initial check
+    console.log(logPrefix, 'Running initial scroll check...');
     onScroll();
+    console.log(logPrefix, 'Setup complete');
 }
 
 function updateBreadcrumbText(testament, grouping, book) {

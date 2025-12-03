@@ -3,7 +3,7 @@
  * Provides offline caching for the app shell
  */
 
-const CACHE_NAME = 'grace-bible-v2';
+const CACHE_NAME = 'grace-bible-v3';
 
 // App shell files to cache
 const APP_SHELL = [
