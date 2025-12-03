@@ -307,6 +307,183 @@ function showUpdateNotification(registration) {
 }
 
 // ============================================================================
+// PWA Install Prompt
+// ============================================================================
+
+let deferredInstallPrompt = null;
+
+function setupInstallPrompt() {
+    // Platform detection
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+    const isAndroid = /Android/.test(navigator.userAgent);
+    const isMobile = isIOS || isAndroid;
+    
+    // Check if already installed as PWA
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || 
+                         window.navigator.standalone === true;
+    
+    // Check if dismissed recently (7 days)
+    const dismissedTime = localStorage.getItem('pwa-install-dismissed');
+    const DISMISS_DURATION = 7 * 24 * 60 * 60 * 1000; // 7 days
+    const wasDismissedRecently = dismissedTime && 
+                                  (Date.now() - parseInt(dismissedTime)) < DISMISS_DURATION;
+    
+    console.log('[PWA] Install prompt check:', { isIOS, isAndroid, isStandalone, wasDismissedRecently });
+    
+    // Don't show if already installed or dismissed recently
+    if (isStandalone || wasDismissedRecently) {
+        console.log('[PWA] Skipping install prompt');
+        return;
+    }
+    
+    // Only show on mobile devices
+    if (!isMobile) {
+        console.log('[PWA] Not a mobile device, skipping install prompt');
+        return;
+    }
+    
+    // For Android: Capture the beforeinstallprompt event
+    if (isAndroid) {
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredInstallPrompt = e;
+            console.log('[PWA] Install prompt captured');
+            showInstallBanner(false);
+        });
+    }
+    
+    // For iOS: Show after user engagement (scroll or time)
+    if (isIOS) {
+        let hasEngaged = false;
+        
+        const showIOSPrompt = () => {
+            if (!hasEngaged) {
+                hasEngaged = true;
+                showInstallBanner(true);
+            }
+        };
+        
+        // Show after scrolling
+        window.addEventListener('scroll', () => {
+            if (window.scrollY > 100) {
+                showIOSPrompt();
+            }
+        }, { once: true });
+        
+        // Or show after 30 seconds
+        setTimeout(showIOSPrompt, 30000);
+    }
+}
+
+function showInstallBanner(isIOS) {
+    // Don't show if banner already exists
+    if (document.getElementById('pwa-install-banner')) return;
+    
+    const banner = document.createElement('div');
+    banner.id = 'pwa-install-banner';
+    banner.className = 'install-banner';
+    
+    if (isIOS) {
+        banner.innerHTML = `
+            <div class="install-banner-content">
+                <div class="install-banner-icon">📖</div>
+                <div class="install-banner-text">
+                    <strong>Install GRACE Bible</strong>
+                    <span class="install-banner-subtitle">Add to your home screen</span>
+                </div>
+                <button class="install-banner-btn" id="install-show-steps">How to Install</button>
+                <button class="install-banner-close" id="install-dismiss">×</button>
+            </div>
+            <div class="install-ios-steps" id="ios-steps">
+                <div class="ios-step">
+                    <span class="ios-step-num">1</span>
+                    <span>Tap the <strong>Share</strong> button</span>
+                    <span class="ios-share-icon">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/>
+                            <polyline points="16 6 12 2 8 6"/>
+                            <line x1="12" y1="2" x2="12" y2="15"/>
+                        </svg>
+                    </span>
+                </div>
+                <div class="ios-step">
+                    <span class="ios-step-num">2</span>
+                    <span>Scroll down and tap <strong>"Add to Home Screen"</strong></span>
+                </div>
+                <div class="ios-step">
+                    <span class="ios-step-num">3</span>
+                    <span>Tap <strong>"Add"</strong> in the top right</span>
+                </div>
+            </div>
+        `;
+    } else {
+        // Android
+        banner.innerHTML = `
+            <div class="install-banner-content">
+                <div class="install-banner-icon">📖</div>
+                <div class="install-banner-text">
+                    <strong>Install GRACE Bible</strong>
+                    <span class="install-banner-subtitle">Add to your home screen</span>
+                </div>
+                <button class="install-banner-btn" id="install-btn">Install</button>
+                <button class="install-banner-close" id="install-dismiss">×</button>
+            </div>
+        `;
+    }
+    
+    document.body.appendChild(banner);
+    
+    // Animate in
+    requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+            banner.classList.add('visible');
+        });
+    });
+    
+    // Handle iOS steps toggle
+    if (isIOS) {
+        const showStepsBtn = document.getElementById('install-show-steps');
+        const stepsDiv = document.getElementById('ios-steps');
+        
+        showStepsBtn.addEventListener('click', () => {
+            stepsDiv.classList.toggle('visible');
+            showStepsBtn.textContent = stepsDiv.classList.contains('visible') ? 'Hide Steps' : 'How to Install';
+        });
+    } else {
+        // Handle Android install button
+        const installBtn = document.getElementById('install-btn');
+        installBtn.addEventListener('click', async () => {
+            if (deferredInstallPrompt) {
+                deferredInstallPrompt.prompt();
+                const result = await deferredInstallPrompt.userChoice;
+                console.log('[PWA] Install prompt result:', result.outcome);
+                
+                if (result.outcome === 'accepted') {
+                    banner.classList.remove('visible');
+                    setTimeout(() => banner.remove(), 300);
+                }
+                
+                deferredInstallPrompt = null;
+            }
+        });
+    }
+    
+    // Handle dismiss
+    document.getElementById('install-dismiss').addEventListener('click', () => {
+        localStorage.setItem('pwa-install-dismissed', Date.now().toString());
+        banner.classList.remove('visible');
+        setTimeout(() => banner.remove(), 300);
+    });
+}
+
+// Initialize install prompt after page load
+if (document.readyState === 'complete') {
+    setupInstallPrompt();
+} else {
+    window.addEventListener('load', setupInstallPrompt);
+}
+
+// ============================================================================
 // Index Page
 // ============================================================================
 

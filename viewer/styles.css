@@ -2683,3 +2683,162 @@ body {
         font-size: 1.125rem;
     }
 }
+
+/* ============================================================================
+   PWA Install Banner
+   ============================================================================ */
+
+.install-banner {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: #1A1A1A;
+    border-top: 1px solid rgba(201, 162, 39, 0.3);
+    padding: 0;
+    z-index: 9999;
+    transform: translateY(100%);
+    opacity: 0;
+    transition: transform 0.3s ease, opacity 0.3s ease;
+    padding-bottom: env(safe-area-inset-bottom);
+}
+
+.install-banner.visible {
+    transform: translateY(0);
+    opacity: 1;
+}
+
+.install-banner-content {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 16px;
+}
+
+.install-banner-icon {
+    font-size: 1.75rem;
+    flex-shrink: 0;
+}
+
+.install-banner-text {
+    flex: 1;
+    min-width: 0;
+}
+
+.install-banner-text strong {
+    display: block;
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif;
+    font-size: 0.9375rem;
+    font-weight: 600;
+    color: #F5F5F5;
+    margin-bottom: 2px;
+}
+
+.install-banner-subtitle {
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif;
+    font-size: 0.8125rem;
+    color: #888;
+}
+
+.install-banner-btn {
+    background: #C9A227;
+    color: #1A1A1A;
+    border: none;
+    padding: 10px 16px;
+    border-radius: 8px;
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif;
+    font-size: 0.875rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.install-banner-btn:hover {
+    background: #D4AF37;
+}
+
+.install-banner-btn:active {
+    transform: scale(0.98);
+}
+
+.install-banner-close {
+    background: none;
+    border: none;
+    color: #666;
+    font-size: 1.5rem;
+    cursor: pointer;
+    padding: 4px 8px;
+    line-height: 1;
+    flex-shrink: 0;
+    transition: color 0.2s;
+}
+
+.install-banner-close:hover {
+    color: #FFF;
+}
+
+/* iOS Installation Steps */
+.install-ios-steps {
+    max-height: 0;
+    overflow: hidden;
+    background: rgba(0, 0, 0, 0.3);
+    transition: max-height 0.3s ease, padding 0.3s ease;
+}
+
+.install-ios-steps.visible {
+    max-height: 200px;
+    padding: 16px;
+}
+
+.ios-step {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 0;
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif;
+    font-size: 0.875rem;
+    color: #CCC;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.ios-step:last-child {
+    border-bottom: none;
+}
+
+.ios-step-num {
+    width: 24px;
+    height: 24px;
+    background: #C9A227;
+    color: #1A1A1A;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.75rem;
+    font-weight: 700;
+    flex-shrink: 0;
+}
+
+.ios-step strong {
+    color: #FFF;
+}
+
+.ios-share-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 6px;
+    color: #4A90D9;
+    margin-left: auto;
+    flex-shrink: 0;
+}
+
+/* Dark mode adjustments for install banner */
+[data-theme="dark"] .install-banner {
+    background: #0D0D0D;
+}
