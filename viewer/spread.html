@@ -10,7 +10,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=IM+Fell+English:ital@0;1&family=Playfair+Display:ital,opsz,wght@0,8..72,400;0,8..72,500;0,8..72,600;0,8..72,700;1,8..72,400&family=Source+Serif+4:ital,opsz,wght@0,8..60,300;0,8..60,400;0,8..60,500;1,8..60,400&display=swap" rel="stylesheet">
     
-    <link rel="stylesheet" href="styles.css?v=8">
+    <link rel="stylesheet" href="styles.css?v=9">
     
     <!-- PWA -->
     <link rel="manifest" href="manifest.json">
@@ -25,6 +25,22 @@
     <link rel="icon" type="image/svg+xml" href="icons/icon.svg">
 </head>
 <body class="story-page">
+    <!-- Sticky Audio Bar (appears during playback) -->
+    <div class="audio-sticky-bar" id="audioStickyBar">
+        <button class="skip-btn" id="skipPrevBtn" title="Previous section">⏮</button>
+        <button class="sticky-control-btn" id="stickyPlayPauseBtn" title="Play/Pause">
+            <span class="play-icon">▶</span>
+            <span class="pause-icon">⏸</span>
+        </button>
+        <button class="skip-btn" id="skipNextBtn" title="Next section">⏭</button>
+        <div class="audio-progress-dots" id="audioProgressDots">
+            <!-- Populated by JS -->
+        </div>
+        <span class="audio-time-remaining" id="audioTimeRemaining">--:--</span>
+        <span class="speed-indicator" id="stickySpeedBtn">1×</span>
+        <button class="sticky-control-btn secondary" id="stickyStopBtn" title="Stop">⏹</button>
+    </div>
+
     <nav class="story-nav">
         <a href="index.html" class="nav-back">← All Stories</a>
         <div class="nav-controls">
@@ -239,7 +255,7 @@
     <!-- Supabase JS Client -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="config.js"></script>
-    <script src="app.js?v=8"></script>
+    <script src="app.js?v=9"></script>
 </body>
 </html>
 

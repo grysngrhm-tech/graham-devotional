@@ -1467,26 +1467,31 @@ function renderStory(story) {
     }
     
     // Set key verse (use correct database field names)
+    // Wrap in audio-segment for narration sync
     const keyVerseTextEl = content.getElementById('keyVerseText');
     const keyVerseRefEl = content.getElementById('keyVerseRef');
     // Strip ** markdown from key verse text
     const keyVerseText = (story.kjv_key_verse_text || '').replace(/\*\*/g, '');
+    let audioSegmentIndex = 0;
     if (keyVerseText) {
-        keyVerseTextEl.textContent = keyVerseText;
+        // Wrap key verse in audio-segment span
+        keyVerseTextEl.innerHTML = `<span class="audio-segment" data-audio-index="${audioSegmentIndex}">${keyVerseText}</span>`;
         keyVerseRefEl.textContent = story.kjv_key_verse_ref ? `— ${story.kjv_key_verse_ref}` : '';
+        audioSegmentIndex++;
     } else {
         keyVerseTextEl.parentElement.style.display = 'none';
     }
     
     // Set summary text (use correct database field name: paraphrase_text)
+    // Each paragraph is wrapped in audio-segment for narration sync
     const summaryEl = content.getElementById('summaryText');
     if (story.paraphrase_text) {
         // Split into paragraphs if there are double line breaks
         const paragraphs = story.paraphrase_text.split(/\n\n+/).filter(p => p.trim());
-        // Convert **bold** markdown to KJV quote styling
-        const formattedParagraphs = paragraphs.map(p => {
+        // Convert **bold** markdown to KJV quote styling, wrap each in audio-segment
+        const formattedParagraphs = paragraphs.map((p, idx) => {
             const formatted = p.trim().replace(/\*\*(.+?)\*\*/g, '<span class="kjv-quote">$1</span>');
-            return `<p>${formatted}</p>`;
+            return `<p><span class="audio-segment" data-audio-index="${audioSegmentIndex + idx}">${formatted}</span></p>`;
         });
         summaryEl.innerHTML = formattedParagraphs.join('');
     } else {
@@ -2166,52 +2171,74 @@ function setupAudioControls() {
         // If showing controls for first time, prepare text
         if (audioControls.classList.contains('visible') && audioTextParts.length === 0) {
             prepareAudioText();
+            // Build progress dots
+            updateProgressDots();
         }
+        
+        hapticFeedback();
     });
     
     // Play/Pause button
     if (playPauseBtn) {
-        playPauseBtn.addEventListener('click', togglePlayPause);
+        playPauseBtn.addEventListener('click', () => {
+            togglePlayPause();
+            // Sync sticky bar play button
+            const stickyPlayPauseBtn = document.getElementById('stickyPlayPauseBtn');
+            if (playPauseBtn.classList.contains('playing')) {
+                stickyPlayPauseBtn?.classList.add('playing');
+            } else {
+                stickyPlayPauseBtn?.classList.remove('playing');
+            }
+            hapticFeedback();
+        });
     }
     
     // Stop button
     if (stopBtn) {
-        stopBtn.addEventListener('click', stopAudio);
+        stopBtn.addEventListener('click', () => {
+            stopAudio();
+            hapticFeedback();
+        });
     }
     
     // Speed button
     if (speedBtn) {
-        speedBtn.addEventListener('click', cycleSpeed);
+        speedBtn.addEventListener('click', () => {
+            cycleSpeed();
+            hapticFeedback();
+        });
     }
+    
+    // Setup sticky audio bar
+    setupStickyAudioBar();
 }
 
 function prepareAudioText() {
     audioTextParts = [];
     
-    // Get key verse
-    const keyVerseText = document.getElementById('keyVerseText')?.textContent;
-    const keyVerseRef = document.getElementById('keyVerseRef')?.textContent;
+    // Get all audio segments in DOM order
+    const segments = document.querySelectorAll('.audio-segment[data-audio-index]');
     
-    if (keyVerseText) {
-        audioTextParts.push({
-            type: 'verse',
-            text: keyVerseText + (keyVerseRef ? ' ' + keyVerseRef : '')
-        });
-    }
+    segments.forEach((segment, idx) => {
+        const text = segment.textContent.trim();
+        if (text) {
+            const index = parseInt(segment.dataset.audioIndex);
+            audioTextParts.push({
+                type: index === 0 ? 'verse' : 'summary',
+                text: text,
+                element: segment,
+                index: index
+            });
+        }
+    });
     
-    // Get summary text (strip HTML, keep paragraph breaks)
-    const summaryEl = document.getElementById('summaryText');
-    if (summaryEl) {
-        const paragraphs = summaryEl.querySelectorAll('p');
-        paragraphs.forEach(p => {
-            const text = p.textContent.trim();
-            if (text) {
-                audioTextParts.push({ type: 'summary', text });
-            }
-        });
-    }
+    // Calculate total word count for time estimate
+    const totalWords = audioTextParts.reduce((sum, part) => sum + part.text.split(/\s+/).length, 0);
+    window._audioTotalWords = totalWords;
+    window._audioWordsRead = 0;
     
     updateAudioStatus('Ready');
+    updateTimeRemaining();
 }
 
 function togglePlayPause() {
@@ -2275,9 +2302,25 @@ function readNextPart() {
         playPauseBtn?.classList.add('playing');
         updateAudioStatus(part.type === 'verse' ? 'Key verse...' : 'Reading...');
         document.getElementById('audioStatus')?.classList.add('speaking');
+        
+        // Highlight current segment and scroll to it
+        highlightCurrentSegment(currentPartIndex);
+        scrollToCurrentSegment(currentPartIndex);
+        
+        // Show sticky bar and update progress
+        showStickyAudioBar(true);
+        updateProgressDots();
+        updateTimeRemaining();
     };
     
     currentUtterance.onend = () => {
+        // Mark as complete before moving on
+        markSegmentComplete(currentPartIndex);
+        
+        // Update words read for time estimate
+        const wordsInPart = part.text.split(/\s+/).length;
+        window._audioWordsRead = (window._audioWordsRead || 0) + wordsInPart;
+        
         currentPartIndex++;
         // Small pause between parts
         setTimeout(() => {
@@ -2300,6 +2343,7 @@ function stopAudio() {
     speechSynthesis.cancel();
     isAudioPlaying = false;
     currentPartIndex = 0;
+    window._audioWordsRead = 0;
     
     const playPauseBtn = document.getElementById('playPauseBtn');
     const audioStatus = document.getElementById('audioStatus');
@@ -2307,14 +2351,38 @@ function stopAudio() {
     playPauseBtn?.classList.remove('playing');
     audioStatus?.classList.remove('speaking');
     updateAudioStatus('Ready');
+    
+    // Clear all highlighting
+    clearAllHighlights();
+    
+    // Hide sticky bar
+    showStickyAudioBar(false);
+    
+    // Update sticky bar play button
+    const stickyPlayPauseBtn = document.getElementById('stickyPlayPauseBtn');
+    stickyPlayPauseBtn?.classList.remove('playing');
 }
 
 function cycleSpeed() {
     currentSpeedIndex = (currentSpeedIndex + 1) % audioSpeeds.length;
     const speedBtn = document.getElementById('speedBtn');
+    const stickySpeedBtn = document.getElementById('stickySpeedBtn');
+    const speedText = audioSpeeds[currentSpeedIndex] + '×';
+    
     if (speedBtn) {
-        speedBtn.textContent = audioSpeeds[currentSpeedIndex] + '×';
+        speedBtn.textContent = speedText;
     }
+    if (stickySpeedBtn) {
+        stickySpeedBtn.textContent = speedText;
+    }
+    
+    // Persist to localStorage
+    try {
+        localStorage.setItem('grace-audio-speed', currentSpeedIndex.toString());
+    } catch (e) {}
+    
+    // Update time estimate
+    updateTimeRemaining();
     
     // If currently playing, update the rate
     if (currentUtterance && isAudioPlaying) {
@@ -2339,6 +2407,236 @@ if (speechSynthesis) {
     speechSynthesis.onvoiceschanged = () => {
         // Voices loaded
     };
+}
+
+// ============================================================================
+// Audio Highlighting & UI Sync
+// ============================================================================
+
+// Track user scroll to pause auto-scroll
+let userScrolling = false;
+let userScrollTimeout = null;
+
+function highlightCurrentSegment(index) {
+    // Remove active class from all segments
+    document.querySelectorAll('.audio-segment.audio-active').forEach(el => {
+        el.classList.remove('audio-active');
+    });
+    
+    // Add active class to current segment
+    const currentSegment = document.querySelector(`.audio-segment[data-audio-index="${index}"]`);
+    if (currentSegment) {
+        currentSegment.classList.add('audio-active');
+    }
+}
+
+function markSegmentComplete(index) {
+    const segment = document.querySelector(`.audio-segment[data-audio-index="${index}"]`);
+    if (segment) {
+        segment.classList.remove('audio-active');
+        segment.classList.add('audio-complete');
+    }
+}
+
+function clearAllHighlights() {
+    document.querySelectorAll('.audio-segment').forEach(el => {
+        el.classList.remove('audio-active', 'audio-complete');
+    });
+}
+
+function scrollToCurrentSegment(index) {
+    // Don't auto-scroll if user recently scrolled manually
+    if (userScrolling) return;
+    
+    const segment = document.querySelector(`.audio-segment[data-audio-index="${index}"]`);
+    if (segment) {
+        // Check if element is in viewport
+        const rect = segment.getBoundingClientRect();
+        const viewportHeight = window.innerHeight;
+        const stickyBarHeight = 60; // Account for sticky bar
+        
+        // Only scroll if element is not visible
+        if (rect.top < stickyBarHeight || rect.bottom > viewportHeight - 100) {
+            segment.scrollIntoView({ 
+                behavior: 'smooth', 
+                block: 'center' 
+            });
+        }
+    }
+}
+
+function showStickyAudioBar(show) {
+    const stickyBar = document.getElementById('audioStickyBar');
+    if (stickyBar) {
+        if (show) {
+            stickyBar.classList.add('visible');
+        } else {
+            stickyBar.classList.remove('visible');
+        }
+    }
+}
+
+function updateProgressDots() {
+    const dotsContainer = document.getElementById('audioProgressDots');
+    if (!dotsContainer) return;
+    
+    dotsContainer.innerHTML = '';
+    
+    audioTextParts.forEach((part, idx) => {
+        const dot = document.createElement('div');
+        dot.className = 'audio-progress-dot';
+        dot.dataset.index = idx;
+        
+        if (idx < currentPartIndex) {
+            dot.classList.add('complete');
+        } else if (idx === currentPartIndex) {
+            dot.classList.add('active');
+        }
+        
+        // Click to seek
+        dot.addEventListener('click', () => seekToSection(idx));
+        
+        dotsContainer.appendChild(dot);
+    });
+}
+
+function seekToSection(index) {
+    if (index < 0 || index >= audioTextParts.length) return;
+    
+    // Stop current speech
+    speechSynthesis.cancel();
+    
+    // Clear highlights for sections after the target
+    document.querySelectorAll('.audio-segment').forEach((el, idx) => {
+        if (idx >= index) {
+            el.classList.remove('audio-active', 'audio-complete');
+        }
+    });
+    
+    // Recalculate words read
+    let wordsRead = 0;
+    for (let i = 0; i < index; i++) {
+        wordsRead += audioTextParts[i].text.split(/\s+/).length;
+    }
+    window._audioWordsRead = wordsRead;
+    
+    // Update index and continue reading
+    currentPartIndex = index;
+    
+    if (isAudioPlaying) {
+        readNextPart();
+    } else {
+        // Just highlight and scroll if paused
+        highlightCurrentSegment(index);
+        scrollToCurrentSegment(index);
+        updateProgressDots();
+    }
+    
+    // Haptic feedback
+    hapticFeedback();
+}
+
+function skipSection(direction) {
+    const newIndex = currentPartIndex + direction;
+    if (newIndex >= 0 && newIndex < audioTextParts.length) {
+        seekToSection(newIndex);
+    }
+}
+
+function updateTimeRemaining() {
+    const timeEl = document.getElementById('audioTimeRemaining');
+    if (!timeEl) return;
+    
+    const totalWords = window._audioTotalWords || 0;
+    const wordsRead = window._audioWordsRead || 0;
+    const wordsRemaining = totalWords - wordsRead;
+    
+    if (wordsRemaining <= 0) {
+        timeEl.textContent = '0:00';
+        return;
+    }
+    
+    // Base WPM is ~150, adjusted by speed
+    const speed = audioSpeeds[currentSpeedIndex] || 1;
+    const wpm = 150 * speed;
+    const minutesRemaining = wordsRemaining / wpm;
+    
+    const mins = Math.floor(minutesRemaining);
+    const secs = Math.round((minutesRemaining - mins) * 60);
+    
+    timeEl.textContent = `${mins}:${secs.toString().padStart(2, '0')}`;
+}
+
+function setupStickyAudioBar() {
+    const stickyPlayPauseBtn = document.getElementById('stickyPlayPauseBtn');
+    const stickyStopBtn = document.getElementById('stickyStopBtn');
+    const stickySpeedBtn = document.getElementById('stickySpeedBtn');
+    const skipPrevBtn = document.getElementById('skipPrevBtn');
+    const skipNextBtn = document.getElementById('skipNextBtn');
+    
+    // Play/Pause from sticky bar
+    stickyPlayPauseBtn?.addEventListener('click', () => {
+        togglePlayPause();
+        // Sync the playing class
+        const isPlaying = document.getElementById('playPauseBtn')?.classList.contains('playing');
+        if (isPlaying) {
+            stickyPlayPauseBtn.classList.add('playing');
+        } else {
+            stickyPlayPauseBtn.classList.remove('playing');
+        }
+        hapticFeedback();
+    });
+    
+    // Stop from sticky bar
+    stickyStopBtn?.addEventListener('click', () => {
+        stopAudio();
+        hapticFeedback();
+    });
+    
+    // Speed from sticky bar
+    stickySpeedBtn?.addEventListener('click', () => {
+        cycleSpeed();
+        hapticFeedback();
+    });
+    
+    // Skip buttons
+    skipPrevBtn?.addEventListener('click', () => skipSection(-1));
+    skipNextBtn?.addEventListener('click', () => skipSection(1));
+    
+    // Detect user scroll to temporarily disable auto-scroll
+    const rightPage = document.getElementById('rightPage');
+    if (rightPage) {
+        rightPage.addEventListener('scroll', () => {
+            userScrolling = true;
+            clearTimeout(userScrollTimeout);
+            userScrollTimeout = setTimeout(() => {
+                userScrolling = false;
+            }, 3000); // Re-enable auto-scroll after 3s of no user scroll
+        }, { passive: true });
+    }
+    
+    // Also detect window scroll for mobile
+    window.addEventListener('scroll', () => {
+        if (isAudioPlaying) {
+            userScrolling = true;
+            clearTimeout(userScrollTimeout);
+            userScrollTimeout = setTimeout(() => {
+                userScrolling = false;
+            }, 3000);
+        }
+    }, { passive: true });
+    
+    // Load saved speed preference
+    try {
+        const savedSpeed = localStorage.getItem('grace-audio-speed');
+        if (savedSpeed !== null) {
+            currentSpeedIndex = parseInt(savedSpeed, 10);
+            const speedText = audioSpeeds[currentSpeedIndex] + '×';
+            const speedBtn = document.getElementById('speedBtn');
+            if (speedBtn) speedBtn.textContent = speedText;
+            if (stickySpeedBtn) stickySpeedBtn.textContent = speedText;
+        }
+    } catch (e) {}
 }
 
 // ============================================================================
