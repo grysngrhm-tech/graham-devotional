@@ -1905,6 +1905,12 @@ body {
 
 .audio-btn.active {
     background: var(--color-gold);
+    animation: audioPulse 1.5s ease-in-out infinite;
+}
+
+@keyframes audioPulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.08); }
 }
 
 /* Audio Controls Panel - iOS Style */

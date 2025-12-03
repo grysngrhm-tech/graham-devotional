@@ -2156,60 +2156,37 @@ let currentPartIndex = 0;
 
 function setupAudioControls() {
     const audioBtn = document.getElementById('audioBtn');
-    const audioControls = document.getElementById('audioControls');
-    const playPauseBtn = document.getElementById('playPauseBtn');
-    const stopBtn = document.getElementById('stopBtn');
-    const speedBtn = document.getElementById('speedBtn');
     
     if (!audioBtn || !speechSynthesis) return;
     
-    // Toggle audio controls visibility
+    // Main audio button - directly toggles playback (simplified UX)
     audioBtn.addEventListener('click', () => {
-        audioControls.classList.toggle('visible');
-        audioBtn.classList.toggle('active', audioControls.classList.contains('visible'));
+        hapticFeedback();
         
-        // If showing controls for first time, prepare text
-        if (audioControls.classList.contains('visible') && audioTextParts.length === 0) {
+        // Prepare text on first interaction
+        if (audioTextParts.length === 0) {
             prepareAudioText();
-            // Build progress dots
             updateProgressDots();
         }
         
-        hapticFeedback();
+        // Toggle playback directly
+        if (isAudioPlaying) {
+            // If playing, toggle pause/resume
+            if (speechSynthesis.paused) {
+                speechSynthesis.resume();
+                syncAllPlayButtons(true);
+                showStickyAudioBar(true);
+            } else {
+                speechSynthesis.pause();
+                syncAllPlayButtons(false);
+            }
+        } else {
+            // Start playback - the onstart callback will handle UI updates
+            startReading();
+        }
     });
     
-    // Play/Pause button
-    if (playPauseBtn) {
-        playPauseBtn.addEventListener('click', () => {
-            togglePlayPause();
-            // Sync sticky bar play button
-            const stickyPlayPauseBtn = document.getElementById('stickyPlayPauseBtn');
-            if (playPauseBtn.classList.contains('playing')) {
-                stickyPlayPauseBtn?.classList.add('playing');
-            } else {
-                stickyPlayPauseBtn?.classList.remove('playing');
-            }
-            hapticFeedback();
-        });
-    }
-    
-    // Stop button
-    if (stopBtn) {
-        stopBtn.addEventListener('click', () => {
-            stopAudio();
-            hapticFeedback();
-        });
-    }
-    
-    // Speed button
-    if (speedBtn) {
-        speedBtn.addEventListener('click', () => {
-            cycleSpeed();
-            hapticFeedback();
-        });
-    }
-    
-    // Setup sticky audio bar
+    // Setup sticky audio bar (the main control interface during playback)
     setupStickyAudioBar();
 }
 
@@ -2242,18 +2219,31 @@ function prepareAudioText() {
 }
 
 function togglePlayPause() {
-    const playPauseBtn = document.getElementById('playPauseBtn');
-    
     if (isAudioPlaying) {
         if (speechSynthesis.paused) {
             speechSynthesis.resume();
-            updateAudioStatus('Speaking...');
+            syncAllPlayButtons(true);
+            showStickyAudioBar(true);
         } else {
             speechSynthesis.pause();
-            updateAudioStatus('Paused');
+            syncAllPlayButtons(false);
         }
     } else {
         startReading();
+    }
+}
+
+// Sync play/pause state across all buttons
+function syncAllPlayButtons(playing) {
+    const audioBtn = document.getElementById('audioBtn');
+    const stickyPlayPauseBtn = document.getElementById('stickyPlayPauseBtn');
+    
+    if (playing) {
+        audioBtn?.classList.add('active');
+        stickyPlayPauseBtn?.classList.add('playing');
+    } else {
+        // Keep active state on audioBtn if just paused (still in session)
+        stickyPlayPauseBtn?.classList.remove('playing');
     }
 }
 
@@ -2280,7 +2270,6 @@ function readNextPart() {
     }
     
     const part = audioTextParts[currentPartIndex];
-    const playPauseBtn = document.getElementById('playPauseBtn');
     
     currentUtterance = new SpeechSynthesisUtterance(part.text);
     currentUtterance.rate = audioSpeeds[currentSpeedIndex];
@@ -2299,9 +2288,10 @@ function readNextPart() {
     
     currentUtterance.onstart = () => {
         isAudioPlaying = true;
-        playPauseBtn?.classList.add('playing');
         updateAudioStatus(part.type === 'verse' ? 'Key verse...' : 'Reading...');
-        document.getElementById('audioStatus')?.classList.add('speaking');
+        
+        // Sync all play buttons
+        syncAllPlayButtons(true);
         
         // Highlight current segment and scroll to it
         highlightCurrentSegment(currentPartIndex);
@@ -2345,22 +2335,20 @@ function stopAudio() {
     currentPartIndex = 0;
     window._audioWordsRead = 0;
     
-    const playPauseBtn = document.getElementById('playPauseBtn');
-    const audioStatus = document.getElementById('audioStatus');
-    
-    playPauseBtn?.classList.remove('playing');
-    audioStatus?.classList.remove('speaking');
     updateAudioStatus('Ready');
+    
+    // Reset all button states
+    const audioBtn = document.getElementById('audioBtn');
+    const stickyPlayPauseBtn = document.getElementById('stickyPlayPauseBtn');
+    
+    audioBtn?.classList.remove('active');
+    stickyPlayPauseBtn?.classList.remove('playing');
     
     // Clear all highlighting
     clearAllHighlights();
     
     // Hide sticky bar
     showStickyAudioBar(false);
-    
-    // Update sticky bar play button
-    const stickyPlayPauseBtn = document.getElementById('stickyPlayPauseBtn');
-    stickyPlayPauseBtn?.classList.remove('playing');
 }
 
 function cycleSpeed() {
@@ -2396,9 +2384,11 @@ function cycleSpeed() {
 }
 
 function updateAudioStatus(text) {
-    const audioStatus = document.getElementById('audioStatus');
-    if (audioStatus) {
-        audioStatus.textContent = text;
+    // Status is now conveyed through visual states (play/pause icon, progress dots)
+    // For important states like 'Finished' or 'Error', show in time remaining area
+    const timeEl = document.getElementById('audioTimeRemaining');
+    if (timeEl && (text === 'Finished' || text === 'Error' || text === 'No text to read')) {
+        timeEl.textContent = text;
     }
 }
 
@@ -2576,15 +2566,8 @@ function setupStickyAudioBar() {
     
     // Play/Pause from sticky bar
     stickyPlayPauseBtn?.addEventListener('click', () => {
-        togglePlayPause();
-        // Sync the playing class
-        const isPlaying = document.getElementById('playPauseBtn')?.classList.contains('playing');
-        if (isPlaying) {
-            stickyPlayPauseBtn.classList.add('playing');
-        } else {
-            stickyPlayPauseBtn.classList.remove('playing');
-        }
         hapticFeedback();
+        togglePlayPause();
     });
     
     // Stop from sticky bar
