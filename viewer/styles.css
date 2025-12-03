@@ -249,7 +249,7 @@ body {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: var(--spacing-md) var(--spacing-xl);
+    padding: var(--spacing-xs) var(--spacing-xl);
 }
 
 /* Breadcrumb row - hidden by default, slides in on scroll */
@@ -456,7 +456,8 @@ body {
 .intro-section {
     background: linear-gradient(to bottom, var(--bg-secondary) 0%, var(--bg-primary) 100%);
     border-bottom: 1px solid var(--border-color);
-    padding: var(--spacing-md) var(--spacing-xl);
+    padding: var(--spacing-xs) var(--spacing-xl);
+    padding-bottom: 0; /* Tighter bottom */
     transition: background 0.3s ease, border-color 0.3s ease;
 }
 
@@ -465,7 +466,7 @@ body {
     margin: 0 auto;
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: var(--spacing-xl);
+    gap: var(--spacing-md);
     align-items: start;
 }
 
@@ -486,8 +487,8 @@ body {
 
 .intro-text {
     font-family: 'Playfair Display', Georgia, serif;
-    font-size: 0.9375rem;
-    line-height: 1.7;
+    font-size: 0.8125rem;
+    line-height: 1.6;
     color: var(--text-secondary);
     margin: 0;
     transition: color 0.3s ease;
@@ -527,7 +528,7 @@ body {
     flex: 1;
     max-width: var(--max-width);
     margin: 0 auto;
-    padding: var(--spacing-lg) var(--spacing-xl);
+    padding: var(--spacing-sm) var(--spacing-xl);
     width: 100%;
     animation: contentFadeIn 0.4s ease;
 }
@@ -545,8 +546,8 @@ body {
 .filter-section {
     display: flex;
     flex-direction: column;
-    gap: var(--spacing-md);
-    margin-bottom: var(--spacing-lg);
+    gap: var(--spacing-xs);
+    margin-bottom: var(--spacing-sm);
 }
 
 .filter-row {
@@ -1337,9 +1338,7 @@ body {
 }
 
 .nav-controls {
-    display: flex;
-    align-items: center;
-    gap: var(--spacing-md);
+    display: none; /* Using floating nav instead */
 }
 
 .nav-btn {
@@ -2264,15 +2263,7 @@ body {
         max-width: 100%;  /* Full width on mobile */
     }
     
-    /* Show floating nav on mobile */
-    .floating-story-nav {
-        display: flex;
-    }
-    
-    /* Hide top nav arrows on mobile (use floating instead) */
-    .story-nav .nav-controls {
-        display: none;
-    }
+    /* Floating nav already visible - no change needed */
 }
 
 @media (max-width: 768px) {
@@ -2693,16 +2684,16 @@ body {
    ============================================================================ */
 
 .floating-story-nav {
-    display: none; /* Hidden by default, shown on mobile via media query */
+    display: flex; /* Always visible for easy navigation */
     position: fixed;
     bottom: 0;
     left: 0;
     right: 0;
-    padding: var(--spacing-md);
-    padding-bottom: max(var(--spacing-md), env(safe-area-inset-bottom));
+    padding: var(--spacing-lg);
+    padding-bottom: max(var(--spacing-lg), calc(env(safe-area-inset-bottom) + var(--spacing-md)));
     justify-content: space-between;
     align-items: center;
-    z-index: 100;
+    z-index: 1000; /* Above everything */
     pointer-events: none;
 }
 
