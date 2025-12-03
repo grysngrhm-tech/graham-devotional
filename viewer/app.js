@@ -688,21 +688,27 @@ function renderStories() {
     console.log('[GRACE] Generated', headerCount, 'section headers');
     grid.innerHTML = html;
     
-    // Setup breadcrumb with scroll tracking
-    setupUnifiedBreadcrumb();
+    // Setup scroll-reveal breadcrumb in header
+    setupScrollRevealBreadcrumb();
 }
 
 // ============================================================================
-// UNIFIED BREADCRUMB SYSTEM - Simplified & Robust
+// SCROLL-REVEAL BREADCRUMB SYSTEM
+// ============================================================================
+// The breadcrumb row is hidden in the header by default.
+// When the user scrolls past an in-grid section header, the breadcrumb row
+// slides into view and shows the current section context.
 // ============================================================================
 
-// Track current breadcrumb state
 let currentBreadcrumbState = { testament: '', grouping: '', book: '' };
+let breadcrumbVisible = false;
 
-function setupUnifiedBreadcrumb() {
-    const breadcrumb = document.getElementById('sectionBreadcrumb');
-    if (!breadcrumb) {
-        console.log('[GRACE] No breadcrumb element found');
+function setupScrollRevealBreadcrumb() {
+    const headerBreadcrumb = document.getElementById('headerBreadcrumb');
+    const header = document.getElementById('mainHeader');
+    
+    if (!headerBreadcrumb) {
+        console.log('[GRACE] No header breadcrumb element found');
         return;
     }
     
@@ -711,56 +717,71 @@ function setupUnifiedBreadcrumb() {
         window.removeEventListener('scroll', window._breadcrumbScrollHandler);
     }
     
-    // Show the breadcrumb
-    breadcrumb.classList.add('visible');
-    console.log('[GRACE] Breadcrumb made visible');
+    // Get all section headers in the grid
+    const sectionHeaders = document.querySelectorAll('.section-header');
+    console.log('[GRACE] Found', sectionHeaders.length, 'section headers for scroll tracking');
     
-    // Get all section headers
-    const headers = document.querySelectorAll('.section-header');
-    console.log('[GRACE] Found', headers.length, 'section headers');
-    
-    // Set initial state from first story
-    if (filteredStories.length > 0) {
-        const first = filteredStories[0];
-        const testament = first.testament === 'OT' ? 'Old Testament' : 'New Testament';
-        const grouping = BOOK_TO_GROUPING[first.book] || '';
-        const book = first.book || '';
-        updateBreadcrumbDisplay(testament, grouping, book);
-        console.log('[GRACE] Initial breadcrumb:', testament, '>', grouping, '>', book);
+    if (sectionHeaders.length === 0) {
+        console.log('[GRACE] No section headers to track');
+        return;
     }
     
-    // Simple scroll handler - check which headers have scrolled past
+    // Get header height for threshold calculation
+    const getHeaderBottom = () => {
+        return header ? header.getBoundingClientRect().bottom : 60;
+    };
+    
+    // Scroll handler
     const onScroll = () => {
-        const stickyTop = 80; // Distance from top where breadcrumb sits
+        const headerBottom = getHeaderBottom();
         
-        let activeTestament = currentBreadcrumbState.testament;
-        let activeGrouping = currentBreadcrumbState.grouping;
-        let activeBook = currentBreadcrumbState.book;
+        let shouldShow = false;
+        let activeTestament = '';
+        let activeGrouping = '';
+        let activeBook = '';
         
-        // Iterate through all headers, track the last one above the threshold
-        headers.forEach(header => {
-            const rect = header.getBoundingClientRect();
-            if (rect.top < stickyTop) {
-                // This header has scrolled past - extract its data
-                const t = header.dataset.testament;
-                const g = header.dataset.grouping;
-                const b = header.dataset.book;
+        // Check each section header
+        sectionHeaders.forEach(sh => {
+            const rect = sh.getBoundingClientRect();
+            
+            // If this header is at or above the header bottom, it has scrolled past
+            if (rect.top <= headerBottom) {
+                shouldShow = true;
                 
+                // Extract data from this header
+                const t = sh.dataset.testament;
+                const g = sh.dataset.grouping;
+                const b = sh.dataset.book;
+                
+                // Update active values (later headers override earlier ones)
                 if (t) activeTestament = t;
                 if (g) activeGrouping = g;
                 if (b) activeBook = b;
             }
         });
         
-        // Update display if changed
-        if (activeTestament !== currentBreadcrumbState.testament ||
+        // Show or hide the breadcrumb row
+        if (shouldShow && !breadcrumbVisible) {
+            headerBreadcrumb.classList.add('visible');
+            breadcrumbVisible = true;
+            console.log('[GRACE] Breadcrumb row shown');
+        } else if (!shouldShow && breadcrumbVisible) {
+            headerBreadcrumb.classList.remove('visible');
+            breadcrumbVisible = false;
+            console.log('[GRACE] Breadcrumb row hidden');
+        }
+        
+        // Update breadcrumb text if values changed
+        if (shouldShow && (
+            activeTestament !== currentBreadcrumbState.testament ||
             activeGrouping !== currentBreadcrumbState.grouping ||
-            activeBook !== currentBreadcrumbState.book) {
-            updateBreadcrumbDisplay(activeTestament, activeGrouping, activeBook);
+            activeBook !== currentBreadcrumbState.book
+        )) {
+            updateBreadcrumbText(activeTestament, activeGrouping, activeBook);
         }
     };
     
-    // Throttle scroll updates
+    // Throttled scroll handler
     let ticking = false;
     window._breadcrumbScrollHandler = () => {
         if (!ticking) {
@@ -774,14 +795,13 @@ function setupUnifiedBreadcrumb() {
     
     window.addEventListener('scroll', window._breadcrumbScrollHandler, { passive: true });
     
-    // Run once immediately
+    // Initial check
     onScroll();
 }
 
-function updateBreadcrumbDisplay(testament, grouping, book) {
+function updateBreadcrumbText(testament, grouping, book) {
     currentBreadcrumbState = { testament, grouping, book };
     
-    // Get elements by ID for reliability
     const testamentEl = document.getElementById('breadcrumbTestament');
     const groupingEl = document.getElementById('breadcrumbGrouping');
     const bookEl = document.getElementById('breadcrumbBook');
@@ -789,32 +809,41 @@ function updateBreadcrumbDisplay(testament, grouping, book) {
     const sep1 = document.getElementById('breadcrumbSep1');
     const sep2 = document.getElementById('breadcrumbSep2');
     
-    // Always show testament
+    // Testament - always show
     if (testamentEl) {
-        testamentEl.textContent = testament || 'All';
-        testamentEl.style.display = 'inline-flex';
+        testamentEl.textContent = testament || '';
     }
     
-    // Show separator and grouping if available
-    if (sep1) sep1.style.display = grouping ? 'inline' : 'none';
-    if (groupingEl) {
-        groupingEl.textContent = grouping || '';
-        groupingEl.style.display = grouping ? 'inline-flex' : 'none';
+    // Grouping
+    if (groupingEl && sep1) {
+        if (grouping) {
+            groupingEl.textContent = grouping;
+            groupingEl.style.display = 'inline';
+            sep1.style.display = 'inline';
+        } else {
+            groupingEl.style.display = 'none';
+            sep1.style.display = 'none';
+        }
     }
     
-    // Show separator and book if available
-    if (sep2) sep2.style.display = book ? 'inline' : 'none';
-    if (bookEl) {
-        bookEl.textContent = book || '';
-        bookEl.style.display = book ? 'inline' : 'none';
+    // Book
+    if (bookEl && sep2) {
+        if (book) {
+            bookEl.textContent = book;
+            bookEl.style.display = 'inline';
+            sep2.style.display = 'inline';
+        } else {
+            bookEl.style.display = 'none';
+            sep2.style.display = 'none';
+        }
     }
     
-    // Update count
+    // Count
     if (countEl) {
         countEl.textContent = `${filteredStories.length} stories`;
     }
     
-    console.log('[GRACE] Breadcrumb updated:', testament, '>', grouping, '>', book);
+    console.log('[GRACE] Breadcrumb text:', testament, '›', grouping, '›', book);
 }
 
 // Old setInitialBreadcrumb removed - now handled in setupUnifiedBreadcrumb
@@ -873,9 +902,10 @@ function setupBreadcrumbClicks() {
 }
 
 function hideBreadcrumb() {
-    const breadcrumb = document.getElementById('sectionBreadcrumb');
-    if (breadcrumb) {
-        breadcrumb.classList.remove('visible');
+    const headerBreadcrumb = document.getElementById('headerBreadcrumb');
+    if (headerBreadcrumb) {
+        headerBreadcrumb.classList.remove('visible');
+        breadcrumbVisible = false;
     }
     if (window._breadcrumbScrollHandler) {
         window.removeEventListener('scroll', window._breadcrumbScrollHandler);

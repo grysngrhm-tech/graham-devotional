@@ -182,14 +182,69 @@ body {
 /* Compact Header */
 .compact-header {
     display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: var(--spacing-md) var(--spacing-xl);
+    flex-direction: column;
     background: #000000;
     position: sticky;
     top: 0;
     z-index: 100;
     box-shadow: 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+/* Primary header row */
+.header-row.header-primary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--spacing-md) var(--spacing-xl);
+}
+
+/* Breadcrumb row - hidden by default, slides in on scroll */
+.header-row.header-breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0 var(--spacing-xl);
+    max-height: 0;
+    opacity: 0;
+    overflow: hidden;
+    transition: max-height 0.25s ease, opacity 0.2s ease, padding 0.25s ease;
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    background: rgba(255, 255, 255, 0.05);
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Breadcrumb visible state */
+.header-row.header-breadcrumb.visible {
+    max-height: 40px;
+    opacity: 1;
+    padding: 8px var(--spacing-xl);
+}
+
+/* Breadcrumb segments */
+.header-breadcrumb .breadcrumb-testament {
+    color: #FFFFFF;
+    font-weight: 600;
+}
+
+.header-breadcrumb .breadcrumb-grouping {
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.header-breadcrumb .breadcrumb-book {
+    color: rgba(255, 255, 255, 0.5);
+}
+
+.header-breadcrumb .breadcrumb-sep {
+    color: rgba(255, 255, 255, 0.3);
+    font-size: 0.75rem;
+}
+
+.header-breadcrumb .breadcrumb-count {
+    margin-left: auto;
+    color: rgba(255, 255, 255, 0.5);
+    font-size: 0.6875rem;
 }
 
 .header-left {
@@ -2099,9 +2154,22 @@ body {
 
 @media (max-width: 768px) {
     .compact-header {
+        /* Already flex-direction: column in desktop */
+    }
+    
+    .header-row.header-primary {
         flex-direction: column;
         gap: var(--spacing-sm);
         padding: var(--spacing-md);
+    }
+    
+    .header-row.header-breadcrumb {
+        padding: 0 var(--spacing-md);
+        font-size: 0.75rem;
+    }
+    
+    .header-row.header-breadcrumb.visible {
+        padding: 6px var(--spacing-md);
     }
     
     .header-left {
