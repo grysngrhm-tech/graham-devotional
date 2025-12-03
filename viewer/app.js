@@ -714,10 +714,14 @@ function setupBreadcrumbObserver(hasHeaders) {
     const breadcrumb = document.getElementById('sectionBreadcrumb');
     if (!breadcrumb) return;
     
-    // Cleanup previous observer
+    // Cleanup previous observer and scroll handler
     if (breadcrumbObserver) {
         breadcrumbObserver.disconnect();
         breadcrumbObserver = null;
+    }
+    if (window._breadcrumbScrollHandler) {
+        window.removeEventListener('scroll', window._breadcrumbScrollHandler);
+        window._breadcrumbScrollHandler = null;
     }
     
     // Show breadcrumb
@@ -730,36 +734,59 @@ function setupBreadcrumbObserver(hasHeaders) {
     if (hasHeaders) {
         const headers = document.querySelectorAll('.section-header');
         if (headers.length > 0) {
-            // Create intersection observer
-            const observerOptions = {
-                root: null,
-                rootMargin: '-60px 0px -80% 0px',
-                threshold: 0
-            };
+            // Use scroll-based detection for accurate tracking
+            // The observer triggers, then we calculate which headers are above viewport
+            const stickyOffset = 40; // Height of sticky breadcrumb
             
-            breadcrumbObserver = new IntersectionObserver((entries) => {
-                entries.forEach(entry => {
-                    if (entry.isIntersecting) {
-                        const header = entry.target;
-                        
-                        if (header.classList.contains('book-header')) {
-                            updateBreadcrumb(
-                                header.dataset.testament,
-                                header.dataset.grouping,
-                                header.dataset.book
-                            );
+            const updateFromScroll = () => {
+                let activeTestament = currentBreadcrumbState.testament;
+                let activeGrouping = currentBreadcrumbState.grouping;
+                let activeBook = currentBreadcrumbState.book;
+                
+                // Check all headers - find the last one that's scrolled past the sticky header
+                headers.forEach(header => {
+                    const rect = header.getBoundingClientRect();
+                    // Header has scrolled past the sticky breadcrumb (above it)
+                    if (rect.top < stickyOffset) {
+                        if (header.classList.contains('testament-header')) {
+                            activeTestament = header.dataset.testament;
                         } else if (header.classList.contains('grouping-header')) {
-                            updateBreadcrumbPartial({ grouping: header.dataset.grouping, testament: header.dataset.testament });
-                        } else if (header.classList.contains('testament-header')) {
-                            updateBreadcrumbPartial({ testament: header.dataset.testament });
+                            activeTestament = header.dataset.testament;
+                            activeGrouping = header.dataset.grouping;
+                        } else if (header.classList.contains('book-header')) {
+                            activeTestament = header.dataset.testament;
+                            activeGrouping = header.dataset.grouping;
+                            activeBook = header.dataset.book;
                         }
                     }
                 });
-            }, observerOptions);
+                
+                // Update if changed
+                if (activeTestament !== currentBreadcrumbState.testament ||
+                    activeGrouping !== currentBreadcrumbState.grouping ||
+                    activeBook !== currentBreadcrumbState.book) {
+                    updateBreadcrumb(activeTestament, activeGrouping, activeBook);
+                }
+            };
             
-            headers.forEach(header => {
-                breadcrumbObserver.observe(header);
-            });
+            // Throttled scroll handler
+            let ticking = false;
+            const onScroll = () => {
+                if (!ticking) {
+                    window.requestAnimationFrame(() => {
+                        updateFromScroll();
+                        ticking = false;
+                    });
+                    ticking = true;
+                }
+            };
+            
+            // Store scroll handler for cleanup
+            window._breadcrumbScrollHandler = onScroll;
+            window.addEventListener('scroll', onScroll, { passive: true });
+            
+            // Initial update
+            updateFromScroll();
         }
     }
 }

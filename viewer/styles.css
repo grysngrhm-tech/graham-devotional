@@ -711,33 +711,39 @@ body {
 }
 
 /* Unified Section Breadcrumb - Full Width Sticky Header */
+/* Unified Section Breadcrumb - Full width sticky header */
 .section-breadcrumb {
     position: sticky;
     top: 0;
     z-index: 50;
+    width: 100%;
     background: var(--bg-primary);
     border-bottom: 1px solid var(--border-color);
-    padding: 10px var(--spacing-xl);
-    margin: 0 calc(-1 * var(--spacing-xl));
-    width: calc(100% + var(--spacing-xl) * 2);
-    display: none; /* Hidden until headers are active */
+    display: none; /* Hidden until visible class added */
+    transition: background-color 0.3s ease, border-color 0.3s ease;
+}
+
+.section-breadcrumb.visible {
+    display: block;
+}
+
+.section-breadcrumb .breadcrumb-inner {
+    max-width: var(--max-width);
+    margin: 0 auto;
+    padding: 8px var(--spacing-xl);
+    display: flex;
     align-items: center;
     gap: 6px;
     font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif;
     font-size: 0.8125rem;
     font-weight: 500;
-    transition: opacity 0.2s ease;
-}
-
-.section-breadcrumb.visible {
-    display: flex;
 }
 
 .section-breadcrumb .breadcrumb-segment {
     background: none;
     border: none;
     padding: 4px 8px;
-    margin: -4px -8px;
+    margin: -4px -4px;
     border-radius: 6px;
     cursor: pointer;
     transition: background-color 0.15s ease;
@@ -770,41 +776,42 @@ body {
 .section-breadcrumb .breadcrumb-count {
     margin-left: auto;
     color: var(--text-muted);
-    font-size: 0.75rem;
+    font-size: 0.6875rem;
     font-weight: 400;
 }
 
-/* Section Headers in Grid - Visual Dividers Only (Non-Sticky) */
+/* Section Headers in Grid - Compact Visual Dividers */
 .section-header {
     grid-column: 1 / -1;
     padding: 0;
 }
 
-/* Testament Header (OT/NT) - Visual divider */
+/* Testament Header (OT/NT) - Compact visual divider */
 .testament-header {
-    padding: 20px 0 10px;
-    margin-top: 32px;
+    padding: 12px 0 6px;
+    margin-top: 20px;
     border-bottom: 1px solid var(--border-color);
 }
 
 .testament-header:first-child {
     margin-top: 0;
-    padding-top: 8px;
+    padding-top: 4px;
 }
 
 .testament-header h2 {
     font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif;
-    font-size: 1.125rem;
+    font-size: 0.875rem;
     font-weight: 700;
     color: var(--text-primary);
-    letter-spacing: -0.01em;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
     margin: 0;
 }
 
-/* Grouping Header (Torah, History, etc.) - Visual divider */
+/* Grouping Header (Torah, History, etc.) - Compact visual divider */
 .grouping-header {
-    padding: 12px 0 6px;
-    margin-top: 20px;
+    padding: 8px 0 4px;
+    margin-top: 12px;
     display: flex;
     align-items: center;
     gap: 8px;
@@ -812,7 +819,7 @@ body {
 
 .grouping-header h3 {
     font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif;
-    font-size: 0.8125rem;
+    font-size: 0.75rem;
     font-weight: 600;
     color: var(--text-secondary);
     margin: 0;
@@ -820,20 +827,20 @@ body {
 
 .grouping-description {
     font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif;
-    font-size: 0.75rem;
+    font-size: 0.6875rem;
     color: var(--text-muted);
     font-weight: 400;
 }
 
-/* Book Header (Genesis, Exodus, etc.) - Subtle divider */
+/* Book Header (Genesis, Exodus, etc.) - Minimal divider */
 .book-header {
-    padding: 8px 0 4px;
-    margin-top: 12px;
+    padding: 6px 0 2px;
+    margin-top: 8px;
 }
 
 .book-header h4 {
     font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif;
-    font-size: 0.625rem;
+    font-size: 0.5625rem;
     font-weight: 600;
     color: var(--text-muted);
     text-transform: uppercase;
@@ -843,37 +850,41 @@ body {
 
 /* Mobile adjustments for section headers */
 @media (max-width: 768px) {
-    .section-breadcrumb {
-        padding: 8px var(--spacing-md);
-        margin: 0 calc(-1 * var(--spacing-md));
-        width: calc(100% + var(--spacing-md) * 2);
+    .section-breadcrumb .breadcrumb-inner {
+        padding: 6px var(--spacing-md);
         font-size: 0.75rem;
     }
     
     .testament-header {
-        padding: 16px 0 8px;
-        margin-top: 24px;
+        padding: 10px 0 4px;
+        margin-top: 16px;
     }
     
     .testament-header h2 {
-        font-size: 1rem;
+        font-size: 0.75rem;
     }
     
     .grouping-header {
-        margin-top: 16px;
+        margin-top: 10px;
+        padding: 6px 0 3px;
         flex-wrap: wrap;
     }
     
     .grouping-header h3 {
-        font-size: 0.75rem;
-    }
-    
-    .grouping-description {
         font-size: 0.6875rem;
     }
     
+    .grouping-description {
+        font-size: 0.625rem;
+    }
+    
+    .book-header {
+        padding: 4px 0 2px;
+        margin-top: 6px;
+    }
+    
     .book-header h4 {
-        font-size: 0.5625rem;
+        font-size: 0.5rem;
     }
 }
 

@@ -72,6 +72,18 @@
             </div>
         </section>
 
+        <!-- Unified Section Breadcrumb - Full width, sticky (updates on scroll) -->
+        <div class="section-breadcrumb" id="sectionBreadcrumb">
+            <div class="breadcrumb-inner">
+                <button class="breadcrumb-segment breadcrumb-testament" id="breadcrumbTestament" title="Filter to this testament"></button>
+                <span class="breadcrumb-sep">›</span>
+                <button class="breadcrumb-segment breadcrumb-grouping" id="breadcrumbGrouping" title="Filter to this grouping"></button>
+                <span class="breadcrumb-sep">›</span>
+                <span class="breadcrumb-book" id="breadcrumbBook"></span>
+                <span class="breadcrumb-count" id="breadcrumbCount"></span>
+            </div>
+        </div>
+
         <main class="main-content">
             <!-- Filter Section -->
             <section class="filter-section">
@@ -120,16 +132,6 @@
                     Showing <span id="resultsCount">—</span> stories
                 </div>
             </section>
-
-            <!-- Unified Section Breadcrumb (updates on scroll, clickable for filtering) -->
-            <div class="section-breadcrumb" id="sectionBreadcrumb">
-                <button class="breadcrumb-segment breadcrumb-testament" id="breadcrumbTestament" title="Filter to this testament"></button>
-                <span class="breadcrumb-sep">›</span>
-                <button class="breadcrumb-segment breadcrumb-grouping" id="breadcrumbGrouping" title="Filter to this grouping"></button>
-                <span class="breadcrumb-sep">›</span>
-                <span class="breadcrumb-book" id="breadcrumbBook"></span>
-                <span class="breadcrumb-count" id="breadcrumbCount"></span>
-            </div>
 
             <!-- Stories Grid -->
             <section class="stories-grid" id="storiesGrid">
