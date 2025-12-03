@@ -473,6 +473,17 @@ body {
     flex: 1;
 }
 
+.intro-heading {
+    font-family: 'Inter', -apple-system, sans-serif;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--text-primary);
+    margin: 0 0 var(--spacing-xs) 0;
+    transition: color 0.3s ease;
+}
+
 .intro-text {
     font-family: 'Playfair Display', Georgia, serif;
     font-size: 0.9375rem;
@@ -498,6 +509,11 @@ body {
     .intro-content {
         grid-template-columns: 1fr;
         gap: var(--spacing-md);
+    }
+    
+    .intro-heading {
+        text-align: center;
+        font-size: 0.6875rem;
     }
     
     .intro-text {
