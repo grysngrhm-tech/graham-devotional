@@ -2103,50 +2103,52 @@ body {
 }
 
 .audio-progress-dot {
-    width: 8px;
-    height: 8px;
+    width: 10px;
+    height: 10px;
     border-radius: 50%;
-    background: rgba(128, 128, 128, 0.2);
+    background: rgba(128, 128, 128, 0.25);
     transition: all 0.2s ease;
     cursor: pointer;
     flex-shrink: 0;
+    /* Larger touch target */
+    padding: 6px;
+    margin: -6px;
+    background-clip: content-box;
 }
 
 .audio-progress-dot:hover {
-    transform: scale(1.2);
+    transform: scale(1.15);
     background: rgba(128, 128, 128, 0.4);
+    background-clip: content-box;
+}
+
+.audio-progress-dot:active {
+    transform: scale(0.95);
 }
 
 .audio-progress-dot.active {
     background: var(--color-gold);
-    transform: scale(1.25);
+    transform: scale(1.2);
+    background-clip: content-box;
 }
 
 .audio-progress-dot.complete {
     background: var(--color-gold);
-    opacity: 0.5;
-}
-
-/* Time Remaining */
-.audio-time-remaining {
-    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif;
-    font-size: 0.75rem;
-    font-weight: 500;
-    color: var(--text-secondary);
-    white-space: nowrap;
-    min-width: 50px;
-    text-align: right;
+    opacity: 0.6;
+    background-clip: content-box;
 }
 
 /* Section Skip Buttons */
 .audio-sticky-bar .skip-btn {
-    width: 28px;
-    height: 28px;
+    width: 36px;
+    height: 36px;
+    min-width: 36px;
+    min-height: 36px;
     border-radius: 50%;
     border: none;
-    background: transparent;
-    color: var(--text-secondary);
-    font-size: 12px;
+    background: rgba(128, 128, 128, 0.1);
+    color: var(--text-primary);
+    font-size: 14px;
     cursor: pointer;
     display: flex;
     align-items: center;
@@ -2155,8 +2157,12 @@ body {
 }
 
 .audio-sticky-bar .skip-btn:hover {
-    background: rgba(128, 128, 128, 0.1);
-    color: var(--text-primary);
+    background: rgba(128, 128, 128, 0.2);
+}
+
+.audio-sticky-bar .skip-btn:active {
+    transform: scale(0.95);
+    background: rgba(128, 128, 128, 0.3);
 }
 
 .audio-sticky-bar .skip-btn:disabled {
@@ -2219,13 +2225,16 @@ body {
     }
     
     .audio-progress-dot {
-        width: 6px;
-        height: 6px;
+        width: 8px;
+        height: 8px;
     }
     
-    .audio-time-remaining {
-        font-size: 0.6875rem;
-        min-width: 40px;
+    .audio-sticky-bar .skip-btn {
+        width: 32px;
+        height: 32px;
+        min-width: 32px;
+        min-height: 32px;
+        font-size: 12px;
     }
     
     .audio-sticky-bar .speed-indicator {

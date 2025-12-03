@@ -2215,7 +2215,6 @@ function prepareAudioText() {
     window._audioWordsRead = 0;
     
     updateAudioStatus('Ready');
-    updateTimeRemaining();
 }
 
 function togglePlayPause() {
@@ -2253,7 +2252,27 @@ function startReading() {
     }
     
     if (audioTextParts.length === 0) {
-        updateAudioStatus('No text to read');
+        console.error('No audio text parts found');
+        return;
+    }
+    
+    // Ensure voices are loaded (Chrome sometimes needs this)
+    const voices = speechSynthesis.getVoices();
+    if (voices.length === 0) {
+        // Voices not loaded yet, wait and retry
+        console.log('Waiting for voices to load...');
+        speechSynthesis.onvoiceschanged = () => {
+            speechSynthesis.onvoiceschanged = null;
+            currentPartIndex = 0;
+            readNextPart();
+        };
+        // Also try after a short delay in case onvoiceschanged doesn't fire
+        setTimeout(() => {
+            if (!isAudioPlaying && speechSynthesis.getVoices().length > 0) {
+                currentPartIndex = 0;
+                readNextPart();
+            }
+        }, 100);
         return;
     }
     
@@ -2300,7 +2319,6 @@ function readNextPart() {
         // Show sticky bar and update progress
         showStickyAudioBar(true);
         updateProgressDots();
-        updateTimeRemaining();
     };
     
     currentUtterance.onend = () => {
@@ -2321,9 +2339,13 @@ function readNextPart() {
     };
     
     currentUtterance.onerror = (e) => {
+        // 'canceled' is not a real error - it happens when we call cancel() to seek
+        if (e.error === 'canceled' || e.error === 'interrupted') {
+            console.log('Speech canceled/interrupted (expected during seek)');
+            return;
+        }
         console.error('Speech error:', e);
         stopAudio();
-        updateAudioStatus('Error');
     };
     
     speechSynthesis.speak(currentUtterance);
@@ -2369,9 +2391,6 @@ function cycleSpeed() {
         localStorage.setItem('grace-audio-speed', currentSpeedIndex.toString());
     } catch (e) {}
     
-    // Update time estimate
-    updateTimeRemaining();
-    
     // If currently playing, update the rate
     if (currentUtterance && isAudioPlaying) {
         // Need to restart with new speed
@@ -2385,11 +2404,8 @@ function cycleSpeed() {
 
 function updateAudioStatus(text) {
     // Status is now conveyed through visual states (play/pause icon, progress dots)
-    // For important states like 'Finished' or 'Error', show in time remaining area
-    const timeEl = document.getElementById('audioTimeRemaining');
-    if (timeEl && (text === 'Finished' || text === 'Error' || text === 'No text to read')) {
-        timeEl.textContent = text;
-    }
+    // This function is a no-op but kept for potential future use
+    console.log('[Audio]', text);
 }
 
 // Load voices when available
@@ -2483,8 +2499,11 @@ function updateProgressDots() {
             dot.classList.add('active');
         }
         
-        // Click to seek
-        dot.addEventListener('click', () => seekToSection(idx));
+        // Click to seek - prevent event bubbling
+        dot.addEventListener('click', (e) => {
+            e.stopPropagation();
+            seekToSection(idx);
+        });
         
         dotsContainer.appendChild(dot);
     });
@@ -2493,33 +2512,36 @@ function updateProgressDots() {
 function seekToSection(index) {
     if (index < 0 || index >= audioTextParts.length) return;
     
-    // Stop current speech
+    // Remember if we were playing
+    const wasPlaying = isAudioPlaying;
+    
+    // Stop current speech (this will trigger onerror with 'canceled' which we now ignore)
     speechSynthesis.cancel();
     
-    // Clear highlights for sections after the target
-    document.querySelectorAll('.audio-segment').forEach((el, idx) => {
-        if (idx >= index) {
+    // Clear highlights for sections at and after the target
+    document.querySelectorAll('.audio-segment').forEach(el => {
+        const elIndex = parseInt(el.dataset.audioIndex);
+        if (elIndex >= index) {
             el.classList.remove('audio-active', 'audio-complete');
         }
     });
     
-    // Recalculate words read
-    let wordsRead = 0;
-    for (let i = 0; i < index; i++) {
-        wordsRead += audioTextParts[i].text.split(/\s+/).length;
-    }
-    window._audioWordsRead = wordsRead;
-    
-    // Update index and continue reading
+    // Update index
     currentPartIndex = index;
     
-    if (isAudioPlaying) {
-        readNextPart();
+    // Update UI - keep sticky bar visible during seek
+    highlightCurrentSegment(index);
+    updateProgressDots();
+    showStickyAudioBar(true);
+    
+    // Continue reading if we were playing
+    if (wasPlaying) {
+        // Small delay to let cancel complete
+        setTimeout(() => {
+            readNextPart();
+        }, 50);
     } else {
-        // Just highlight and scroll if paused
-        highlightCurrentSegment(index);
         scrollToCurrentSegment(index);
-        updateProgressDots();
     }
     
     // Haptic feedback
@@ -2533,29 +2555,7 @@ function skipSection(direction) {
     }
 }
 
-function updateTimeRemaining() {
-    const timeEl = document.getElementById('audioTimeRemaining');
-    if (!timeEl) return;
-    
-    const totalWords = window._audioTotalWords || 0;
-    const wordsRead = window._audioWordsRead || 0;
-    const wordsRemaining = totalWords - wordsRead;
-    
-    if (wordsRemaining <= 0) {
-        timeEl.textContent = '0:00';
-        return;
-    }
-    
-    // Base WPM is ~150, adjusted by speed
-    const speed = audioSpeeds[currentSpeedIndex] || 1;
-    const wpm = 150 * speed;
-    const minutesRemaining = wordsRemaining / wpm;
-    
-    const mins = Math.floor(minutesRemaining);
-    const secs = Math.round((minutesRemaining - mins) * 60);
-    
-    timeEl.textContent = `${mins}:${secs.toString().padStart(2, '0')}`;
-}
+// Timer removed - progress dots are sufficient for tracking
 
 function setupStickyAudioBar() {
     const stickyPlayPauseBtn = document.getElementById('stickyPlayPauseBtn');
@@ -2565,26 +2565,35 @@ function setupStickyAudioBar() {
     const skipNextBtn = document.getElementById('skipNextBtn');
     
     // Play/Pause from sticky bar
-    stickyPlayPauseBtn?.addEventListener('click', () => {
+    stickyPlayPauseBtn?.addEventListener('click', (e) => {
+        e.stopPropagation();
         hapticFeedback();
         togglePlayPause();
     });
     
     // Stop from sticky bar
-    stickyStopBtn?.addEventListener('click', () => {
+    stickyStopBtn?.addEventListener('click', (e) => {
+        e.stopPropagation();
         stopAudio();
         hapticFeedback();
     });
     
     // Speed from sticky bar
-    stickySpeedBtn?.addEventListener('click', () => {
+    stickySpeedBtn?.addEventListener('click', (e) => {
+        e.stopPropagation();
         cycleSpeed();
         hapticFeedback();
     });
     
-    // Skip buttons
-    skipPrevBtn?.addEventListener('click', () => skipSection(-1));
-    skipNextBtn?.addEventListener('click', () => skipSection(1));
+    // Skip buttons - prevent event bubbling
+    skipPrevBtn?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        skipSection(-1);
+    });
+    skipNextBtn?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        skipSection(1);
+    });
     
     // Detect user scroll to temporarily disable auto-scroll
     const rightPage = document.getElementById('rightPage');
