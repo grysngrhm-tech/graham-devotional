@@ -2157,31 +2157,49 @@ let currentPartIndex = 0;
 function setupAudioControls() {
     const audioBtn = document.getElementById('audioBtn');
     
-    if (!audioBtn || !speechSynthesis) return;
+    console.log('[Audio] Setting up controls. Button found:', !!audioBtn, 'speechSynthesis available:', !!speechSynthesis);
+    
+    if (!audioBtn) {
+        console.error('[Audio] Audio button not found in DOM');
+        return;
+    }
+    
+    if (!speechSynthesis) {
+        console.error('[Audio] Web Speech API not supported');
+        return;
+    }
+    
+    // Pre-load voices (important for Chrome desktop)
+    speechSynthesis.getVoices();
     
     // Main audio button - directly toggles playback (simplified UX)
     audioBtn.addEventListener('click', () => {
+        console.log('[Audio] Button clicked. isAudioPlaying:', isAudioPlaying, 'paused:', speechSynthesis.paused);
         hapticFeedback();
         
         // Prepare text on first interaction
         if (audioTextParts.length === 0) {
             prepareAudioText();
             updateProgressDots();
+            console.log('[Audio] Prepared', audioTextParts.length, 'text parts');
         }
         
         // Toggle playback directly
         if (isAudioPlaying) {
             // If playing, toggle pause/resume
             if (speechSynthesis.paused) {
+                console.log('[Audio] Resuming...');
                 speechSynthesis.resume();
                 syncAllPlayButtons(true);
                 showStickyAudioBar(true);
             } else {
+                console.log('[Audio] Pausing...');
                 speechSynthesis.pause();
                 syncAllPlayButtons(false);
             }
         } else {
             // Start playback - the onstart callback will handle UI updates
+            console.log('[Audio] Starting playback...');
             startReading();
         }
     });
@@ -2247,32 +2265,28 @@ function syncAllPlayButtons(playing) {
 }
 
 function startReading() {
+    console.log('[Audio] startReading called');
+    
     if (audioTextParts.length === 0) {
         prepareAudioText();
     }
     
     if (audioTextParts.length === 0) {
-        console.error('No audio text parts found');
+        console.error('[Audio] No audio text parts found - segments missing from DOM');
         return;
     }
     
-    // Ensure voices are loaded (Chrome sometimes needs this)
+    console.log('[Audio] Starting with', audioTextParts.length, 'parts');
+    
+    // Chrome needs voices to be loaded - they load async
     const voices = speechSynthesis.getVoices();
+    console.log('[Audio] Voices available:', voices.length);
+    
     if (voices.length === 0) {
-        // Voices not loaded yet, wait and retry
-        console.log('Waiting for voices to load...');
-        speechSynthesis.onvoiceschanged = () => {
-            speechSynthesis.onvoiceschanged = null;
-            currentPartIndex = 0;
-            readNextPart();
-        };
-        // Also try after a short delay in case onvoiceschanged doesn't fire
-        setTimeout(() => {
-            if (!isAudioPlaying && speechSynthesis.getVoices().length > 0) {
-                currentPartIndex = 0;
-                readNextPart();
-            }
-        }, 100);
+        console.log('[Audio] Waiting for voices to load...');
+        // Try immediately anyway (some browsers work without explicit voices)
+        currentPartIndex = 0;
+        readNextPart();
         return;
     }
     
@@ -2281,14 +2295,18 @@ function startReading() {
 }
 
 function readNextPart() {
+    console.log('[Audio] readNextPart called, index:', currentPartIndex, '/', audioTextParts.length);
+    
     if (currentPartIndex >= audioTextParts.length) {
         // Finished reading all parts
+        console.log('[Audio] Finished all parts');
         stopAudio();
         updateAudioStatus('Finished');
         return;
     }
     
     const part = audioTextParts[currentPartIndex];
+    console.log('[Audio] Reading part:', currentPartIndex, 'text length:', part.text.length);
     
     currentUtterance = new SpeechSynthesisUtterance(part.text);
     currentUtterance.rate = audioSpeeds[currentSpeedIndex];
@@ -2303,9 +2321,13 @@ function readNextPart() {
     
     if (preferredVoice) {
         currentUtterance.voice = preferredVoice;
+        console.log('[Audio] Using voice:', preferredVoice.name);
+    } else {
+        console.log('[Audio] Using default voice');
     }
     
     currentUtterance.onstart = () => {
+        console.log('[Audio] Speech started for part', currentPartIndex);
         isAudioPlaying = true;
         updateAudioStatus(part.type === 'verse' ? 'Key verse...' : 'Reading...');
         
@@ -2341,14 +2363,22 @@ function readNextPart() {
     currentUtterance.onerror = (e) => {
         // 'canceled' is not a real error - it happens when we call cancel() to seek
         if (e.error === 'canceled' || e.error === 'interrupted') {
-            console.log('Speech canceled/interrupted (expected during seek)');
+            console.log('[Audio] Speech canceled/interrupted (expected during seek)');
             return;
         }
-        console.error('Speech error:', e);
+        console.error('[Audio] Speech error:', e.error, e);
         stopAudio();
     };
     
+    // Chrome bug workaround: cancel any stuck speech before starting
+    if (speechSynthesis.speaking && !speechSynthesis.paused) {
+        console.log('[Audio] Clearing stuck speech synthesis');
+        speechSynthesis.cancel();
+    }
+    
+    console.log('[Audio] Calling speechSynthesis.speak()');
     speechSynthesis.speak(currentUtterance);
+    console.log('[Audio] speak() called, speaking:', speechSynthesis.speaking, 'pending:', speechSynthesis.pending);
 }
 
 function stopAudio() {
@@ -2456,17 +2486,25 @@ function scrollToCurrentSegment(index) {
     
     const segment = document.querySelector(`.audio-segment[data-audio-index="${index}"]`);
     if (segment) {
-        // Check if element is in viewport
+        // Check if element is in a comfortable viewing area
         const rect = segment.getBoundingClientRect();
         const viewportHeight = window.innerHeight;
-        const stickyBarHeight = 60; // Account for sticky bar
+        const stickyBarHeight = 70; // Account for sticky bar
+        const comfortZoneTop = viewportHeight * 0.25; // Top 25% of screen
+        const comfortZoneBottom = viewportHeight * 0.65; // Bottom 35% of screen
         
-        // Only scroll if element is not visible
-        if (rect.top < stickyBarHeight || rect.bottom > viewportHeight - 100) {
+        // Only scroll if element is outside the "comfort zone"
+        if (rect.top < stickyBarHeight + 20 || rect.top > comfortZoneBottom) {
+            // Use smooth scroll with a target in the upper-middle area
             segment.scrollIntoView({ 
                 behavior: 'smooth', 
-                block: 'center' 
+                block: 'start',
+                inline: 'nearest'
             });
+            // Adjust for sticky bar by scrolling a bit more
+            setTimeout(() => {
+                window.scrollBy({ top: -stickyBarHeight - 20, behavior: 'smooth' });
+            }, 100);
         }
     }
 }
