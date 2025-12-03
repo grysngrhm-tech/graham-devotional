@@ -599,78 +599,62 @@ function renderStories() {
     const grid = document.getElementById('storiesGrid');
     if (!grid) return;
     
+    console.log('[GRACE] renderStories called, filteredStories:', filteredStories.length);
+    
     if (filteredStories.length === 0) {
         grid.innerHTML = `
             <div class="empty-state">
                 <p>No stories found matching your filters.</p>
             </div>
         `;
+        hideBreadcrumb();
         return;
     }
     
-    // Determine which headers to show based on active filters
-    // Only show headers for levels that aren't already filtered
-    const showTestamentHeaders = currentFilters.testament === 'all';
-    const showGroupingHeaders = currentFilters.grouping === 'all';
-    const showBookHeaders = currentFilters.book === 'all';
-    
-    // Show any headers if at least one level isn't filtered
-    const showAnyHeaders = showTestamentHeaders || showGroupingHeaders || showBookHeaders;
-    
+    // ALWAYS render ALL section headers - no conditions
+    // This ensures headers always appear regardless of filter state
     let html = '';
     let currentTestament = null;
     let currentGrouping = null;
     let currentBook = null;
+    let headerCount = 0;
     
-    filteredStories.forEach(story => {
+    filteredStories.forEach((story, index) => {
         const testament = story.testament;
         const book = story.book;
-        const grouping = BOOK_TO_GROUPING[book];
+        const grouping = BOOK_TO_GROUPING[book] || 'Unknown';
         
-        // Insert section headers based on what's not filtered
-        // Testament header (OT/NT) - only if testament filter is "all"
-        if (showTestamentHeaders && testament && testament !== currentTestament) {
+        // Debug first story
+        if (index === 0) {
+            console.log('[GRACE] First story:', { testament, book, grouping, title: story.title });
+        }
+        
+        // ALWAYS add Testament header when it changes
+        if (testament && testament !== currentTestament) {
             currentTestament = testament;
             currentGrouping = null;
             currentBook = null;
             const testamentName = testament === 'OT' ? 'Old Testament' : 'New Testament';
-            html += `
-                <div class="section-header testament-header" data-testament="${testamentName}">
-                    <h2>${testamentName}</h2>
-                </div>
-            `;
-        } else if (!showTestamentHeaders && testament !== currentTestament) {
-            // Track testament even if not showing header
-            currentTestament = testament;
+            html += `<div class="section-header testament-header" data-testament="${testamentName}" data-grouping="" data-book=""><h2>${testamentName}</h2></div>`;
+            headerCount++;
         }
         
-        // Grouping header - only if grouping filter is "all"
-        if (showGroupingHeaders && grouping && grouping !== currentGrouping) {
+        // ALWAYS add Grouping header when it changes
+        if (grouping && grouping !== currentGrouping) {
             currentGrouping = grouping;
             currentBook = null;
-            const description = GROUPING_DESCRIPTIONS[grouping] || '';
             const testamentName = currentTestament === 'OT' ? 'Old Testament' : 'New Testament';
-            html += `
-                <div class="section-header grouping-header" data-grouping="${grouping}" data-testament="${testamentName}">
-                    <h3>${grouping}</h3>
-                    ${description ? `<span class="grouping-description">${description}</span>` : ''}
-                </div>
-            `;
-        } else if (!showGroupingHeaders && grouping !== currentGrouping) {
-            currentGrouping = grouping;
+            const description = GROUPING_DESCRIPTIONS[grouping] || '';
+            html += `<div class="section-header grouping-header" data-testament="${testamentName}" data-grouping="${grouping}" data-book=""><h3>${grouping}</h3>${description ? `<span class="grouping-description">${description}</span>` : ''}</div>`;
+            headerCount++;
         }
         
-        // Book header - only if book filter is "all"
-        if (showBookHeaders && book && book !== currentBook) {
+        // ALWAYS add Book header when it changes
+        if (book && book !== currentBook) {
             currentBook = book;
             const testamentName = currentTestament === 'OT' ? 'Old Testament' : 'New Testament';
-            html += `
-                <div class="section-header book-header" data-book="${book}" data-grouping="${currentGrouping}" data-testament="${testamentName}">
-                    <h4>${book}</h4>
-                </div>
-            `;
-        } else if (!showBookHeaders && book !== currentBook) {
-            currentBook = book;
+            html += `<div class="section-header book-header" data-testament="${testamentName}" data-grouping="${currentGrouping}" data-book="${book}"><h4>${book}</h4></div>`;
+            headerCount++;
         }
         
         // Story card
@@ -701,183 +685,141 @@ function renderStories() {
         `;
     });
     
+    console.log('[GRACE] Generated', headerCount, 'section headers');
     grid.innerHTML = html;
     
-    // Always setup breadcrumb - it shows current context whether from scroll or filters
-    setupBreadcrumbObserver(showAnyHeaders);
+    // Setup breadcrumb with scroll tracking
+    setupUnifiedBreadcrumb();
 }
 
-// Breadcrumb scroll tracking
-let breadcrumbObserver = null;
-
-function setupBreadcrumbObserver(hasHeaders) {
-    const breadcrumb = document.getElementById('sectionBreadcrumb');
-    if (!breadcrumb) return;
-    
-    // Cleanup previous observer and scroll handler
-    if (breadcrumbObserver) {
-        breadcrumbObserver.disconnect();
-        breadcrumbObserver = null;
-    }
-    if (window._breadcrumbScrollHandler) {
-        window.removeEventListener('scroll', window._breadcrumbScrollHandler);
-        window._breadcrumbScrollHandler = null;
-    }
-    
-    // Show breadcrumb
-    breadcrumb.classList.add('visible');
-    
-    // Set initial breadcrumb based on filters and first story
-    setInitialBreadcrumb();
-    
-    // If we have headers to observe, set up scroll tracking
-    if (hasHeaders) {
-        const headers = document.querySelectorAll('.section-header');
-        if (headers.length > 0) {
-            // Use scroll-based detection for accurate tracking
-            // The observer triggers, then we calculate which headers are above viewport
-            const stickyOffset = 40; // Height of sticky breadcrumb
-            
-            const updateFromScroll = () => {
-                let activeTestament = currentBreadcrumbState.testament;
-                let activeGrouping = currentBreadcrumbState.grouping;
-                let activeBook = currentBreadcrumbState.book;
-                
-                // Check all headers - find the last one that's scrolled past the sticky header
-                headers.forEach(header => {
-                    const rect = header.getBoundingClientRect();
-                    // Header has scrolled past the sticky breadcrumb (above it)
-                    if (rect.top < stickyOffset) {
-                        if (header.classList.contains('testament-header')) {
-                            activeTestament = header.dataset.testament;
-                        } else if (header.classList.contains('grouping-header')) {
-                            activeTestament = header.dataset.testament;
-                            activeGrouping = header.dataset.grouping;
-                        } else if (header.classList.contains('book-header')) {
-                            activeTestament = header.dataset.testament;
-                            activeGrouping = header.dataset.grouping;
-                            activeBook = header.dataset.book;
-                        }
-                    }
-                });
-                
-                // Update if changed
-                if (activeTestament !== currentBreadcrumbState.testament ||
-                    activeGrouping !== currentBreadcrumbState.grouping ||
-                    activeBook !== currentBreadcrumbState.book) {
-                    updateBreadcrumb(activeTestament, activeGrouping, activeBook);
-                }
-            };
-            
-            // Throttled scroll handler
-            let ticking = false;
-            const onScroll = () => {
-                if (!ticking) {
-                    window.requestAnimationFrame(() => {
-                        updateFromScroll();
-                        ticking = false;
-                    });
-                    ticking = true;
-                }
-            };
-            
-            // Store scroll handler for cleanup
-            window._breadcrumbScrollHandler = onScroll;
-            window.addEventListener('scroll', onScroll, { passive: true });
-            
-            // Initial update
-            updateFromScroll();
-        }
-    }
-}
-
-function setInitialBreadcrumb() {
-    // Determine initial breadcrumb from filters and first visible story
-    let testament = null;
-    let grouping = null;
-    let book = null;
-    
-    // If testament is filtered, use that
-    if (currentFilters.testament !== 'all') {
-        testament = currentFilters.testament === 'OT' ? 'Old Testament' : 'New Testament';
-    }
-    
-    // If grouping is filtered, use that
-    if (currentFilters.grouping !== 'all') {
-        grouping = currentFilters.grouping;
-        // Also set testament based on grouping
-        const otGroupings = ['Torah', 'History', 'Poetry', 'Prophets'];
-        testament = otGroupings.includes(grouping) ? 'Old Testament' : 'New Testament';
-    }
-    
-    // If book is filtered, use that
-    if (currentFilters.book !== 'all') {
-        book = currentFilters.book;
-        grouping = BOOK_TO_GROUPING[book];
-        // Determine testament from book
-        const bookIndex = BIBLE_BOOK_ORDER.indexOf(book);
-        testament = bookIndex < 39 ? 'Old Testament' : 'New Testament';
-    }
-    
-    // If nothing is filtered, get from first story
-    if (!testament && filteredStories.length > 0) {
-        const firstStory = filteredStories[0];
-        testament = firstStory.testament === 'OT' ? 'Old Testament' : 'New Testament';
-        grouping = BOOK_TO_GROUPING[firstStory.book];
-        book = firstStory.book;
-    }
-    
-    updateBreadcrumb(testament, grouping, book);
-}
+// ============================================================================
+// UNIFIED BREADCRUMB SYSTEM - Simplified & Robust
+// ============================================================================
 
 // Track current breadcrumb state
-let currentBreadcrumbState = { testament: null, grouping: null, book: null };
+let currentBreadcrumbState = { testament: '', grouping: '', book: '' };
 
-function updateBreadcrumb(testament, grouping, book) {
+function setupUnifiedBreadcrumb() {
+    const breadcrumb = document.getElementById('sectionBreadcrumb');
+    if (!breadcrumb) {
+        console.log('[GRACE] No breadcrumb element found');
+        return;
+    }
+    
+    // Remove old scroll handler if exists
+    if (window._breadcrumbScrollHandler) {
+        window.removeEventListener('scroll', window._breadcrumbScrollHandler);
+    }
+    
+    // Show the breadcrumb
+    breadcrumb.classList.add('visible');
+    console.log('[GRACE] Breadcrumb made visible');
+    
+    // Get all section headers
+    const headers = document.querySelectorAll('.section-header');
+    console.log('[GRACE] Found', headers.length, 'section headers');
+    
+    // Set initial state from first story
+    if (filteredStories.length > 0) {
+        const first = filteredStories[0];
+        const testament = first.testament === 'OT' ? 'Old Testament' : 'New Testament';
+        const grouping = BOOK_TO_GROUPING[first.book] || '';
+        const book = first.book || '';
+        updateBreadcrumbDisplay(testament, grouping, book);
+        console.log('[GRACE] Initial breadcrumb:', testament, '>', grouping, '>', book);
+    }
+    
+    // Simple scroll handler - check which headers have scrolled past
+    const onScroll = () => {
+        const stickyTop = 80; // Distance from top where breadcrumb sits
+        
+        let activeTestament = currentBreadcrumbState.testament;
+        let activeGrouping = currentBreadcrumbState.grouping;
+        let activeBook = currentBreadcrumbState.book;
+        
+        // Iterate through all headers, track the last one above the threshold
+        headers.forEach(header => {
+            const rect = header.getBoundingClientRect();
+            if (rect.top < stickyTop) {
+                // This header has scrolled past - extract its data
+                const t = header.dataset.testament;
+                const g = header.dataset.grouping;
+                const b = header.dataset.book;
+                
+                if (t) activeTestament = t;
+                if (g) activeGrouping = g;
+                if (b) activeBook = b;
+            }
+        });
+        
+        // Update display if changed
+        if (activeTestament !== currentBreadcrumbState.testament ||
+            activeGrouping !== currentBreadcrumbState.grouping ||
+            activeBook !== currentBreadcrumbState.book) {
+            updateBreadcrumbDisplay(activeTestament, activeGrouping, activeBook);
+        }
+    };
+    
+    // Throttle scroll updates
+    let ticking = false;
+    window._breadcrumbScrollHandler = () => {
+        if (!ticking) {
+            requestAnimationFrame(() => {
+                onScroll();
+                ticking = false;
+            });
+            ticking = true;
+        }
+    };
+    
+    window.addEventListener('scroll', window._breadcrumbScrollHandler, { passive: true });
+    
+    // Run once immediately
+    onScroll();
+}
+
+function updateBreadcrumbDisplay(testament, grouping, book) {
     currentBreadcrumbState = { testament, grouping, book };
     
+    // Get elements by ID for reliability
     const testamentEl = document.getElementById('breadcrumbTestament');
     const groupingEl = document.getElementById('breadcrumbGrouping');
     const bookEl = document.getElementById('breadcrumbBook');
     const countEl = document.getElementById('breadcrumbCount');
-    const seps = document.querySelectorAll('.section-breadcrumb .breadcrumb-sep');
+    const sep1 = document.getElementById('breadcrumbSep1');
+    const sep2 = document.getElementById('breadcrumbSep2');
     
+    // Always show testament
     if (testamentEl) {
-        if (testament) {
-            testamentEl.textContent = testament;
-            testamentEl.style.display = '';
-        } else {
-            testamentEl.style.display = 'none';
-        }
+        testamentEl.textContent = testament || 'All';
+        testamentEl.style.display = 'inline-flex';
     }
     
+    // Show separator and grouping if available
+    if (sep1) sep1.style.display = grouping ? 'inline' : 'none';
     if (groupingEl) {
-        if (grouping) {
-            groupingEl.textContent = grouping;
-            groupingEl.style.display = '';
-            if (seps[0]) seps[0].style.display = '';
-        } else {
-            groupingEl.style.display = 'none';
-            if (seps[0]) seps[0].style.display = 'none';
-        }
+        groupingEl.textContent = grouping || '';
+        groupingEl.style.display = grouping ? 'inline-flex' : 'none';
     }
     
+    // Show separator and book if available
+    if (sep2) sep2.style.display = book ? 'inline' : 'none';
     if (bookEl) {
-        if (book) {
-            bookEl.textContent = book;
-            bookEl.style.display = '';
-            if (seps[1]) seps[1].style.display = '';
-        } else {
-            bookEl.style.display = 'none';
-            if (seps[1]) seps[1].style.display = 'none';
-        }
+        bookEl.textContent = book || '';
+        bookEl.style.display = book ? 'inline' : 'none';
     }
     
     // Update count
     if (countEl) {
         countEl.textContent = `${filteredStories.length} stories`;
     }
+    
+    console.log('[GRACE] Breadcrumb updated:', testament, '>', grouping, '>', book);
 }
+
+// Old setInitialBreadcrumb removed - now handled in setupUnifiedBreadcrumb
+
+// Old updateBreadcrumb removed - now using updateBreadcrumbDisplay
 
 function setupBreadcrumbClicks() {
     const testamentEl = document.getElementById('breadcrumbTestament');
@@ -930,32 +872,14 @@ function setupBreadcrumbClicks() {
     }
 }
 
-function updateBreadcrumbPartial(updates) {
-    // Merge updates with current state
-    const newState = { ...currentBreadcrumbState };
-    
-    if (updates.testament !== undefined) {
-        newState.testament = updates.testament;
-    }
-    if (updates.grouping !== undefined) {
-        newState.grouping = updates.grouping;
-    }
-    if (updates.book !== undefined) {
-        newState.book = updates.book;
-    }
-    
-    updateBreadcrumb(newState.testament, newState.grouping, newState.book);
-}
-
 function hideBreadcrumb() {
     const breadcrumb = document.getElementById('sectionBreadcrumb');
     if (breadcrumb) {
         breadcrumb.classList.remove('visible');
     }
-    
-    if (breadcrumbObserver) {
-        breadcrumbObserver.disconnect();
-        breadcrumbObserver = null;
+    if (window._breadcrumbScrollHandler) {
+        window.removeEventListener('scroll', window._breadcrumbScrollHandler);
+        window._breadcrumbScrollHandler = null;
     }
 }
 
