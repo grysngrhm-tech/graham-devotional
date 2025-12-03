@@ -1,6 +1,10 @@
-# The Grahams' Devotional
+# The GRACE Bible
 
-A modern-retold illustrated devotional book — 500 spreads split into two volumes.
+**Graham Reimagined Art & Canon Experience** — A modern-retold illustrated devotional featuring 500 Bible stories with AI-generated sacred artwork.
+
+## Live Demo
+
+🌐 **[grysngrhm-tech.github.io/graham-devotional](https://grysngrhm-tech.github.io/graham-devotional/viewer/index.html)**
 
 ## The Vision
 
@@ -26,105 +30,170 @@ Each spread = two pages:
 | **NT** | Revelation | 15 |
 | | **TOTAL** | **500** |
 
-## Architecture
-
-| Workflow | Purpose | When to Run |
-|----------|---------|-------------|
-| **Outline Builder** | Import spreads + fetch KJV/NIV scripture | Manual (once per batch) |
-| **Processing Pipeline** | Generate summaries + images | Automatic (every 15 min) |
-
-**Data Flow:**
-1. Paste spread definitions into Outline Builder
-2. Scripture is fetched and stored in Supabase
-3. Processing Pipeline generates summaries with GPT-4
-4. Processing Pipeline generates images with Flux
-5. Everything stored in Supabase for export
-
-## Documentation
-
-| Document | Purpose |
-|----------|---------|
-| [docs/SYSTEM.md](docs/SYSTEM.md) | Technical reference — credentials, workflows, schema, troubleshooting |
-| [docs/VIEWER.md](docs/VIEWER.md) | Web viewer documentation — features, filters, regeneration |
-
-## Quick Start
-
-1. **Setup Credentials** in n8n (see SYSTEM.md):
-   - Supabase API Key (Header: `apikey`)
-   - API.Bible Key (Header: `api-key`)
-   - Replicate API Key (Header: `Authorization: Token ...`)
-   - OpenAI via n8n credential manager
-
-2. **Create Database**: Run SQL migrations from `supabase/migrations/`
-
-3. **Create Storage Buckets**: 
-   - `devotional-artwork` (public) - for generated images
-   - `devotional-data` (public) - for outline JSON files
-
-4. **Import Spreads**: 
-   - Open Outline Builder workflow
-   - Set batch number and book code
-   - Run workflow
-
-5. **Start Processing**:
-   - Activate Processing Pipeline
-   - Monitor with SQL queries in SYSTEM.md
-
-## Workflows
-
-| Workflow | n8n ID |
-|----------|--------|
-| Outline Builder | `dRZE4EHTdCr1pSjX` |
-| Processing Pipeline | `Ixn36R5CgzjJn0WH` |
-
-## Status Flow
-
-```
-Outline Builder creates:
-  status_outline = done
-  status_scripture = done
-  status_text = pending
-  status_image = pending
-
-Processing Pipeline updates:
-  status_text = done (after summary)
-  status_image = done (after artwork)
-```
+---
 
 ## Web Viewer Features
 
-The `viewer/` directory contains a static web app deployed via GitHub Pages:
+The `viewer/` directory contains a Progressive Web App deployed via GitHub Pages:
 
-- **Homepage**: Grid of all spreads with filters
-- **Filters**: Testament, Book Groupings (Torah, Gospels, etc.), Individual Books, Status
-- **Chronological Sorting**: Spreads displayed in Biblical order (Genesis → Revelation)
-- **Spread View**: Two-page layout with image selection and navigation
-- **Image Regeneration**: In-app regeneration with countdown timer UI
+### Core Features
+- **Homepage Grid**: All 500 spreads with filtering and search
+- **Story View**: Two-page book spread layout with image selection
+- **Chronological Order**: Stories sorted Genesis → Revelation
+- **Image Curation**: Select primary image from 4 AI-generated options
+- **Image Regeneration**: Generate new options with countdown timer UI
 
-### Filter Options
+### Progressive Web App (PWA)
+- **Installable**: Add to home screen on iOS and Android
+- **Offline Support**: App shell cached for fast loading
+- **Smart Install Prompt**: Platform-specific installation guidance
+- **Update Notifications**: Toast when new version available
 
+### UI Features
+- **Dark Mode**: Rich dark theme with gold accents
+- **Unified Breadcrumb**: Scroll-reveal header showing current section
+- **Audio Narration**: Text-to-speech using Web Speech API
+- **Surprise Me**: Random story selection
+- **Mobile Optimized**: Floating navigation, full-height images
+
+### Filter System
 | Category | Options |
 |----------|---------|
 | Testament | All / Old Testament / New Testament |
 | Book Groupings | Torah, History, Poetry, Prophets, Gospels, Acts, Epistles, Revelation |
-| Individual Books | All 66 books (when spreads exist) |
+| Individual Books | All 66 books (cascading based on testament) |
 | Status | All / Complete / Pending |
+
+---
+
+## Architecture
+
+### Production Pipeline
+
+| Component | Purpose | Technology |
+|-----------|---------|------------|
+| **Outline Builder** | Import spreads + fetch KJV/WEB scripture | n8n workflow |
+| **Processing Pipeline** | Generate summaries + images | n8n + GPT-4 + Flux |
+| **Database** | Store all spread data | Supabase (PostgreSQL) |
+| **Storage** | Host generated images | Supabase Storage |
+| **Web Viewer** | Display and curate spreads | Static HTML/CSS/JS |
+| **Hosting** | Serve web viewer | GitHub Pages |
+
+### Data Flow
+```
+1. Paste spread definitions into Outline Builder
+2. Scripture (KJV + WEB) fetched and stored in Supabase
+3. Processing Pipeline generates summaries with GPT-4
+4. Processing Pipeline generates 4 images per spread with Flux
+5. Web viewer displays for curation
+6. User selects primary images and regenerates as needed
+```
+
+### Workflow IDs (n8n)
+| Workflow | ID |
+|----------|-----|
+| Outline Builder | `dRZE4EHTdCr1pSjX` |
+| Processing Pipeline | `Ixn36R5CgzjJn0WH` |
+
+---
 
 ## Project Structure
 
 ```
 graham-devotional/
-├── viewer/                    # Static web viewer (GitHub Pages)
+├── viewer/                    # Static web viewer (PWA)
 │   ├── index.html            # Homepage - grid of all spreads
 │   ├── spread.html           # Individual spread view
-│   ├── styles.css            # All styling
-│   ├── app.js                # Main application logic
-│   └── config.js             # Supabase & n8n configuration
+│   ├── offline.html          # Offline fallback page
+│   ├── styles.css            # All styling (2700+ lines)
+│   ├── app.js                # Main application logic (2000+ lines)
+│   ├── config.js             # Supabase & n8n configuration
+│   ├── sw.js                 # Service worker for PWA
+│   ├── manifest.json         # PWA manifest
+│   └── icons/                # PWA icons (192, 512, maskable, etc.)
 ├── docs/
-│   ├── SYSTEM.md             # Technical reference
-│   └── VIEWER.md             # Viewer documentation
+│   ├── SYSTEM.md             # Technical reference (pipelines, schema)
+│   ├── VIEWER.md             # Viewer documentation
+│   └── CURSOR.md             # AI/Cursor development guide
+├── supabase/
+│   └── migrations/           # Database migration SQL files
+├── scripts/
+│   └── backfill-testament-book.sql
 └── README.md                 # This file
 ```
+
+---
+
+## Documentation
+
+| Document | Purpose |
+|----------|---------|
+| [docs/SYSTEM.md](docs/SYSTEM.md) | Technical reference — pipelines, schema, troubleshooting |
+| [docs/VIEWER.md](docs/VIEWER.md) | Web viewer features — UI, filtering, PWA |
+| [docs/CURSOR.md](docs/CURSOR.md) | AI development guide — MCPs, secrets, architecture |
+
+---
+
+## Quick Start (Development)
+
+### Prerequisites
+- Node.js (for icon generation)
+- Git
+- Code editor (Cursor recommended)
+
+### Local Development
+```bash
+# Clone repository
+git clone https://github.com/grysngrhm-tech/graham-devotional.git
+cd graham-devotional
+
+# Start local server
+cd viewer
+python -m http.server 8000
+# or: npx serve .
+
+# Open in browser
+# http://localhost:8000
+```
+
+### Deployment
+Push to `main` branch — GitHub Pages auto-deploys from `viewer/` directory.
+
+---
+
+## Security Notes
+
+### Safe to Commit (Public Keys)
+- `SUPABASE_URL` — Project URL (public)
+- `SUPABASE_ANON_KEY` — Anonymous/public key (protected by RLS)
+- `N8N_WEBHOOK_URL` — Public webhook endpoints
+
+### Never Commit (Secrets)
+- `SUPABASE_SERVICE_ROLE_KEY` — Full database access
+- `REPLICATE_API_KEY` — Image generation credits
+- `OPENAI_API_KEY` — GPT-4 credits
+
+All sensitive keys are stored in n8n's credential manager, not in this repository.
+
+---
+
+## Status Flow
+
+```
+After Outline Builder:
+  status_outline    = done
+  status_scripture  = done
+  status_text       = pending
+  status_image      = pending
+
+After Processing Pipeline:
+  status_text       = done (440-520 word summary)
+  status_image      = done (4 image URLs populated)
+```
+
+A spread is **complete** when all four statuses = `done`.
+
+---
 
 ## License
 

@@ -455,6 +455,12 @@ WHERE testament IS NULL OR book IS NULL;
 
 | Date | Version | Changes |
 |------|---------|---------|
+| 2025-12-03 | v7.0 | PWA install prompt with iOS/Android detection |
+| 2025-12-03 | v6.8 | Complete PWA: icons, manifest, service worker, offline page |
+| 2025-12-03 | v6.7 | Mobile breadcrumb fixes, touchmove support |
+| 2025-12-03 | v6.6 | Dark mode fixes for story view |
+| 2025-12-02 | v6.5 | Unified scroll-reveal breadcrumb header |
+| 2025-12-02 | v6.4 | Dark mode, audio narration, surprise button |
 | 2025-12-02 | v6.3 | Added Biblical chronological sorting to viewer |
 | 2025-12-02 | v6.2 | Fixed parallel text/image processing paths |
 | 2025-12-02 | v6.1 | Fixed Replicate authentication header format |
