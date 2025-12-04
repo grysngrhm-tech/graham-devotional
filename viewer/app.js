@@ -80,6 +80,34 @@ const BOOK_ORDER_MAP = BIBLE_BOOK_ORDER.reduce((map, book, index) => {
     return map;
 }, {});
 
+// Define the order of spread_code prefixes (maps to chronological Bible order)
+// Note: GSP is a single prefix for all Gospels (Matthew, Mark, Luke, John) 
+// and the GSP-### numbers are already in chronological Jesus-life order
+const SPREAD_PREFIX_ORDER = [
+    // Torah
+    'GEN', 'EXO', 'LEV', 'NUM', 'DEU',
+    // History
+    'JOS', 'JDG', 'RUT', '1SA', '2SA', '1KI', '2KI', '1CH', '2CH', 'EZR', 'NEH', 'EST',
+    // Poetry
+    'JOB', 'PSA', 'PRO', 'ECC', 'SNG',
+    // Prophets
+    'ISA', 'JER', 'LAM', 'EZK', 'DAN', 'HOS', 'JOE', 'AMO', 'OBA', 'JON', 'MIC', 'NAH', 'HAB', 'ZEP', 'HAG', 'ZEC', 'MAL',
+    // Gospels (single chronological sequence)
+    'GSP',
+    // Acts
+    'ACT',
+    // Epistles
+    'ROM', '1CO', '2CO', 'GAL', 'EPH', 'PHP', 'COL', '1TH', '2TH', '1TI', '2TI', 'TIT', 'PHM', 'HEB', 'JAS', '1PE', '2PE', '1JO', '2JO', '3JO', 'JUD',
+    // Revelation
+    'REV'
+];
+
+// Create a lookup map for prefix ordering
+const PREFIX_ORDER_MAP = SPREAD_PREFIX_ORDER.reduce((map, prefix, index) => {
+    map[prefix] = index;
+    return map;
+}, {});
+
 // Book Groupings for filter options
 const BOOK_GROUPINGS = {
     'Torah': ['Genesis', 'Exodus', 'Leviticus', 'Numbers', 'Deuteronomy'],
@@ -106,36 +134,37 @@ const GROUPING_DESCRIPTIONS = {
     'History': 'Historical Narratives',
     'Poetry': 'Wisdom & Poetry',
     'Prophets': 'The Prophetic Books',
-    'Gospels': 'The Life of Jesus',
+    'Gospels': 'The Life of Jesus — In Chronological Order',
     'Acts': 'The Early Church',
     'Epistles': 'Letters to the Churches',
     'Revelation': 'Apocalyptic Vision'
 };
 
-// Sort stories in Biblical order (book → chapter → verse)
+// Sort stories in chronological order using spread_code
+// The spread_code (e.g., "GSP-042") encodes chronological order:
+// - The prefix (GSP) determines the section order
+// - The numeric suffix (042) determines order within the section
+// This is especially important for Gospels (GSP-*) which interleave
+// Matthew, Mark, Luke, and John in Jesus's life order
 function sortStoriesChronologically(stories) {
     return stories.sort((a, b) => {
-        // Get book order (unknown books go to end)
-        const bookOrderA = BOOK_ORDER_MAP[a.book] ?? 999;
-        const bookOrderB = BOOK_ORDER_MAP[b.book] ?? 999;
+        // Parse spread_code into prefix and number
+        const [prefixA, numStrA] = a.spread_code.split('-');
+        const [prefixB, numStrB] = b.spread_code.split('-');
         
-        if (bookOrderA !== bookOrderB) {
-            return bookOrderA - bookOrderB;
+        // Get prefix order (unknown prefixes go to end)
+        const orderA = PREFIX_ORDER_MAP[prefixA] ?? 999;
+        const orderB = PREFIX_ORDER_MAP[prefixB] ?? 999;
+        
+        if (orderA !== orderB) {
+            return orderA - orderB;
         }
         
-        // Same book - sort by chapter
-        const chapterA = a.start_chapter || 0;
-        const chapterB = b.start_chapter || 0;
+        // Same prefix - sort by numeric suffix
+        const numA = parseInt(numStrA, 10) || 0;
+        const numB = parseInt(numStrB, 10) || 0;
         
-        if (chapterA !== chapterB) {
-            return chapterA - chapterB;
-        }
-        
-        // Same chapter - sort by verse
-        const verseA = a.start_verse || 0;
-        const verseB = b.start_verse || 0;
-        
-        return verseA - verseB;
+        return numA - numB;
     });
 }
 
@@ -1451,12 +1480,21 @@ function renderStories() {
             headerCount++;
         }
         
-        // ALWAYS add Book header when it changes
-        if (book && book !== currentBook) {
+        // Add Book header when it changes, UNLESS:
+        // 1. We're in the Gospels grouping (books are interleaved chronologically)
+        // 2. AND no specific book filter is active
+        const isGospelsGrouping = grouping === 'Gospels';
+        const isFilteredToSingleBook = currentFilters.book !== 'all';
+        const shouldShowBookHeaders = !isGospelsGrouping || isFilteredToSingleBook;
+        
+        if (shouldShowBookHeaders && book && book !== currentBook) {
             currentBook = book;
             const testamentName = currentTestament === 'OT' ? 'Old Testament' : 'New Testament';
             html += `<div class="section-header book-header" data-testament="${testamentName}" data-grouping="${currentGrouping}" data-book="${book}"><h4>${book}</h4></div>`;
             headerCount++;
+        } else if (!shouldShowBookHeaders) {
+            // Track book changes even if not showing headers (for breadcrumb)
+            currentBook = book;
         }
         
         // Story card

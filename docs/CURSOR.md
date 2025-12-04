@@ -288,6 +288,31 @@ showInstallBanner()            // Platform-specific install UI
 showUpdateNotification()       // New version toast
 ```
 
+### Story Ordering
+
+Stories are sorted chronologically using the `spread_code` prefix system:
+
+```javascript
+// Prefix order determines section placement
+const SPREAD_PREFIX_ORDER = [
+    'GEN', 'EXO', ..., // OT books
+    'GSP',              // Gospels (all 4 books, chronological)
+    'ACT',              // Acts
+    ...,                // Epistles
+    'REV'               // Revelation
+];
+
+// sortStoriesChronologically(stories)
+// Sorts by: prefix order → numeric suffix
+// Example: GEN-001, GEN-002, ..., GSP-001, GSP-002, ...
+```
+
+**Special Case - Gospels:**
+- All four Gospels share the `GSP` prefix
+- GSP numbers follow Jesus's life chronologically
+- When viewing Gospels grouping: book headers are hidden (books are interleaved)
+- When filtering to single Gospel (e.g., Matthew): shows only that book's stories
+
 ### Key Functions in auth.js
 
 ```javascript

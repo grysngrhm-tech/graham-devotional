@@ -484,8 +484,9 @@ The Graham Bible — An illustrated Bible arranged story by story
 
 **Book Groupings:**
 - Torah, History, Poetry, Prophets (OT)
-- Gospels, Acts, Epistles, Revelation (NT)
+- Gospels (chronological), Acts, Epistles, Revelation (NT)
 - Cascades based on testament
+- Gospels shown in Jesus's life order, not by book
 
 **Individual Books:**
 - All 66 books
@@ -522,10 +523,36 @@ Scroll-reveal breadcrumb showing current section:
 
 ### Chronological Sorting
 
-Spreads displayed in Biblical order:
-1. **Book Order**: Canonical Protestant (Genesis → Revelation)
-2. **Chapter**: Within each book
-3. **Verse**: Within each chapter
+Stories are displayed in chronological order using the `spread_code` prefix system:
+
+**How It Works:**
+- Each story has a unique `spread_code` (e.g., `GEN-001`, `GSP-042`)
+- The prefix determines the section (GEN = Genesis, GSP = Gospels, etc.)
+- The numeric suffix determines order within that section
+- Stories are sorted by prefix order, then by numeric suffix
+
+**The Gospels Are Special:**
+- All four Gospels (Matthew, Mark, Luke, John) share the `GSP` prefix
+- The GSP numeric sequence follows **Jesus's chronological life**, not canonical book order
+- Example: GSP-001 = Luke 1:1-25 (Birth of John Foretold), GSP-004 = Matthew 1:18-25 (Joseph's Dream)
+- This allows readers to follow Jesus's story in the order it happened
+
+**Header Behavior:**
+- For most book groupings: Book headers appear when the book changes
+- For the Gospels grouping: Book headers are **hidden** (since books are interleaved chronologically)
+- If user filters to a specific Gospel (e.g., Matthew): No book header needed (all stories are from that book)
+
+**Spread Code Prefixes (in order):**
+| Section | Prefixes |
+|---------|----------|
+| Torah | GEN, EXO, LEV, NUM, DEU |
+| History | JOS, JDG, RUT, 1SA, 2SA, 1KI, 2KI, 1CH, 2CH, EZR, NEH, EST |
+| Poetry | JOB, PSA, PRO, ECC, SNG |
+| Prophets | ISA, JER, LAM, EZK, DAN, HOS, JOE, AMO, OBA, JON, MIC, NAH, HAB, ZEP, HAG, ZEC, MAL |
+| Gospels | GSP (single prefix, chronological) |
+| Acts | ACT |
+| Epistles | ROM, 1CO, 2CO, GAL, EPH, PHP, COL, 1TH, 2TH, 1TI, 2TI, TIT, PHM, HEB, JAS, 1PE, 2PE, 1JO, 2JO, 3JO, JUD |
+| Revelation | REV |
 
 ---
 
