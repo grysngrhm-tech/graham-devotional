@@ -60,6 +60,10 @@
                         <span class="icon-sun">☀️</span>
                         <span class="icon-moon">🌙</span>
                     </button>
+                    <div class="auth-controls" id="authControls">
+                        <button class="auth-btn" id="signInBtn" title="Sign in to save favorites and track progress">Sign In</button>
+                        <button class="auth-btn signed-in" id="signOutBtn" style="display: none;">Sign Out</button>
+                    </div>
                 </div>
             </div>
             
@@ -132,6 +136,18 @@
                         🎲 Surprise Me
                     </button>
                 </div>
+                
+                <!-- Row 5: User Filters (logged in only) -->
+                <div class="filter-row user-filters-row" id="userFiltersRow" style="display: none;">
+                    <div class="segment-control" id="userFilter">
+                        <button class="segment active" data-value="all">All Stories</button>
+                        <button class="segment" data-value="favorites">
+                            <span class="filter-icon">♥</span> My Favorites
+                        </button>
+                        <button class="segment" data-value="unread">Unread</button>
+                        <button class="segment" data-value="read">Read</button>
+                    </div>
+                </div>
             </section>
             
             <!-- Active Filters & Results Count -->
@@ -171,9 +187,27 @@
         </footer>
     </div>
 
+    <!-- Auth Modal -->
+    <div class="auth-modal" id="authModal">
+        <div class="auth-modal-content">
+            <button class="auth-close" id="authClose">&times;</button>
+            <div class="auth-header">
+                <h2>Sign In</h2>
+                <p>Enter your email to receive a magic link</p>
+            </div>
+            <div class="auth-form">
+                <input type="email" id="authEmail" placeholder="you@example.com" autocomplete="email">
+                <button class="auth-submit" id="sendMagicLink">Send Magic Link</button>
+            </div>
+            <p class="auth-status" id="authStatus"></p>
+            <p class="auth-footer">No password needed. We'll send you a secure link to sign in.</p>
+        </div>
+    </div>
+
     <!-- Supabase JS Client -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="config.js"></script>
-    <script src="app.js?v=12"></script>
+    <script src="auth.js"></script>
+    <script src="app.js?v=13"></script>
 </body>
 </html>

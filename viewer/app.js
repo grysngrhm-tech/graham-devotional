@@ -17,13 +17,18 @@ let allStories = [];
 let filteredStories = [];
 let currentStoryIndex = 0;
 
+// User data state (loaded when authenticated)
+let userFavorites = new Set();
+let userReadStories = new Set();
+
 // Filter state
 let currentFilters = {
     testament: 'all',
     book: 'all',
     grouping: 'all',
     status: 'all',
-    search: ''
+    search: '',
+    userFilter: 'all' // all, favorites, unread, read
 };
 
 // ============================================================================
@@ -528,11 +533,24 @@ async function initIndexPage() {
     // Detect platform and update keyboard shortcut display
     updateKeyboardShortcutDisplay();
     
+    // Initialize authentication
+    if (window.GraceAuth) {
+        await window.GraceAuth.initAuth();
+        window.GraceAuth.setupAuthModal();
+        
+        // Listen for auth state changes
+        window.GraceAuth.onAuthStateChange(handleAuthStateChange);
+    }
+    
     // Load stories (testament/book now come from Supabase directly)
     await loadAllStories();
     
+    // Load user data if authenticated
+    await loadUserData();
+    
     populateBookDropdown();
     setupFilters();
+    setupUserFilters();
     setupKeyboardShortcuts();
     setupAcronymExpansion();
     setupBreadcrumbClicks();
@@ -553,6 +571,77 @@ function setupScrollMemory() {
         if (storyCard) {
             sessionStorage.setItem('indexScrollY', window.scrollY.toString());
         }
+    });
+}
+
+// ============================================================================
+// User Data & Auth Integration
+// ============================================================================
+
+/**
+ * Load user favorites and read stories when authenticated
+ */
+async function loadUserData() {
+    if (!window.GraceAuth?.isAuthenticated()) {
+        userFavorites = new Set();
+        userReadStories = new Set();
+        return;
+    }
+    
+    try {
+        // Load favorites
+        const favorites = await window.GraceAuth.getUserFavorites();
+        userFavorites = new Set(favorites);
+        
+        // Load read stories
+        const readStories = await window.GraceAuth.getUserReadStories();
+        userReadStories = new Set(readStories);
+        
+        console.log('[GRACE] User data loaded:', {
+            favorites: userFavorites.size,
+            read: userReadStories.size
+        });
+    } catch (err) {
+        console.error('[GRACE] Error loading user data:', err);
+    }
+}
+
+/**
+ * Handle auth state changes
+ */
+async function handleAuthStateChange(state) {
+    console.log('[GRACE] Auth state changed:', state.isAuthenticated);
+    
+    if (state.isAuthenticated) {
+        await loadUserData();
+    } else {
+        userFavorites = new Set();
+        userReadStories = new Set();
+        // Reset user filter
+        currentFilters.userFilter = 'all';
+        const userFilterBtns = document.querySelectorAll('#userFilter .segment');
+        userFilterBtns.forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.value === 'all');
+        });
+    }
+    
+    // Re-render stories with updated state
+    applyFilters();
+}
+
+/**
+ * Setup user filter controls (favorites, read/unread)
+ */
+function setupUserFilters() {
+    const userFilterBtns = document.querySelectorAll('#userFilter .segment');
+    
+    userFilterBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            userFilterBtns.forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            currentFilters.userFilter = btn.dataset.value;
+            applyFilters();
+        });
     });
 }
 
@@ -866,7 +955,7 @@ function setupAcronymExpansion() {
 }
 
 function applyFilters() {
-    const { testament, book, grouping, status, search } = currentFilters;
+    const { testament, book, grouping, status, search, userFilter } = currentFilters;
     
     filteredStories = allStories.filter(story => {
         // Testament filter
@@ -908,6 +997,23 @@ function applyFilters() {
             }
         }
         
+        // User filters (favorites, read/unread) - only apply if authenticated
+        if (userFilter !== 'all' && window.GraceAuth?.isAuthenticated()) {
+            const spreadCode = story.spread_code;
+            const isFavorited = userFavorites.has(spreadCode);
+            const isRead = userReadStories.has(spreadCode);
+            
+            if (userFilter === 'favorites' && !isFavorited) {
+                return false;
+            }
+            if (userFilter === 'unread' && isRead) {
+                return false;
+            }
+            if (userFilter === 'read' && !isRead) {
+                return false;
+            }
+        }
+        
         return true;
     });
     
@@ -942,6 +1048,16 @@ function updateActiveFilters() {
     
     if (currentFilters.search) {
         tags.push({ type: 'search', label: `"${currentFilters.search}"` });
+    }
+    
+    // User filter tags
+    if (currentFilters.userFilter !== 'all' && window.GraceAuth?.isAuthenticated()) {
+        const labels = {
+            'favorites': '♥ My Favorites',
+            'unread': 'Unread',
+            'read': 'Read'
+        };
+        tags.push({ type: 'userFilter', label: labels[currentFilters.userFilter] || currentFilters.userFilter });
     }
     
     container.innerHTML = tags.map(tag => `
@@ -979,6 +1095,10 @@ function clearFilter(type) {
     } else if (type === 'search') {
         currentFilters.search = '';
         document.getElementById('searchInput').value = '';
+    } else if (type === 'userFilter') {
+        currentFilters.userFilter = 'all';
+        document.querySelectorAll('#userFilter .segment').forEach(b => b.classList.remove('active'));
+        document.querySelector('#userFilter .segment[data-value="all"]')?.classList.add('active');
     }
     
     applyFilters();
@@ -1061,8 +1181,16 @@ function renderStories() {
         const passageRef = story.kjv_passage_ref || '';
         const bookMatch = story.book || passageRef.split(/\d/)[0]?.trim() || '';
         
+        // User state classes
+        const isFavorited = userFavorites.has(story.spread_code);
+        const isRead = userReadStories.has(story.spread_code);
+        const userClasses = [
+            isFavorited ? 'favorited' : '',
+            isRead ? 'read' : ''
+        ].filter(Boolean).join(' ');
+        
         html += `
-            <a href="spread.html?id=${story.spread_code}" class="story-card">
+            <a href="spread.html?id=${story.spread_code}" class="story-card ${userClasses}">
                 <div class="card-image">
                     ${imageUrl 
                         ? `<img src="${imageUrl}" alt="${story.title}" loading="lazy">`
@@ -1391,6 +1519,15 @@ async function initStoryPage() {
         return;
     }
     
+    // Initialize authentication
+    if (window.GraceAuth) {
+        await window.GraceAuth.initAuth();
+        window.GraceAuth.setupAuthModal();
+        
+        // Listen for auth state changes
+        window.GraceAuth.onAuthStateChange(handleStoryAuthStateChange);
+    }
+    
     // Load all stories for navigation
     await loadStoryList();
     
@@ -1404,6 +1541,12 @@ async function initStoryPage() {
     
     // Setup audio narration
     setupAudioControls();
+    
+    // Setup favorite button
+    setupFavoriteButton();
+    
+    // Setup read tracking (scroll to bottom detection)
+    setupReadTracking();
 }
 
 async function loadStoryList() {
@@ -1513,7 +1656,7 @@ function renderStory(story) {
     document.title = `${story.title || 'Story'} | The GRACE Bible`;
 }
 
-function renderImages(story) {
+async function renderImages(story) {
     const container = document.getElementById('imageContainer');
     if (!container) return;
     
@@ -1525,10 +1668,25 @@ function renderImages(story) {
         story.image_url_4
     ];
     const hasCandidates = candidateImages.some(url => url && url.trim());
-    const hasPrimary = story.image_url && story.image_url.trim();
+    const globalPrimary = story.image_url && story.image_url.trim() ? story.image_url : null;
+    
+    // Check for user's personal primary image selection
+    let userPrimarySlot = null;
+    let displayPrimary = globalPrimary;
+    
+    if (window.GraceAuth?.isAuthenticated()) {
+        userPrimarySlot = await window.GraceAuth.getUserPrimaryImage(story.spread_code);
+        if (userPrimarySlot && candidateImages[userPrimarySlot - 1]) {
+            displayPrimary = candidateImages[userPrimarySlot - 1];
+        }
+    }
+    
+    // Store for use in other functions
+    window._currentUserPrimarySlot = userPrimarySlot;
+    window._currentGlobalPrimary = globalPrimary;
     
     // Check if we should show grid or single image
-    if (!hasPrimary && !hasCandidates) {
+    if (!displayPrimary && !hasCandidates) {
         container.innerHTML = `
             <div class="placeholder" style="display: flex; align-items: center; justify-content: center; height: 100%; color: var(--color-charcoal-light);">
                 <em>No images generated</em>
@@ -1538,16 +1696,16 @@ function renderImages(story) {
     }
     
     // Default to single image view if there's a primary selected
-    if (hasPrimary && !showingGrid) {
-        renderSingleImage(container, story.image_url, story.title, hasCandidates);
+    if (displayPrimary && !showingGrid) {
+        renderSingleImage(container, displayPrimary, story.title, hasCandidates, userPrimarySlot);
     } else if (hasCandidates) {
-        renderImageGrid(container, candidateImages, story.image_url);
+        renderImageGrid(container, candidateImages, globalPrimary, userPrimarySlot);
     } else {
-        renderSingleImage(container, story.image_url, story.title, false);
+        renderSingleImage(container, displayPrimary, story.title, false, userPrimarySlot);
     }
 }
 
-function renderSingleImage(container, imageUrl, title, canExpand) {
+function renderSingleImage(container, imageUrl, title, canExpand, userPrimarySlot = null) {
     const template = document.getElementById('singleImageTemplate');
     if (!template) {
         container.innerHTML = `<div class="single-image"><img src="${imageUrl}" alt="${title}"></div>`;
@@ -1558,6 +1716,17 @@ function renderSingleImage(container, imageUrl, title, canExpand) {
     const img = content.getElementById('selectedImage');
     img.src = imageUrl;
     img.alt = title || 'Story illustration';
+    
+    // Update badge text based on whether it's user's selection or global
+    const badge = content.querySelector('.primary-badge');
+    if (badge) {
+        if (userPrimarySlot) {
+            badge.textContent = '✓ My Selection';
+            badge.classList.add('user-selection');
+        } else {
+            badge.textContent = '✓ Primary';
+        }
+    }
     
     container.innerHTML = '';
     container.appendChild(content);
@@ -1575,7 +1744,7 @@ function renderSingleImage(container, imageUrl, title, canExpand) {
     }
 }
 
-function renderImageGrid(container, candidateImages, primaryImageUrl) {
+function renderImageGrid(container, candidateImages, globalPrimaryUrl, userPrimarySlot = null) {
     const template = document.getElementById('gridImageTemplate');
     if (!template) return;
     
@@ -1583,19 +1752,33 @@ function renderImageGrid(container, candidateImages, primaryImageUrl) {
     container.innerHTML = '';
     container.appendChild(content);
     
-    // Update header text if we have a primary already
+    const isAuthenticated = window.GraceAuth?.isAuthenticated() || false;
+    const isAdmin = window.GraceAuth?.isAdmin() || false;
+    
+    // Determine what primary to show (user's or global)
+    const userPrimaryUrl = userPrimarySlot ? candidateImages[userPrimarySlot - 1] : null;
+    const displayPrimaryUrl = userPrimaryUrl || globalPrimaryUrl;
+    
+    // Update header text based on auth state
     const selectionTitle = container.querySelector('.selection-title');
     const collapseBtn = document.getElementById('collapseBtn');
     
-    if (primaryImageUrl && selectionTitle) {
-        selectionTitle.textContent = 'Change Primary Image';
-        if (collapseBtn) {
-            collapseBtn.style.display = 'flex';
-            collapseBtn.addEventListener('click', () => {
-                showingGrid = false;
-                renderImages(currentStory);
-            });
+    if (selectionTitle) {
+        if (isAdmin) {
+            selectionTitle.textContent = 'Select Primary Image (Admin)';
+        } else if (isAuthenticated) {
+            selectionTitle.textContent = 'Choose My Primary Image';
+        } else {
+            selectionTitle.textContent = 'View Image Options';
         }
+    }
+    
+    if (displayPrimaryUrl && collapseBtn) {
+        collapseBtn.style.display = 'flex';
+        collapseBtn.addEventListener('click', () => {
+            showingGrid = false;
+            renderImages(currentStory);
+        });
     }
     
     // Populate images
@@ -1603,29 +1786,68 @@ function renderImageGrid(container, candidateImages, primaryImageUrl) {
     gridImages.forEach((gridImage, index) => {
         const img = gridImage.querySelector('img');
         const imageUrl = candidateImages[index];
+        const slot = index + 1;
         
         if (imageUrl && imageUrl.trim()) {
             img.src = imageUrl;
-            img.alt = `${currentStory?.title || 'Story'} - Option ${index + 1}`;
+            img.alt = `${currentStory?.title || 'Story'} - Option ${slot}`;
             
-            // Mark current primary
-            const isCurrentPrimary = primaryImageUrl && imageUrl === primaryImageUrl;
-            if (isCurrentPrimary) {
+            // Check if this is global primary
+            const isGlobalPrimary = globalPrimaryUrl && imageUrl === globalPrimaryUrl;
+            // Check if this is user's primary
+            const isUserPrimary = userPrimarySlot === slot;
+            
+            // Update styling
+            if (isUserPrimary) {
+                gridImage.classList.add('is-user-primary');
+            }
+            if (isGlobalPrimary) {
+                gridImage.classList.add('is-global-primary');
+            }
+            if (isUserPrimary || (isGlobalPrimary && !userPrimarySlot)) {
                 gridImage.classList.add('is-primary');
             }
             
-            // Update overlay text for current primary
+            // Update overlay text based on state
             const selectLabel = gridImage.querySelector('.select-label');
-            if (selectLabel && isCurrentPrimary) {
-                selectLabel.textContent = 'Keep as Primary';
+            if (selectLabel) {
+                if (isAdmin) {
+                    if (isGlobalPrimary) {
+                        selectLabel.textContent = '✓ Global Default';
+                    } else {
+                        selectLabel.textContent = 'Set as Global Default';
+                    }
+                } else if (isAuthenticated) {
+                    if (isUserPrimary) {
+                        selectLabel.textContent = '✓ My Selection';
+                    } else {
+                        selectLabel.textContent = 'Set as My Primary';
+                    }
+                } else {
+                    selectLabel.textContent = 'Sign in to select';
+                }
             }
             
-            // Click to select as primary (on the whole card, but not the regen button)
+            // Add badges
+            if (isGlobalPrimary && isAdmin) {
+                const adminBadge = document.createElement('div');
+                adminBadge.className = 'admin-badge';
+                adminBadge.textContent = 'Global Default';
+                gridImage.appendChild(adminBadge);
+            }
+            if (isUserPrimary) {
+                const userBadge = document.createElement('div');
+                userBadge.className = 'user-primary-badge';
+                userBadge.textContent = 'My Selection';
+                gridImage.appendChild(userBadge);
+            }
+            
+            // Click to select as primary
             gridImage.addEventListener('click', (e) => {
                 if (!e.target.closest('.regen-btn')) {
                     e.preventDefault();
                     e.stopPropagation();
-                    selectPrimaryImage(imageUrl);
+                    handleImageSelection(slot, imageUrl);
                 }
             });
         } else {
@@ -1633,8 +1855,9 @@ function renderImageGrid(container, candidateImages, primaryImageUrl) {
         }
     });
     
-    // Setup regeneration buttons
+    // Setup regeneration buttons (admin only)
     setupRegenerationButtons();
+    updateAdminUI();
 }
 
 // Provide haptic feedback on supported devices
@@ -1651,12 +1874,39 @@ function hapticFeedback(type = 'light') {
     }
 }
 
-async function selectPrimaryImage(imageUrl) {
+/**
+ * Handle image selection based on user role
+ */
+async function handleImageSelection(slot, imageUrl) {
     if (!currentStory) return;
     
-    // Skip if this image is already the primary
+    const isAuthenticated = window.GraceAuth?.isAuthenticated() || false;
+    const isAdmin = window.GraceAuth?.isAdmin() || false;
+    
+    if (!isAuthenticated) {
+        // Prompt to sign in
+        window.GraceAuth?.showAuthModal();
+        return;
+    }
+    
+    if (isAdmin) {
+        // Admin sets global default
+        await setGlobalPrimaryImage(imageUrl);
+    } else {
+        // Regular user sets personal primary
+        await setUserPrimaryImage(slot);
+    }
+}
+
+/**
+ * Set global primary image (ADMIN only)
+ */
+async function setGlobalPrimaryImage(imageUrl) {
+    if (!currentStory) return;
+    
+    // Skip if this image is already the global primary
     if (currentStory.image_url === imageUrl) {
-        showToast('This image is already selected');
+        showToast('This is already the global default');
         showingGrid = false;
         renderImages(currentStory);
         return;
@@ -1680,24 +1930,132 @@ async function selectPrimaryImage(imageUrl) {
         hapticFeedback('success');
         
         // Show toast
-        showToast('✓ Primary image updated');
+        showToast('✓ Global default updated');
         
         // Switch to single view
         showingGrid = false;
         renderImages(currentStory);
         
     } catch (err) {
-        console.error('Error saving primary image:', err);
+        console.error('Error saving global primary image:', err);
         showToast('Error saving selection', true);
     }
 }
 
+/**
+ * Set user's personal primary image selection
+ */
+async function setUserPrimaryImage(slot) {
+    if (!currentStory) return;
+    
+    // Skip if this is already user's selection
+    if (window._currentUserPrimarySlot === slot) {
+        showToast('This is already your selection');
+        showingGrid = false;
+        renderImages(currentStory);
+        return;
+    }
+    
+    // Haptic feedback on selection
+    hapticFeedback('light');
+    
+    try {
+        const success = await window.GraceAuth.setUserPrimaryImage(currentStory.spread_code, slot);
+        
+        if (!success) throw new Error('Failed to save');
+        
+        // Update local state
+        window._currentUserPrimarySlot = slot;
+        
+        // Success haptic
+        hapticFeedback('success');
+        
+        // Show toast
+        showToast('✓ My primary image saved');
+        
+        // Switch to single view
+        showingGrid = false;
+        renderImages(currentStory);
+        
+    } catch (err) {
+        console.error('Error saving user primary image:', err);
+        showToast('Error saving selection', true);
+    }
+}
+
+/**
+ * Legacy function - redirects to role-based handler
+ */
+async function selectPrimaryImage(imageUrl) {
+    // Find slot number from URL
+    const candidateImages = [
+        currentStory.image_url_1,
+        currentStory.image_url_2,
+        currentStory.image_url_3,
+        currentStory.image_url_4
+    ];
+    const slot = candidateImages.findIndex(url => url === imageUrl) + 1;
+    
+    if (slot > 0) {
+        await handleImageSelection(slot, imageUrl);
+    }
+}
+
+/**
+ * Update image selection labels based on auth state
+ */
+function updateImageSelectionLabels() {
+    const isAuthenticated = window.GraceAuth?.isAuthenticated() || false;
+    const isAdmin = window.GraceAuth?.isAdmin() || false;
+    
+    const selectLabels = document.querySelectorAll('.select-label');
+    selectLabels.forEach(label => {
+        const gridImage = label.closest('.grid-image');
+        if (!gridImage) return;
+        
+        const isUserPrimary = gridImage.classList.contains('is-user-primary');
+        const isGlobalPrimary = gridImage.classList.contains('is-global-primary');
+        
+        if (isAdmin) {
+            if (isGlobalPrimary) {
+                label.textContent = '✓ Global Default';
+            } else {
+                label.textContent = 'Set as Global Default';
+            }
+        } else if (isAuthenticated) {
+            if (isUserPrimary) {
+                label.textContent = '✓ My Selection';
+            } else {
+                label.textContent = 'Set as My Primary';
+            }
+        } else {
+            label.textContent = 'Sign in to select';
+        }
+    });
+}
+
 function setupRegenerationButtons() {
     const regenBtns = document.querySelectorAll('.regen-btn');
+    const isAdmin = window.GraceAuth?.isAdmin() || false;
+    
     regenBtns.forEach(btn => {
-        btn.addEventListener('click', (e) => {
+        // Only show for admins
+        btn.style.display = isAdmin ? '' : 'none';
+        
+        // Remove any existing listeners (prevents duplicates)
+        const newBtn = btn.cloneNode(true);
+        btn.parentNode.replaceChild(newBtn, btn);
+        
+        newBtn.addEventListener('click', (e) => {
             e.stopPropagation();
-            const slot = parseInt(btn.dataset.slot);
+            
+            // Double-check admin status
+            if (!window.GraceAuth?.isAdmin()) {
+                showToast('Admin access required', true);
+                return;
+            }
+            
+            const slot = parseInt(newBtn.dataset.slot);
             triggerRegeneration(slot);
         });
     });
@@ -1724,6 +2082,12 @@ const REGEN_STAGES = [
 ];
 
 async function triggerRegeneration(slot) {
+    // Admin-only check
+    if (!window.GraceAuth?.isAdmin()) {
+        showToast('Admin access required', true);
+        return;
+    }
+    
     if (!currentStory) {
         showToast('No story loaded', true);
         return;
@@ -2140,6 +2504,152 @@ function setupScrollIndicator() {
     
     // Initial check
     setTimeout(checkScroll, 100);
+}
+
+// ============================================================================
+// Story Page User Features
+// ============================================================================
+
+/**
+ * Handle auth state changes on story page
+ */
+async function handleStoryAuthStateChange(state) {
+    console.log('[GRACE Story] Auth state changed:', state.isAuthenticated);
+    
+    // Update favorite button visibility and state
+    await updateFavoriteButton();
+    
+    // Update read indicator
+    await updateReadIndicator();
+    
+    // Update admin UI (regeneration buttons)
+    updateAdminUI();
+}
+
+/**
+ * Setup favorite button click handler
+ */
+function setupFavoriteButton() {
+    const favoriteBtn = document.getElementById('favoriteBtn');
+    if (!favoriteBtn) return;
+    
+    favoriteBtn.addEventListener('click', async () => {
+        if (!window.GraceAuth?.isAuthenticated()) {
+            window.GraceAuth?.showAuthModal();
+            return;
+        }
+        
+        if (!currentStory) return;
+        
+        // Toggle favorite
+        const isFavorited = await window.GraceAuth.toggleFavorite(currentStory.spread_code);
+        
+        // Update UI
+        favoriteBtn.classList.toggle('active', isFavorited);
+        favoriteBtn.classList.add('just-toggled');
+        setTimeout(() => favoriteBtn.classList.remove('just-toggled'), 300);
+        
+        // Haptic feedback
+        hapticFeedback('light');
+        
+        // Show toast
+        showToast(isFavorited ? '♥ Added to favorites' : 'Removed from favorites');
+    });
+    
+    // Initial state
+    updateFavoriteButton();
+}
+
+/**
+ * Update favorite button state based on current auth and favorite status
+ */
+async function updateFavoriteButton() {
+    const favoriteBtn = document.getElementById('favoriteBtn');
+    if (!favoriteBtn || !currentStory) return;
+    
+    if (window.GraceAuth?.isAuthenticated()) {
+        favoriteBtn.style.display = 'flex';
+        const isFavorited = await window.GraceAuth.isFavorited(currentStory.spread_code);
+        favoriteBtn.classList.toggle('active', isFavorited);
+    } else {
+        favoriteBtn.style.display = 'none';
+    }
+}
+
+/**
+ * Update read indicator visibility
+ */
+async function updateReadIndicator() {
+    const readIndicator = document.getElementById('readIndicator');
+    if (!readIndicator || !currentStory) return;
+    
+    if (window.GraceAuth?.isAuthenticated()) {
+        const isRead = await window.GraceAuth.isRead(currentStory.spread_code);
+        readIndicator.style.display = isRead ? 'inline-flex' : 'none';
+    } else {
+        readIndicator.style.display = 'none';
+    }
+}
+
+/**
+ * Setup read tracking - mark as read when user scrolls near bottom
+ */
+function setupReadTracking() {
+    const rightPage = document.getElementById('rightPage');
+    if (!rightPage) return;
+    
+    let hasMarkedAsRead = false;
+    
+    const checkReadStatus = async () => {
+        // Only mark as read once per page load
+        if (hasMarkedAsRead) return;
+        
+        // Only track if authenticated
+        if (!window.GraceAuth?.isAuthenticated()) return;
+        
+        // Check if scrolled near bottom (within 100px)
+        const isNearBottom = 
+            window.innerHeight + window.scrollY >= document.body.scrollHeight - 150 ||
+            rightPage.scrollTop + rightPage.clientHeight >= rightPage.scrollHeight - 100;
+        
+        if (isNearBottom && currentStory) {
+            hasMarkedAsRead = true;
+            await window.GraceAuth.markAsRead(currentStory.spread_code);
+            
+            // Update indicator
+            const readIndicator = document.getElementById('readIndicator');
+            if (readIndicator) {
+                readIndicator.style.display = 'inline-flex';
+            }
+            
+            console.log('[GRACE] Marked as read:', currentStory.spread_code);
+        }
+    };
+    
+    // Listen to both window scroll and right-page scroll (for desktop layout)
+    window.addEventListener('scroll', checkReadStatus, { passive: true });
+    rightPage.addEventListener('scroll', checkReadStatus, { passive: true });
+    
+    // Also check on touch end for mobile
+    rightPage.addEventListener('touchend', () => {
+        setTimeout(checkReadStatus, 100);
+    }, { passive: true });
+}
+
+/**
+ * Update admin-only UI elements visibility
+ */
+function updateAdminUI() {
+    const isAdmin = window.GraceAuth?.isAdmin() || false;
+    
+    // Show/hide regeneration buttons
+    const regenBtns = document.querySelectorAll('.regen-btn');
+    regenBtns.forEach(btn => {
+        btn.style.display = isAdmin ? '' : 'none';
+    });
+    
+    // Update selection labels
+    updateImageSelectionLabels();
 }
 
 // ============================================================================

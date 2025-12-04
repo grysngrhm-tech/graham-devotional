@@ -1522,6 +1522,11 @@ body {
     gap: 6px;
 }
 
+.primary-badge.user-selection {
+    background: #4CAF50;
+    color: #FFFFFF;
+}
+
 .expand-options-btn {
     display: flex;
     align-items: center;
@@ -1661,6 +1666,20 @@ body {
     outline: 4px solid #FFFFFF;
     outline-offset: -4px;
     box-shadow: inset 0 0 0 4px rgba(255, 255, 255, 0.3);
+}
+
+/* User's personal selection - green outline */
+.grid-image.is-user-primary {
+    outline: 4px solid #4CAF50;
+    outline-offset: -4px;
+    box-shadow: inset 0 0 0 4px rgba(76, 175, 80, 0.3);
+}
+
+/* Global admin default - gold outline */
+.grid-image.is-global-primary:not(.is-user-primary) {
+    outline: 4px solid var(--color-gold);
+    outline-offset: -4px;
+    box-shadow: inset 0 0 0 4px rgba(201, 162, 39, 0.3);
 }
 
 .grid-image.is-primary::after {
@@ -1876,6 +1895,20 @@ body {
     align-items: flex-start;
     justify-content: space-between;
     gap: var(--spacing-md);
+}
+
+.story-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+.verse-range-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
 }
 
 .audio-btn {
@@ -3163,4 +3196,482 @@ body {
 /* Dark mode adjustments for install banner */
 [data-theme="dark"] .install-banner {
     background: #0D0D0D;
+}
+
+/* ============================================================================
+   Authentication UI
+   ============================================================================ */
+
+/* Auth Controls in Header */
+.auth-controls {
+    display: flex;
+    align-items: center;
+    margin-left: 8px;
+}
+
+.auth-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px;
+    border-radius: 100px;
+    font-family: 'Inter', -apple-system, sans-serif;
+    font-size: 0.75rem;
+    font-weight: 500;
+    background: rgba(255, 255, 255, 0.12);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: rgba(255, 255, 255, 0.9);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+}
+
+.auth-btn:hover {
+    background: rgba(255, 255, 255, 0.2);
+    border-color: rgba(255, 255, 255, 0.35);
+}
+
+.auth-btn:active {
+    transform: scale(0.96);
+}
+
+.auth-btn.signed-in {
+    background: rgba(201, 162, 39, 0.15);
+    border-color: rgba(201, 162, 39, 0.3);
+    color: var(--color-gold);
+}
+
+.auth-btn.signed-in:hover {
+    background: rgba(201, 162, 39, 0.25);
+    border-color: rgba(201, 162, 39, 0.5);
+}
+
+/* Auth Modal */
+.auth-modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.75);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10000;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.25s ease, visibility 0.25s ease;
+    padding: 20px;
+}
+
+.auth-modal.visible {
+    opacity: 1;
+    visibility: visible;
+}
+
+.auth-modal-content {
+    background: var(--bg-secondary);
+    border-radius: 20px;
+    padding: 32px;
+    max-width: 400px;
+    width: 100%;
+    position: relative;
+    box-shadow: 
+        0 20px 60px rgba(0, 0, 0, 0.4),
+        0 0 0 1px rgba(255, 255, 255, 0.1);
+    transform: translateY(20px) scale(0.96);
+    transition: transform 0.3s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.auth-modal.visible .auth-modal-content {
+    transform: translateY(0) scale(1);
+}
+
+.auth-close {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    width: 32px;
+    height: 32px;
+    border: none;
+    background: rgba(128, 128, 128, 0.15);
+    border-radius: 50%;
+    font-size: 1.25rem;
+    color: var(--text-muted);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s ease;
+}
+
+.auth-close:hover {
+    background: rgba(128, 128, 128, 0.25);
+    color: var(--text-primary);
+}
+
+.auth-header {
+    text-align: center;
+    margin-bottom: 24px;
+}
+
+.auth-header h2 {
+    font-family: var(--font-title);
+    font-size: 1.5rem;
+    font-weight: 500;
+    color: var(--text-primary);
+    margin: 0 0 8px 0;
+}
+
+.auth-header p {
+    font-family: var(--font-body);
+    font-size: 0.9375rem;
+    color: var(--text-secondary);
+    margin: 0;
+}
+
+.auth-form {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.auth-form input {
+    width: 100%;
+    padding: 14px 16px;
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    background: var(--bg-card);
+    font-family: 'Inter', -apple-system, sans-serif;
+    font-size: 1rem;
+    color: var(--text-primary);
+    transition: all 0.2s ease;
+    box-sizing: border-box;
+}
+
+.auth-form input:focus {
+    outline: none;
+    border-color: var(--color-gold);
+    box-shadow: 0 0 0 3px rgba(201, 162, 39, 0.15);
+}
+
+.auth-form input::placeholder {
+    color: var(--text-muted);
+}
+
+.auth-submit {
+    width: 100%;
+    padding: 14px 20px;
+    border: none;
+    border-radius: 12px;
+    background: #1A1A1A;
+    color: #FFFFFF;
+    font-family: 'Inter', -apple-system, sans-serif;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.auth-submit:hover:not(:disabled) {
+    background: #333;
+    transform: translateY(-1px);
+}
+
+.auth-submit:active:not(:disabled) {
+    transform: translateY(0);
+}
+
+.auth-submit:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+[data-theme="dark"] .auth-submit {
+    background: var(--color-gold);
+    color: #1A1A1A;
+}
+
+[data-theme="dark"] .auth-submit:hover:not(:disabled) {
+    background: #D4AF37;
+}
+
+.auth-status {
+    text-align: center;
+    font-family: 'Inter', -apple-system, sans-serif;
+    font-size: 0.875rem;
+    min-height: 1.25em;
+    margin: 0;
+}
+
+.auth-status.success {
+    color: #4CAF50;
+}
+
+.auth-status.error {
+    color: #F44336;
+}
+
+.auth-footer {
+    text-align: center;
+    font-family: 'Inter', -apple-system, sans-serif;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin: 16px 0 0 0;
+}
+
+/* ============================================================================
+   User Filters Row
+   ============================================================================ */
+
+.user-filters-row {
+    margin-top: var(--spacing-sm);
+    padding-top: var(--spacing-sm);
+    border-top: 1px solid var(--border-light);
+}
+
+.user-filters-row .segment {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.user-filters-row .filter-icon {
+    color: #E53E3E;
+    font-size: 0.875rem;
+}
+
+.user-filters-row .segment.active .filter-icon {
+    color: inherit;
+}
+
+/* ============================================================================
+   Story Card States
+   ============================================================================ */
+
+/* Favorited card - golden glow border */
+.story-card.favorited {
+    box-shadow: 
+        0 0 0 2px rgba(218, 165, 32, 0.6),
+        0 0 20px rgba(218, 165, 32, 0.25),
+        0 4px 12px rgba(0, 0, 0, 0.12);
+}
+
+.story-card.favorited:hover {
+    box-shadow: 
+        0 0 0 2px rgba(218, 165, 32, 0.8),
+        0 0 30px rgba(218, 165, 32, 0.35),
+        0 8px 24px rgba(0, 0, 0, 0.15);
+}
+
+/* Read card indicator - subtle checkmark */
+.story-card.read .card-image::before {
+    content: '✓';
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    width: 24px;
+    height: 24px;
+    background: rgba(0, 0, 0, 0.75);
+    color: #4CAF50;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.75rem;
+    font-weight: 700;
+    z-index: 5;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+}
+
+/* Both favorited and read */
+.story-card.favorited.read .card-image::before {
+    left: 10px;
+}
+
+/* ============================================================================
+   Favorite Button (Story Page)
+   ============================================================================ */
+
+.favorite-btn {
+    flex-shrink: 0;
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    min-height: 44px;
+    background: rgba(128, 128, 128, 0.12);
+    border: none;
+    border-radius: 50%;
+    font-size: 1.25rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+    position: relative;
+}
+
+.favorite-btn:hover {
+    background: rgba(218, 165, 32, 0.15);
+    transform: scale(1.05);
+}
+
+.favorite-btn:active {
+    transform: scale(0.95);
+}
+
+.favorite-btn .heart-empty,
+.favorite-btn .heart-filled {
+    position: absolute;
+    transition: all 0.2s ease;
+}
+
+.favorite-btn .heart-empty {
+    color: var(--text-muted);
+    opacity: 1;
+}
+
+.favorite-btn .heart-filled {
+    color: #E53E3E;
+    opacity: 0;
+    transform: scale(0.5);
+}
+
+.favorite-btn:hover .heart-empty {
+    color: #E53E3E;
+}
+
+.favorite-btn.active .heart-empty {
+    opacity: 0;
+    transform: scale(0.5);
+}
+
+.favorite-btn.active .heart-filled {
+    opacity: 1;
+    transform: scale(1);
+}
+
+.favorite-btn.active {
+    background: rgba(229, 62, 62, 0.15);
+}
+
+/* Favorite button animation on toggle */
+@keyframes heartPop {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.3); }
+    100% { transform: scale(1); }
+}
+
+.favorite-btn.just-toggled .heart-filled {
+    animation: heartPop 0.3s ease;
+}
+
+/* ============================================================================
+   Read Status Indicator (Story Page)
+   ============================================================================ */
+
+.read-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    background: rgba(76, 175, 80, 0.15);
+    border-radius: 100px;
+    font-family: 'Inter', -apple-system, sans-serif;
+    font-size: 0.6875rem;
+    font-weight: 500;
+    color: #4CAF50;
+    margin-left: auto;
+}
+
+.read-indicator .check {
+    font-size: 0.75rem;
+}
+
+/* ============================================================================
+   Admin-Only & User-Only Elements
+   ============================================================================ */
+
+.admin-only {
+    display: none;
+}
+
+.user-only {
+    display: none;
+}
+
+/* Admin badge for image selection */
+.admin-badge {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    padding: 4px 8px;
+    background: rgba(201, 162, 39, 0.9);
+    color: #1A1A1A;
+    border-radius: 4px;
+    font-family: 'Inter', -apple-system, sans-serif;
+    font-size: 0.5625rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    z-index: 10;
+}
+
+/* User's personal primary badge */
+.user-primary-badge {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    padding: 4px 8px;
+    background: rgba(76, 175, 80, 0.9);
+    color: #FFFFFF;
+    border-radius: 4px;
+    font-family: 'Inter', -apple-system, sans-serif;
+    font-size: 0.5625rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    z-index: 10;
+}
+
+/* ============================================================================
+   Responsive Auth
+   ============================================================================ */
+
+@media (max-width: 768px) {
+    .auth-controls {
+        margin-left: 4px;
+    }
+    
+    .auth-btn {
+        padding: 5px 10px;
+        font-size: 0.6875rem;
+    }
+    
+    .auth-modal-content {
+        padding: 24px;
+        border-radius: 16px;
+    }
+    
+    .auth-header h2 {
+        font-size: 1.25rem;
+    }
+    
+    .auth-form input,
+    .auth-submit {
+        padding: 12px 14px;
+        font-size: 0.9375rem;
+    }
+    
+    .user-filters-row .segment {
+        padding: 8px 10px;
+        font-size: 0.6875rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .auth-btn {
+        padding: 4px 8px;
+        font-size: 0.625rem;
+    }
 }
