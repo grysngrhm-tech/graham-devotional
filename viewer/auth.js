@@ -797,8 +797,8 @@ async function setUserPrimaryImage(spreadCode, imageSlot) {
 // Offline Library Functions
 // ============================================================================
 
-// Local state for library (synced with Supabase)
-let userLibrary = new Set();
+// Local state for library (synced with Supabase) - prefixed to avoid conflict with app.js
+let _libraryCache = new Set();
 
 /**
  * Get user's offline library entries from Supabase
@@ -816,7 +816,7 @@ async function getUserLibrary() {
         if (error) throw error;
         
         const codes = (data || []).map(d => d.spread_code);
-        userLibrary = new Set(codes);
+        _libraryCache = new Set(codes);
         return codes;
     } catch (err) {
         console.error('[Auth] Error loading library:', err);
@@ -830,7 +830,7 @@ async function getUserLibrary() {
  * @returns {boolean}
  */
 function isInLibrary(spreadCode) {
-    return userLibrary.has(spreadCode);
+    return _libraryCache.has(spreadCode);
 }
 
 /**
@@ -858,7 +858,7 @@ async function addToLibrary(spreadCode, storyData) {
         }
         
         // Update local state
-        userLibrary.add(spreadCode);
+        _libraryCache.add(spreadCode);
         
         return true;
     } catch (err) {
@@ -889,7 +889,7 @@ async function removeFromLibrary(spreadCode) {
         }
         
         // Update local state
-        userLibrary.delete(spreadCode);
+        _libraryCache.delete(spreadCode);
         
         return true;
     } catch (err) {
@@ -960,7 +960,7 @@ async function clearLibrary() {
         }
         
         // Update local state
-        userLibrary.clear();
+        _libraryCache.clear();
         
         return true;
     } catch (err) {
