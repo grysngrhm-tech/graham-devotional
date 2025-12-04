@@ -1175,15 +1175,25 @@ async function getUserPrimaryImage(spreadCode) {
  * @param {number} imageSlot - Image slot (1-4)
  */
 async function setUserPrimaryImage(spreadCode, imageSlot) {
-    if (!isAuthenticated()) return false;
+    if (!isAuthenticated()) {
+        console.error('[Auth] Cannot set primary image: not authenticated');
+        return false;
+    }
     
     try {
-        await supabase
+        const { data, error } = await supabase
             .from('user_primary_images')
             .upsert(
                 { user_id: currentUser.id, spread_code: spreadCode, image_slot: imageSlot },
                 { onConflict: 'user_id,spread_code' }
-            );
+            )
+            .select();
+        
+        if (error) {
+            console.error('[Auth] Supabase error setting primary image:', error);
+            return false;
+        }
+        
         return true;
     } catch (err) {
         console.error('[Auth] Error setting primary image:', err);

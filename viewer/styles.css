@@ -567,33 +567,28 @@ body.is-admin .card-status.admin-only {
     gap: var(--spacing-sm);
 }
 
-/* Primary Filter Row - Testament + Search + Surprise */
-.filter-primary {
+/* Search Row */
+.filter-search-row {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: var(--spacing-md);
-    flex-wrap: wrap;
+    gap: var(--spacing-sm);
 }
 
-.filter-actions {
-    display: flex;
-    align-items: center;
-    gap: var(--spacing-xs);
+.filter-search-row .search-wrapper {
+    flex: 1;
+    max-width: 300px;
 }
 
-.filter-actions .search-wrapper {
-    max-width: 180px;
-}
-
-.filter-actions .search-wrapper input {
-    padding-right: 12px;
-}
-
-.filter-actions .surprise-btn {
+.filter-search-row .surprise-btn {
     padding: 8px 12px;
     font-size: 1rem;
     min-width: auto;
+}
+
+/* Testament Row */
+.filter-testament-row {
+    display: flex;
+    align-items: center;
 }
 
 .filter-row {
@@ -1229,10 +1224,7 @@ body.is-admin .card-status.admin-only {
     transition: color 0.3s ease;
 }
 
-.card-book {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
+.card-reference {
     font-family: 'Inter', -apple-system, sans-serif;
     font-size: 0.6875rem;
     font-weight: 500;
@@ -1240,14 +1232,6 @@ body.is-admin .card-status.admin-only {
     text-transform: uppercase;
     letter-spacing: 0.04em;
     transition: color 0.3s ease;
-}
-
-.card-book .dot {
-    width: 3px;
-    height: 3px;
-    background: var(--border-color);
-    border-radius: 50%;
-    transition: background-color 0.3s ease;
 }
 
 /* Footer */
@@ -1514,8 +1498,10 @@ body.is-admin .card-status.admin-only {
 }
 
 .nav-btn {
-    width: 36px;
-    height: 36px;
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    min-height: 44px;
     border: none;
     border-radius: 50%;
     background: rgba(255, 255, 255, 0.1);
@@ -1812,8 +1798,18 @@ body.is-admin .card-status.admin-only {
     z-index: 3;
 }
 
-.grid-image.selectable:hover .image-overlay {
+.grid-image.selectable:hover .image-overlay,
+.grid-image.selectable:focus .image-overlay,
+.grid-image.selectable:active .image-overlay {
     opacity: 1;
+}
+
+/* Touch devices: always show overlay so users know they can tap */
+@media (hover: none) and (pointer: coarse) {
+    .grid-image.selectable .image-overlay {
+        opacity: 1;
+        background: rgba(0, 0, 0, 0.5);
+    }
 }
 
 .select-label {
@@ -2110,16 +2106,17 @@ body.is-offline {
 /* Story Header with Audio Controls */
 .story-header-row {
     display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: var(--spacing-md);
+    flex-direction: column;
+    gap: var(--spacing-xs);
 }
 
 .story-header-actions {
     display: flex;
     align-items: center;
-    gap: 8px;
-    flex-shrink: 0;
+    justify-content: flex-end;
+    gap: 6px;
+    order: -1; /* Move above title */
+    margin-bottom: 4px;
 }
 
 .verse-range-row {
@@ -2503,13 +2500,14 @@ body.is-offline {
 
 .story-title {
     font-family: var(--font-title);
-    font-size: clamp(1.75rem, 3vw, 2.5rem); /* Slightly smaller */
+    font-size: clamp(1.5rem, 4vw, 2.5rem); /* Responsive sizing */
     font-weight: 400;
     color: var(--text-primary);
     line-height: 1.2;
     margin-bottom: var(--spacing-xs); /* Tighter gap to verse range */
     letter-spacing: -0.02em;
     transition: color 0.3s ease;
+    word-wrap: break-word;
 }
 
 .verse-range {
@@ -2761,9 +2759,11 @@ body.is-offline {
 
 @media (max-width: 768px) {
     .header-row.header-primary {
-        flex-direction: column;
+        flex-direction: row;
+        justify-content: space-between;
+        align-items: center;
         gap: var(--spacing-sm);
-        padding: var(--spacing-md);
+        padding: var(--spacing-sm) var(--spacing-md);
     }
     
     .header-row.header-breadcrumb {
@@ -2776,17 +2776,27 @@ body.is-offline {
     }
     
     .header-left {
-        flex-direction: column;
+        flex-direction: row;
+        align-items: center;
         gap: var(--spacing-xs);
-        text-align: center;
+        flex: 1;
+        min-width: 0; /* Allow shrinking */
     }
     
     .brand-title {
-        font-size: 1.35rem;
+        font-size: 1.125rem;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    
+    .header-divider,
+    .header-tagline {
+        display: none; /* Hide on mobile to save space */
     }
     
     .header-stats {
-        justify-content: center;
+        flex-shrink: 0;
     }
     
     .filter-row {
@@ -2841,7 +2851,7 @@ body.is-offline {
         font-size: 0.8125rem;
     }
     
-    .card-book {
+    .card-reference {
         font-size: 0.625rem;
     }
 }
@@ -2885,8 +2895,10 @@ body.is-offline {
     position: absolute;
     top: var(--spacing-sm);
     right: var(--spacing-sm);
-    width: 36px;
-    height: 36px;
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    min-height: 44px;
     background: rgba(0, 0, 0, 0.7);
     border: 2px solid rgba(255, 255, 255, 0.3);
     border-radius: 50%;
@@ -2911,6 +2923,14 @@ body.is-offline {
     background: rgba(255, 100, 100, 0.9);
     border-color: rgba(255, 255, 255, 0.6);
     transform: scale(1.1) rotate(180deg);
+}
+
+/* Touch devices: always show regen button */
+@media (hover: none) and (pointer: coarse) {
+    .regen-btn,
+    .regenerate-btn {
+        opacity: 0.85;
+    }
 }
 
 /* Regeneration Modal Overlay */
@@ -3506,10 +3526,12 @@ body.is-offline {
 
 .auth-close {
     position: absolute;
-    top: 16px;
-    right: 16px;
-    width: 32px;
-    height: 32px;
+    top: 12px;
+    right: 12px;
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    min-height: 44px;
     border: none;
     background: rgba(128, 128, 128, 0.15);
     border-radius: 50%;
@@ -4057,10 +4079,12 @@ body.is-offline {
 
 .settings-close {
     position: absolute;
-    top: 16px;
-    right: 16px;
-    width: 32px;
-    height: 32px;
+    top: 12px;
+    right: 12px;
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    min-height: 44px;
     border: none;
     background: rgba(128, 128, 128, 0.15);
     border-radius: 50%;
@@ -4638,8 +4662,10 @@ body.is-offline {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 36px;
-    height: 36px;
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    min-height: 44px;
     padding: 0;
     background: transparent;
     border: none;
@@ -4699,8 +4725,10 @@ body.is-offline {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 36px;
-    height: 36px;
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    min-height: 44px;
     padding: 0;
     background: transparent;
     border: none;

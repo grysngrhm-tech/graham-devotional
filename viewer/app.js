@@ -1465,7 +1465,6 @@ function renderStories() {
         const statusText = isComplete ? 'Complete' : 'Pending';
         const imageUrl = story.image_url || story.image_url_1;
         const passageRef = story.kjv_passage_ref || '';
-        const bookMatch = story.book || passageRef.split(/\d/)[0]?.trim() || '';
         
         // User state classes
         const isFavorited = userFavorites.has(story.spread_code);
@@ -1486,10 +1485,7 @@ function renderStories() {
                 </div>
                 <div class="card-content">
                     <h3 class="card-title">${story.title || 'Untitled'}</h3>
-                    <span class="card-book">
-                        ${bookMatch}
-                        ${passageRef ? `<span class="dot"></span>${passageRef}` : ''}
-                    </span>
+                    ${passageRef ? `<span class="card-reference">${passageRef}</span>` : ''}
                 </div>
             </a>
         `;
