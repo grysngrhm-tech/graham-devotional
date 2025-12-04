@@ -2667,16 +2667,21 @@ function setupReadButton() {
             showToast('Error updating read status', true);
         }
     });
+    
+    // Initial state - show/hide based on auth
+    updateReadButton();
 }
 
 /**
- * Setup read tracking - auto-mark as read when user scrolls past 50%
+ * Setup read tracking - auto-mark as read when user scrolls to bottom of content
+ * Only triggers when user has actually scrolled through most of the text content
  */
 function setupReadTracking() {
     const rightPage = document.getElementById('rightPage');
     if (!rightPage) return;
     
     let hasAutoMarkedAsRead = false;
+    let maxScrollReached = 0; // Track how far user has scrolled
     
     const checkReadStatus = async () => {
         // Only auto-mark once per page load
@@ -2692,16 +2697,40 @@ function setupReadTracking() {
             return;
         }
         
-        // Calculate scroll percentage - check both window and rightPage
-        const windowScrollPercent = (window.scrollY + window.innerHeight) / document.body.scrollHeight;
-        const rightPageScrollPercent = rightPage.scrollHeight > rightPage.clientHeight 
-            ? (rightPage.scrollTop + rightPage.clientHeight) / rightPage.scrollHeight 
-            : 1;
+        // Calculate actual scroll progress through the content
+        // For mobile (stacked layout): use window scroll relative to document
+        // For desktop (side-by-side): use rightPage scroll
         
-        // Trigger at 85% scroll (near bottom, after reading most of the text)
-        const isNearBottom = windowScrollPercent >= 0.85 || rightPageScrollPercent >= 0.85;
+        let scrollProgress = 0;
         
-        if (isNearBottom && currentStory) {
+        // Check if we're in mobile/stacked layout (right-page not scrollable internally)
+        const isStackedLayout = window.innerWidth <= 1024;
+        
+        if (isStackedLayout) {
+            // Mobile: calculate how far through the page content we've scrolled
+            // Only count scrolling that happens AFTER the image area
+            const totalScrollable = document.body.scrollHeight - window.innerHeight;
+            if (totalScrollable > 100) { // Need at least 100px of scrollable content
+                const currentScroll = window.scrollY;
+                scrollProgress = currentScroll / totalScrollable;
+            }
+        } else {
+            // Desktop: right-page has its own scroll
+            const totalScrollable = rightPage.scrollHeight - rightPage.clientHeight;
+            if (totalScrollable > 100) {
+                scrollProgress = rightPage.scrollTop / totalScrollable;
+            }
+        }
+        
+        // Track maximum scroll reached (in case user scrolls up)
+        maxScrollReached = Math.max(maxScrollReached, scrollProgress);
+        
+        // Trigger at 90% scroll AND user must have actually scrolled significantly
+        // This prevents triggering on short content that doesn't require much scrolling
+        const hasScrolledEnough = maxScrollReached >= 0.90;
+        const hasMinimumEngagement = maxScrollReached > 0.3; // User must scroll past 30% at some point
+        
+        if (hasScrolledEnough && hasMinimumEngagement && currentStory) {
             hasAutoMarkedAsRead = true;
             const spreadCode = currentStory.spread_code;
             
@@ -2721,7 +2750,7 @@ function setupReadTracking() {
                 setTimeout(() => readBtn.classList.remove('pop'), 300);
             }
             
-            console.log('[Graham] Auto-marked as read:', spreadCode);
+            console.log('[Graham] Auto-marked as read:', spreadCode, 'at scroll', Math.round(maxScrollReached * 100) + '%');
         }
     };
     

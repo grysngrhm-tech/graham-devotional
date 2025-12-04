@@ -3946,6 +3946,24 @@ body.is-admin .card-status.admin-only {
     color: inherit;
 }
 
+/* Large Heart Icon in User Filter - Favorites button */
+#userFilter .segment[data-value="favorites"] {
+    font-size: 1.5rem; /* 3x bigger heart (0.5rem × 3) */
+    line-height: 1;
+    padding-top: 4px;
+    padding-bottom: 4px;
+    color: #E53E3E;
+}
+
+#userFilter .segment[data-value="favorites"].active {
+    color: var(--text-primary);
+}
+
+/* Compact variant for user filters */
+.segment-control.compact .segment[data-value="favorites"] {
+    font-size: 1.4rem;
+}
+
 /* ============================================================================
    Story Card States
    ============================================================================ */
