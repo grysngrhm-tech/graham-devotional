@@ -461,6 +461,7 @@ function showAuthModal() {
     if (modal) {
         modal.classList.add('visible');
         hideAuthError();
+        isVerifying = false; // Reset verification lock
         
         // Check if there's a pending OTP session (user closed modal while waiting for code)
         const savedEmail = sessionStorage.getItem('grace-auth-pending-email');
@@ -500,6 +501,7 @@ let authModalState = 'email'; // 'email' | 'code_sent' | 'link_sent' | 'verifyin
 let pendingEmail = '';
 let resendTimer = null;
 let resendCountdown = 0;
+let isVerifying = false; // Prevent double submission
 
 function setupAuthModal() {
     const modal = document.getElementById('authModal');
@@ -795,8 +797,12 @@ async function handleAuthContinue() {
  * Handle OTP code verification
  */
 async function handleVerifyCode() {
+    // Prevent double submission
+    if (isVerifying) return;
+    
     const otpInput = document.getElementById('otpInput');
     const codeView = document.getElementById('authCodeView');
+    const authHeader = codeView?.querySelector('.auth-header h2');
     
     if (!otpInput || !pendingEmail) return;
     
@@ -807,29 +813,44 @@ async function handleVerifyCode() {
         return;
     }
     
+    // Lock submission
+    isVerifying = true;
+    
     // Show verifying state
     setAuthModalState('verifying');
     hideAuthError();
     
+    // Update header to show verifying
+    if (authHeader) authHeader.textContent = 'Verifying...';
+    
     const result = await verifyOTPCode(pendingEmail, code);
     
     if (result.success) {
-        // Success! Show brief feedback then close
+        // Success! Show clear feedback
         if (codeView) codeView.classList.add('success');
+        if (authHeader) authHeader.textContent = 'Success!';
         
         // Clear saved auth state
         sessionStorage.removeItem('grace-auth-pending-email');
         sessionStorage.removeItem('grace-auth-pending-state');
         
+        // Brief delay to show success state, then reload
         setTimeout(() => {
             hideAuthModal();
             // Reset state for next time
             pendingEmail = '';
             authModalState = 'email';
+            isVerifying = false;
             // Reload to refresh user data
             window.location.reload();
-        }, 800);
+        }, 1000);
     } else {
+        // Unlock submission
+        isVerifying = false;
+        
+        // Reset header
+        if (authHeader) authHeader.textContent = 'Enter Code';
+        
         // Error - shake and reset input
         if (codeView) {
             codeView.classList.add('shake');

@@ -3865,7 +3865,21 @@ body.is-offline {
 /* Success state */
 #authCodeView.success .otp-input {
     border-color: #4CAF50;
-    background: rgba(76, 175, 80, 0.1);
+    background: rgba(76, 175, 80, 0.15);
+    color: #4CAF50;
+}
+
+#authCodeView.success .auth-header h2 {
+    color: #4CAF50;
+}
+
+#authCodeView.success .auth-header h2::before {
+    content: '✓ ';
+}
+
+#authCodeView.success .auth-actions {
+    opacity: 0;
+    pointer-events: none;
 }
 
 /* Mobile adjustments for auth modal */
@@ -4004,6 +4018,7 @@ body.is-offline {
     visibility: hidden;
     transition: opacity 0.25s ease, visibility 0.25s ease;
     padding: 20px;
+    overflow-y: auto;
 }
 
 .settings-modal.visible {
@@ -4017,6 +4032,8 @@ body.is-offline {
     padding: 32px;
     max-width: 400px;
     width: 100%;
+    max-height: calc(100vh - 40px);
+    overflow-y: auto;
     position: relative;
     box-shadow: 
         0 20px 60px rgba(0, 0, 0, 0.4),
@@ -4355,18 +4372,33 @@ body.is-offline {
 
 /* Mobile adjustments for settings modal */
 @media (max-width: 768px) {
+    .settings-modal {
+        padding: 0;
+        align-items: flex-end;
+    }
+    
     .settings-modal-content {
-        padding: 24px;
-        border-radius: 16px;
+        padding: 20px;
+        padding-top: 16px;
+        border-radius: 20px 20px 0 0;
+        max-height: 85vh;
+        width: 100%;
+        max-width: 100%;
     }
     
     .settings-modal-content h2 {
         font-size: 1.25rem;
+        margin-top: 8px;
     }
     
     .setting-select {
         min-width: 120px;
         font-size: 0.8125rem;
+    }
+    
+    .settings-close {
+        top: 12px;
+        right: 12px;
     }
 }
 
