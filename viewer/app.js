@@ -1020,7 +1020,7 @@ function updateActiveFilters() {
     // User filter tags
     if (currentFilters.userFilter !== 'all' && window.GraceAuth?.isAuthenticated()) {
         const labels = {
-            'favorites': '♥ My Favorites',
+            'favorites': '♥ Favorites',
             'unread': 'Unread',
             'read': 'Read'
         };
@@ -2689,10 +2689,10 @@ function setupReadTracking() {
             ? (rightPage.scrollTop + rightPage.clientHeight) / rightPage.scrollHeight 
             : 1;
         
-        // Trigger at 50% scroll of either container
-        const isPastHalfway = windowScrollPercent >= 0.5 || rightPageScrollPercent >= 0.5;
+        // Trigger at 85% scroll (near bottom, after reading most of the text)
+        const isNearBottom = windowScrollPercent >= 0.85 || rightPageScrollPercent >= 0.85;
         
-        if (isPastHalfway && currentStory) {
+        if (isNearBottom && currentStory) {
             hasAutoMarkedAsRead = true;
             const spreadCode = currentStory.spread_code;
             

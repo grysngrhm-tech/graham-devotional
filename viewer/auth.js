@@ -56,10 +56,12 @@ async function initAuth() {
         
         if (event === 'SIGNED_IN' && session?.user) {
             await setCurrentUser(session.user);
+            updateAuthUI();
             notifyAuthStateListeners();
         } else if (event === 'SIGNED_OUT') {
             currentUser = null;
             userProfile = null;
+            updateAuthUI();
             notifyAuthStateListeners();
         } else if (event === 'TOKEN_REFRESHED' && session?.user) {
             currentUser = session.user;
