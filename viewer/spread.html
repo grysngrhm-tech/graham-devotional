@@ -40,24 +40,35 @@
         <button class="sticky-control-btn secondary" id="stickyStopBtn" title="Stop">⏹</button>
     </div>
 
-    <nav class="story-nav">
-        <a href="index.html" class="nav-back">← All Stories</a>
-        <div class="nav-controls">
-            <button class="nav-btn" id="prevBtn" title="Previous Story (← arrow key)">
-                <span>‹</span>
-            </button>
-            <span class="nav-position" id="navPosition">— / —</span>
-            <button class="nav-btn" id="nextBtn" title="Next Story (→ arrow key)">
-                <span>›</span>
-            </button>
-            <button class="theme-toggle" id="themeToggle" title="Toggle dark mode">
-                <span class="icon-sun">☀️</span>
-                <span class="icon-moon">🌙</span>
-            </button>
-            <div class="auth-controls" id="authControls">
-                <button class="auth-btn" id="signInBtn" title="Sign in to save favorites">Sign In</button>
-                <button class="auth-btn signed-in" id="signOutBtn" style="display: none;">Sign Out</button>
+    <nav class="story-nav" id="storyNav">
+        <div class="nav-primary">
+            <a href="index.html" class="nav-back">← All Stories</a>
+            <div class="nav-controls">
+                <button class="nav-btn" id="prevBtn" title="Previous Story (← arrow key)">
+                    <span>‹</span>
+                </button>
+                <span class="nav-position" id="navPosition">— / —</span>
+                <button class="nav-btn" id="nextBtn" title="Next Story (→ arrow key)">
+                    <span>›</span>
+                </button>
+                <button class="theme-toggle" id="themeToggle" title="Toggle dark mode">
+                    <span class="icon-sun">☀️</span>
+                    <span class="icon-moon">🌙</span>
+                </button>
+                <div class="auth-controls" id="authControls">
+                    <button class="auth-btn" id="signInBtn" title="Sign in to save favorites">Sign In</button>
+                    <button class="auth-btn signed-in" id="signOutBtn" style="display: none;">Sign Out</button>
+                </div>
             </div>
+        </div>
+        <!-- Sign-in expansion row (hidden by default) -->
+        <div class="nav-signin" id="headerSignin">
+            <div class="signin-form">
+                <input type="email" id="authEmail" placeholder="Enter your email" autocomplete="email">
+                <button class="signin-send" id="sendMagicLink">Send Link</button>
+                <button class="signin-cancel" id="signinCancel" title="Cancel">&times;</button>
+            </div>
+            <p class="signin-status" id="authStatus"></p>
         </div>
     </nav>
 
@@ -252,23 +263,6 @@
             </div>
         </div>
     </template>
-
-    <!-- Auth Modal -->
-    <div class="auth-modal" id="authModal">
-        <div class="auth-modal-content">
-            <button class="auth-close" id="authClose">&times;</button>
-            <div class="auth-header">
-                <h2>Sign In</h2>
-                <p>Enter your email to receive a magic link</p>
-            </div>
-            <div class="auth-form">
-                <input type="email" id="authEmail" placeholder="you@example.com" autocomplete="email">
-                <button class="auth-submit" id="sendMagicLink">Send Magic Link</button>
-            </div>
-            <p class="auth-status" id="authStatus"></p>
-            <p class="auth-footer">No password needed. We'll send you a secure link to sign in.</p>
-        </div>
-    </div>
 
     <!-- Supabase JS Client -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>

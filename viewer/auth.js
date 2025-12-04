@@ -91,6 +91,29 @@ async function setCurrentUser(user) {
 // ============================================================================
 
 /**
+ * Get the correct redirect URL for magic link authentication
+ * Uses GitHub Pages URL in production, current location in development
+ */
+function getAuthRedirectUrl() {
+    const hostname = window.location.hostname;
+    
+    // Production: GitHub Pages
+    if (hostname.includes('github.io')) {
+        // Use the full path to the current page
+        return window.location.href.split('#')[0].split('?')[0];
+    }
+    
+    // Production check: custom domain or other hosting
+    if (hostname !== 'localhost' && hostname !== '127.0.0.1') {
+        return window.location.href.split('#')[0].split('?')[0];
+    }
+    
+    // Development: use current location but warn
+    console.warn('[Auth] Running in development mode. Magic links will redirect to:', window.location.origin);
+    return window.location.origin + window.location.pathname;
+}
+
+/**
  * Send magic link to email address
  * @param {string} email - User's email address
  * @returns {Promise<{success: boolean, error?: string}>}
@@ -101,10 +124,13 @@ async function signInWithMagicLink(email) {
     }
     
     try {
+        const redirectUrl = getAuthRedirectUrl();
+        console.log('[Auth] Magic link redirect URL:', redirectUrl);
+        
         const { error } = await supabase.auth.signInWithOtp({
             email: email,
             options: {
-                emailRedirectTo: window.location.origin + window.location.pathname
+                emailRedirectTo: redirectUrl
             }
         });
         
@@ -272,54 +298,77 @@ function updateAdminUI() {
 }
 
 // ============================================================================
-// Auth Modal
+// Header Sign-In Expansion
 // ============================================================================
 
 /**
- * Show the auth modal
+ * Show the sign-in form in the header
  */
-function showAuthModal() {
-    const modal = document.getElementById('authModal');
-    if (modal) {
-        modal.classList.add('visible');
+function showSignInForm() {
+    const signinRow = document.getElementById('headerSignin');
+    if (signinRow) {
+        signinRow.classList.add('visible');
         const emailInput = document.getElementById('authEmail');
         if (emailInput) {
             emailInput.value = '';
-            emailInput.focus();
+            emailInput.disabled = false;
+            // Focus after animation completes
+            setTimeout(() => emailInput.focus(), 150);
         }
         // Clear any previous status
         const status = document.getElementById('authStatus');
         if (status) {
             status.textContent = '';
-            status.className = 'auth-status';
+            status.className = 'signin-status';
+        }
+        // Reset send button
+        const sendBtn = document.getElementById('sendMagicLink');
+        if (sendBtn) {
+            sendBtn.disabled = false;
+            sendBtn.textContent = 'Send Link';
+            sendBtn.classList.remove('success');
         }
     }
 }
 
 /**
- * Hide the auth modal
+ * Hide the sign-in form in the header
  */
-function hideAuthModal() {
-    const modal = document.getElementById('authModal');
-    if (modal) {
-        modal.classList.remove('visible');
+function hideSignInForm() {
+    const signinRow = document.getElementById('headerSignin');
+    if (signinRow) {
+        signinRow.classList.remove('visible');
     }
 }
 
 /**
- * Setup auth modal event handlers
+ * Legacy function names for compatibility
+ */
+function showAuthModal() {
+    showSignInForm();
+}
+
+function hideAuthModal() {
+    hideSignInForm();
+}
+
+/**
+ * Setup auth header event handlers
  */
 function setupAuthModal() {
-    const modal = document.getElementById('authModal');
     const signInBtn = document.getElementById('signInBtn');
     const signOutBtn = document.getElementById('signOutBtn');
-    const closeBtn = document.getElementById('authClose');
+    const cancelBtn = document.getElementById('signinCancel');
     const sendLinkBtn = document.getElementById('sendMagicLink');
     const emailInput = document.getElementById('authEmail');
     
-    // Open modal
+    // Open sign-in form
     if (signInBtn) {
-        signInBtn.addEventListener('click', showAuthModal);
+        signInBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            showSignInForm();
+        });
     }
     
     // Sign out
@@ -331,17 +380,11 @@ function setupAuthModal() {
         });
     }
     
-    // Close modal
-    if (closeBtn) {
-        closeBtn.addEventListener('click', hideAuthModal);
-    }
-    
-    // Click outside to close
-    if (modal) {
-        modal.addEventListener('click', (e) => {
-            if (e.target === modal) {
-                hideAuthModal();
-            }
+    // Cancel/close sign-in form
+    if (cancelBtn) {
+        cancelBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            hideSignInForm();
         });
     }
     
@@ -354,15 +397,20 @@ function setupAuthModal() {
     if (emailInput) {
         emailInput.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') {
+                e.preventDefault();
                 handleSendMagicLink();
+            }
+            if (e.key === 'Escape') {
+                hideSignInForm();
             }
         });
     }
     
-    // Escape to close
+    // Escape to close anywhere
     document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape' && modal?.classList.contains('visible')) {
-            hideAuthModal();
+        const signinRow = document.getElementById('headerSignin');
+        if (e.key === 'Escape' && signinRow?.classList.contains('visible')) {
+            hideSignInForm();
         }
     });
 }
@@ -380,8 +428,15 @@ async function handleSendMagicLink() {
     const email = emailInput.value.trim();
     
     if (!email) {
-        status.textContent = 'Please enter your email address';
-        status.className = 'auth-status error';
+        status.textContent = 'Enter your email';
+        status.className = 'signin-status error';
+        emailInput.focus();
+        return;
+    }
+    
+    if (!email.includes('@')) {
+        status.textContent = 'Invalid email';
+        status.className = 'signin-status error';
         return;
     }
     
@@ -389,23 +444,31 @@ async function handleSendMagicLink() {
     if (sendBtn) {
         sendBtn.disabled = true;
         sendBtn.textContent = 'Sending...';
+        sendBtn.classList.add('loading');
     }
     
     const result = await signInWithMagicLink(email);
     
     if (result.success) {
-        status.textContent = 'Check your email for a magic link!';
-        status.className = 'auth-status success';
+        status.textContent = '✓ Check your email!';
+        status.className = 'signin-status success';
         emailInput.disabled = true;
         if (sendBtn) {
-            sendBtn.textContent = 'Link Sent!';
+            sendBtn.textContent = '✓ Sent';
+            sendBtn.classList.remove('loading');
+            sendBtn.classList.add('success');
         }
+        // Auto-collapse after a delay
+        setTimeout(() => {
+            hideSignInForm();
+        }, 3000);
     } else {
-        status.textContent = result.error;
-        status.className = 'auth-status error';
+        status.textContent = result.error || 'Error sending link';
+        status.className = 'signin-status error';
         if (sendBtn) {
             sendBtn.disabled = false;
-            sendBtn.textContent = 'Send Magic Link';
+            sendBtn.textContent = 'Send Link';
+            sendBtn.classList.remove('loading');
         }
     }
 }
