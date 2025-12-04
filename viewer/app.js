@@ -6,11 +6,13 @@
  * ============================================================================
  */
 
-// Initialize Supabase client
+// Initialize Supabase client (also exposed on window for auth.js)
 const supabase = window.supabase.createClient(
     window.SUPABASE_CONFIG.url,
     window.SUPABASE_CONFIG.anonKey
 );
+window.supabaseClient = supabase;
+console.log('[GRACE] Supabase client initialized');
 
 // Global state
 let allStories = [];
@@ -620,14 +622,17 @@ if (document.readyState === 'complete') {
 // ============================================================================
 
 async function initIndexPage() {
+    console.log('[GRACE] initIndexPage starting...');
     showSkeletonCards(12);
     
     // Detect platform and update keyboard shortcut display
     updateKeyboardShortcutDisplay();
     
     // Initialize authentication
+    console.log('[GRACE] Initializing auth...');
     if (window.GraceAuth) {
         await window.GraceAuth.initAuth();
+        console.log('[GRACE] Auth initialized');
         window.GraceAuth.setupAuthModal();
         
         // Listen for auth state changes
@@ -641,10 +646,14 @@ async function initIndexPage() {
                 userFilter.style.display = 'flex';
             }
         }
+    } else {
+        console.warn('[GRACE] GraceAuth not available');
     }
     
     // Load stories (testament/book now come from Supabase directly)
+    console.log('[GRACE] Loading stories...');
     await loadAllStories();
+    console.log('[GRACE] Stories loaded:', allStories.length);
     
     // Load user data if authenticated (always refresh to catch changes from story page)
     await loadUserData();

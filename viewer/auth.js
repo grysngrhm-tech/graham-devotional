@@ -43,15 +43,26 @@ function isMobile() {
  * Call this on page load after Supabase client is ready
  */
 async function initAuth() {
+    console.log('[Auth] initAuth starting...');
+    
+    // Use global supabase client if local isn't available
+    const sb = typeof supabase !== 'undefined' ? supabase : window.supabaseClient;
+    if (!sb) {
+        console.error('[Auth] Supabase client not available!');
+        return null;
+    }
+    
     // Check for existing session
-    const { data: { session } } = await supabase.auth.getSession();
+    console.log('[Auth] Checking for existing session...');
+    const { data: { session } } = await sb.auth.getSession();
+    console.log('[Auth] Session check complete:', session ? 'logged in' : 'not logged in');
     
     if (session?.user) {
         await setCurrentUser(session.user);
     }
     
     // Listen for auth state changes (login, logout, token refresh)
-    supabase.auth.onAuthStateChange(async (event, session) => {
+    sb.auth.onAuthStateChange(async (event, session) => {
         console.log('[Auth] State change:', event);
         
         if (event === 'SIGNED_IN' && session?.user) {
