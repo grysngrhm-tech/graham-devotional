@@ -12,7 +12,6 @@ const supabase = window.supabase.createClient(
     window.SUPABASE_CONFIG.anonKey
 );
 window.supabaseClient = supabase;
-console.log('[GRACE] Supabase client initialized');
 
 // Global state
 let allStories = [];
@@ -622,17 +621,14 @@ if (document.readyState === 'complete') {
 // ============================================================================
 
 async function initIndexPage() {
-    console.log('[GRACE] initIndexPage starting...');
     showSkeletonCards(12);
     
     // Detect platform and update keyboard shortcut display
     updateKeyboardShortcutDisplay();
     
     // Initialize authentication
-    console.log('[GRACE] Initializing auth...');
     if (window.GraceAuth) {
         await window.GraceAuth.initAuth();
-        console.log('[GRACE] Auth initialized');
         window.GraceAuth.setupAuthModal();
         
         // Listen for auth state changes
@@ -646,14 +642,10 @@ async function initIndexPage() {
                 userFilter.style.display = 'flex';
             }
         }
-    } else {
-        console.warn('[GRACE] GraceAuth not available');
     }
     
-    // Load stories (testament/book now come from Supabase directly)
-    console.log('[GRACE] Loading stories...');
+    // Load stories from Supabase (with fallback to static JSON)
     await loadAllStories();
-    console.log('[GRACE] Stories loaded:', allStories.length);
     
     // Load user data if authenticated (always refresh to catch changes from story page)
     await loadUserData();
@@ -803,6 +795,9 @@ function showSkeletonCards(count) {
 }
 
 async function loadAllStories() {
+    let loadedFromSupabase = false;
+    
+    // Try loading from Supabase first
     try {
         const { data, error } = await supabase
             .from('grahams_devotional_spreads')
@@ -810,19 +805,59 @@ async function loadAllStories() {
         
         if (error) throw error;
         
-        // Sort in Biblical order (book → chapter → verse)
-        allStories = sortStoriesChronologically(data || []);
-        filteredStories = [...allStories];
-        
+        if (data && data.length > 0) {
+            // Sort in Biblical order (book → chapter → verse)
+            allStories = sortStoriesChronologically(data);
+            filteredStories = [...allStories];
+            loadedFromSupabase = true;
+            console.log('[GRACE] Stories loaded from Supabase:', allStories.length);
+        } else {
+            throw new Error('No data returned from Supabase');
+        }
     } catch (err) {
-        console.error('Error loading stories:', err);
-        const grid = document.getElementById('storiesGrid');
-        if (grid) {
-            grid.innerHTML = `
-                <div class="empty-state">
-                    <p>Error loading stories. Please check your connection and try again.</p>
-                </div>
-            `;
+        console.warn('[GRACE] Supabase failed, trying fallback:', err.message);
+    }
+    
+    // Fallback: load from static JSON file
+    if (!loadedFromSupabase) {
+        try {
+            const response = await fetch('data/all-spreads.json');
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            
+            const json = await response.json();
+            if (json.spreads && json.spreads.length > 0) {
+                // Map static data to match Supabase schema
+                allStories = sortStoriesChronologically(json.spreads.map(s => ({
+                    spread_code: s.spread_code,
+                    title: s.title,
+                    kjv_passage_ref: s.kjv_key_verse_ref || `${s.book} ${s.start_chapter}:${s.start_verse}`,
+                    status_text: 'done', // Assume complete in static data
+                    status_image: 'done',
+                    image_url: null, // Will be loaded per-story
+                    image_url_1: null,
+                    testament: s.testament,
+                    book: s.book,
+                    start_chapter: s.start_chapter,
+                    start_verse: s.start_verse
+                })));
+                filteredStories = [...allStories];
+                console.log('[GRACE] Stories loaded from fallback JSON:', allStories.length);
+            } else {
+                throw new Error('No spreads in fallback JSON');
+            }
+        } catch (fallbackErr) {
+            console.error('[GRACE] Both Supabase and fallback failed:', fallbackErr);
+            const grid = document.getElementById('storiesGrid');
+            if (grid) {
+                grid.innerHTML = `
+                    <div class="empty-state">
+                        <p>Unable to load stories. Please check your connection and try again.</p>
+                        <button onclick="location.reload()" style="margin-top: 10px; padding: 8px 16px; cursor: pointer;">
+                            Retry
+                        </button>
+                    </div>
+                `;
+            }
         }
     }
 }

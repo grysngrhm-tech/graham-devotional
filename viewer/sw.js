@@ -3,7 +3,7 @@
  * Provides offline caching with smart caching strategies
  */
 
-const CACHE_NAME = 'graham-bible-v5';
+const CACHE_NAME = 'graham-bible-v6';
 
 // App shell files to cache on install
 const APP_SHELL = [
@@ -21,6 +21,8 @@ const APP_SHELL = [
     './settings.js',
     './config.js',
     './manifest.json',
+    './lib/supabase.min.js',
+    './data/all-spreads.json',
     './icons/icon.svg',
     './icons/icon-192.png',
     './icons/icon-512.png',

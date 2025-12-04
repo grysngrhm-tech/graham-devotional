@@ -43,8 +43,6 @@ function isMobile() {
  * Call this on page load after Supabase client is ready
  */
 async function initAuth() {
-    console.log('[Auth] initAuth starting...');
-    
     // Use global supabase client if local isn't available
     const sb = typeof supabase !== 'undefined' ? supabase : window.supabaseClient;
     if (!sb) {
@@ -52,8 +50,7 @@ async function initAuth() {
         return null;
     }
     
-    // Check for existing session with timeout (tracking prevention can cause hangs)
-    console.log('[Auth] Checking for existing session...');
+    // Check for existing session with timeout (prevents hang if storage is blocked)
     let session = null;
     try {
         const sessionPromise = sb.auth.getSession();
@@ -62,10 +59,8 @@ async function initAuth() {
         );
         const result = await Promise.race([sessionPromise, timeoutPromise]);
         session = result?.data?.session;
-        console.log('[Auth] Session check complete:', session ? 'logged in' : 'not logged in');
     } catch (err) {
-        console.warn('[Auth] Session check failed (possibly blocked by tracking prevention):', err.message);
-        console.warn('[Auth] Continuing without authentication. To enable login, disable tracking prevention for this site.');
+        // Session check failed - continue without auth (common with strict privacy settings)
     }
     
     if (session?.user) {
@@ -73,11 +68,8 @@ async function initAuth() {
     }
     
     // Listen for auth state changes (login, logout, token refresh)
-    // Wrap in try-catch in case storage is blocked
     try {
         sb.auth.onAuthStateChange(async (event, session) => {
-            console.log('[Auth] State change:', event);
-            
             if (event === 'SIGNED_IN' && session?.user) {
                 await setCurrentUser(session.user);
                 updateAuthUI();
@@ -92,7 +84,7 @@ async function initAuth() {
             }
         });
     } catch (err) {
-        console.warn('[Auth] Could not set up auth state listener:', err.message);
+        // Could not set up auth listener - continue without real-time auth updates
     }
     
     // Update UI based on initial state
@@ -110,7 +102,6 @@ async function setCurrentUser(user) {
     
     // Load or create user profile
     try {
-        console.log('[Auth] Loading profile for user:', user.id, user.email);
         const { data: profile, error } = await supabase
             .from('user_profiles')
             .select('*')
@@ -118,9 +109,7 @@ async function setCurrentUser(user) {
             .single();
         
         if (error && error.code === 'PGRST116') {
-            // Profile doesn't exist yet (trigger may not have fired)
-            // Create it manually
-            console.log('[Auth] Profile not found, creating new profile...');
+            // Profile doesn't exist yet - create it
             const { data: newProfile, error: createError } = await supabase
                 .from('user_profiles')
                 .insert({ id: user.id, email: user.email })
@@ -129,27 +118,16 @@ async function setCurrentUser(user) {
             
             if (!createError) {
                 userProfile = newProfile;
-                console.log('[Auth] Created new profile:', newProfile);
             } else {
                 console.error('[Auth] Failed to create profile:', createError);
             }
         } else if (!error) {
             userProfile = profile;
-            console.log('[Auth] Loaded existing profile:', profile);
         } else {
             console.error('[Auth] Error loading profile:', error);
         }
     } catch (err) {
         console.error('[Auth] Exception loading profile:', err);
-    }
-    
-    // Prominent admin status logging
-    const adminStatus = userProfile?.is_admin === true;
-    console.log('%c[Auth] User: ' + user.email + ' | Admin: ' + adminStatus, 
-        adminStatus ? 'color: green; font-weight: bold' : 'color: gray');
-    
-    if (adminStatus) {
-        console.log('%c[Auth] ADMIN privileges enabled - regeneration controls will be visible', 'color: green');
     }
 }
 
@@ -196,7 +174,6 @@ async function signInWithMagicLink(email) {
     
     try {
         const redirectUrl = getAuthRedirectUrl();
-        console.log('[Auth] Magic link redirect URL:', redirectUrl);
         
         const { error } = await supabase.auth.signInWithOtp({
             email: email,
@@ -727,8 +704,6 @@ async function markAsRead(spreadCode) {
                 { user_id: currentUser.id, spread_code: spreadCode },
                 { onConflict: 'user_id,spread_code' }
             );
-        
-        console.log('[Auth] Marked as read:', spreadCode);
     } catch (err) {
         console.error('[Auth] Error marking as read:', err);
     }
@@ -747,8 +722,6 @@ async function unmarkAsRead(spreadCode) {
             .delete()
             .eq('user_id', currentUser.id)
             .eq('spread_code', spreadCode);
-        
-        console.log('[Auth] Unmarked as read:', spreadCode);
     } catch (err) {
         console.error('[Auth] Error unmarking as read:', err);
     }
@@ -813,8 +786,6 @@ async function setUserPrimaryImage(spreadCode, imageSlot) {
                 { user_id: currentUser.id, spread_code: spreadCode, image_slot: imageSlot },
                 { onConflict: 'user_id,spread_code' }
             );
-        
-        console.log('[Auth] Set primary image:', spreadCode, 'slot', imageSlot);
         return true;
     } catch (err) {
         console.error('[Auth] Error setting primary image:', err);
