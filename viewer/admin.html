@@ -580,33 +580,51 @@
         </div>
     </div>
     
-    <!-- Supabase -->
+    <!-- Supabase - MUST be initialized before auth.js loads -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>
+        // Initialize Supabase client BEFORE auth.js loads
+        // Using var (not const) to ensure it's truly global and accessible by auth.js
+        var SUPABASE_URL = 'https://zekbemqgvupzmukpntog.supabase.co';
+        var SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inpla2JlbXFndnVwem11a3BudG9nIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDczNDIxMTYsImV4cCI6MjA2MjkxODExNn0.kMGJuDcUjfdl8KSKx85tgqBtJg4pcMmsIqyOAdgUIVY';
+        var supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        // Also attach to window for extra safety
+        window.supabaseClient = supabase;
+        console.log('[Admin] Supabase client initialized:', supabase ? 'success' : 'FAILED');
+    </script>
     <script src="settings.js"></script>
     <script src="auth.js"></script>
     
     <script>
         // Admin page initialization
-        const SUPABASE_URL = 'https://zekbemqgvupzmukpntog.supabase.co';
-        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inpla2JlbXFndnVwem11a3BudG9nIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDczNDIxMTYsImV4cCI6MjA2MjkxODExNn0.kMGJuDcUjfdl8KSKx85tgqBtJg4pcMmsIqyOAdgUIVY';
-        
-        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-        
         async function initAdminPage() {
+            console.log('%c[Admin] === INITIALIZING ADMIN PAGE ===', 'color: purple; font-weight: bold');
+            
             const authGuard = document.getElementById('authGuard');
             const adminContent = document.getElementById('adminContent');
             
-            // First, wait for auth.js to initialize
-            await window.GraceAuth.initAuth();
-            
-            // Check admin status after auth is fully initialized
-            checkAdminAccess();
-            
-            // Also listen for auth state changes (in case user logs in/out)
-            window.GraceAuth.onAuthStateChange((state) => {
-                console.log('[Admin] Auth state changed:', state);
+            try {
+                // First, wait for auth.js to initialize
+                console.log('[Admin] Calling initAuth()...');
+                const user = await window.GraceAuth.initAuth();
+                console.log('[Admin] initAuth() completed, user:', user?.email || 'none');
+                
+                // Small delay to ensure profile is fully loaded
+                await new Promise(resolve => setTimeout(resolve, 100));
+                
+                // Check admin status after auth is fully initialized
+                console.log('[Admin] Checking admin access...');
                 checkAdminAccess();
-            });
+                
+                // Also listen for auth state changes (in case user logs in/out)
+                window.GraceAuth.onAuthStateChange((state) => {
+                    console.log('[Admin] Auth state changed:', state);
+                    checkAdminAccess();
+                });
+            } catch (err) {
+                console.error('[Admin] Error during initialization:', err);
+                authGuard.querySelector('p').textContent = 'Error initializing authentication. Please refresh.';
+            }
         }
         
         async function checkAdminAccess() {
@@ -614,18 +632,23 @@
             const adminContent = document.getElementById('adminContent');
             
             const isAuthenticated = window.GraceAuth?.isAuthenticated() || false;
-            const isAdmin = window.GraceAuth?.isAdmin() || false;
+            const isAdminResult = window.GraceAuth?.isAdmin() || false;
             const user = window.GraceAuth?.getCurrentUser?.();
             const profile = window.GraceAuth?.getUserProfile?.();
             
-            console.log('[Admin] Auth check:', {
-                isAuthenticated,
-                isAdmin,
-                email: user?.email,
-                profile: profile
-            });
+            // Detailed logging for debugging
+            console.log('%c[Admin] === AUTH CHECK ===', 'color: blue; font-weight: bold');
+            console.log('[Admin] isAuthenticated:', isAuthenticated);
+            console.log('[Admin] User:', user);
+            console.log('[Admin] Profile:', profile);
+            console.log('[Admin] profile?.is_admin:', profile?.is_admin);
+            console.log('[Admin] isAdmin() result:', isAdminResult);
             
-            if (!isAdmin) {
+            // Double-check admin status directly
+            const directAdminCheck = profile?.is_admin === true;
+            console.log('[Admin] Direct admin check (profile?.is_admin === true):', directAdminCheck);
+            
+            if (!isAdminResult) {
                 authGuard.style.display = 'flex';
                 adminContent.style.display = 'none';
                 
@@ -634,7 +657,9 @@
                 if (!isAuthenticated) {
                     guardMessage.textContent = 'Please sign in to access the admin panel.';
                 } else {
-                    guardMessage.textContent = `You're signed in as ${user?.email || 'unknown'}, but this account doesn't have admin privileges.`;
+                    // Show more debug info
+                    const debugInfo = profile ? `Profile found, is_admin=${profile.is_admin}` : 'Profile not loaded';
+                    guardMessage.textContent = `You're signed in as ${user?.email || 'unknown'}, but this account doesn't have admin privileges. (Debug: ${debugInfo})`;
                 }
                 return;
             }

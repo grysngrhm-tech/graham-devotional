@@ -3,7 +3,7 @@
  * Provides offline caching with smart caching strategies
  */
 
-const CACHE_NAME = 'grace-bible-v15';
+const CACHE_NAME = 'grace-bible-v16';
 
 // App shell files to cache on install
 const APP_SHELL = [
