@@ -334,6 +334,24 @@ CREATE TABLE user_primary_images (
 );
 ```
 
+### Table: `user_library`
+
+```sql
+CREATE TABLE user_library (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  spread_code TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(user_id, spread_code)
+);
+
+-- Indexes for fast lookups
+CREATE INDEX idx_user_library_user_id ON user_library(user_id);
+CREATE INDEX idx_user_library_spread_code ON user_library(spread_code);
+```
+
+**Purpose:** Tracks which stories a user has saved to their offline library. The actual story data is stored locally on the user's device (IndexedDB), but the list syncs to Supabase for cross-device access.
+
 ### Row Level Security (RLS) Policies
 
 All user tables have RLS enabled with these policies:
@@ -360,6 +378,21 @@ CREATE POLICY "Users can manage own read stories" ON user_read_stories
 ALTER TABLE user_primary_images ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Users can manage own image selections" ON user_primary_images
   FOR ALL USING (auth.uid() = user_id);
+
+-- user_library: Users can CRUD their own library entries
+ALTER TABLE user_library ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can view own library" ON user_library
+  FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "Users can add to own library" ON user_library
+  FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Users can remove from own library" ON user_library
+  FOR DELETE USING (auth.uid() = user_id);
+
+-- grahams_devotional_spreads: Public read, restricted write
+ALTER TABLE grahams_devotional_spreads ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Public read access" ON grahams_devotional_spreads
+  FOR SELECT USING (true);
+-- Write/Update/Delete restricted to service_role (n8n workflows)
 ```
 
 ### Storage Buckets
@@ -611,6 +644,9 @@ WHERE email = 'admin@example.com';
 
 | Date | Version | Changes |
 |------|---------|---------|
+| 2025-12-04 | v12.0 | Mobile layout fixes, Supabase timeout wrappers |
+| 2025-12-04 | v11.0 | OTP authentication for PWA users |
+| 2025-12-04 | v10.5 | Offline library (user_library table), IndexedDB storage |
 | 2025-12-04 | v10.0 | Self-hosted Supabase library for tracking prevention compatibility |
 | 2025-12-04 | v9.5 | Privacy Policy, Terms of Service pages |
 | 2025-12-04 | v9.0 | SEO: robots.txt, sitemap.xml, JSON-LD, 404 page |

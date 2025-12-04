@@ -26,10 +26,11 @@ The web viewer is a **Progressive Web App (PWA)** and **Single-Page Application 
 | `styles.css` | All CSS styling |
 | `app.js` | Main application logic |
 | `router.js` | Hash-based SPA router |
-| `auth.js` | Authentication logic |
+| `auth.js` | Authentication + OTP login + library sync |
+| `offline.js` | IndexedDB storage + offline detection |
 | `settings.js` | User preferences |
 | `config.js` | Supabase & n8n configuration |
-| `sw.js` | Service worker for PWA |
+| `sw.js` | Service worker for PWA + image caching |
 | `manifest.json` | PWA manifest |
 | `robots.txt` | Search engine directives |
 | `sitemap.xml` | SEO sitemap |
@@ -127,16 +128,31 @@ The app uses Supabase Auth with email magic links (passwordless authentication):
 5. User clicks link → redirected to app and logged in
 6. Session persisted in browser
 
-### PWA Login Flow
+### PWA Login Flow (OTP Code)
 
-PWA users face a challenge: magic links open in the browser, not the installed app.
+PWA users face a challenge: magic links open in the browser, not the installed app. The app automatically detects PWA mode and uses OTP codes instead.
 
-**Solution:**
+**Solution (PWA - Automatic):**
+1. User enters email in sign-in modal
+2. App detects PWA mode → sends OTP code instead of magic link
+3. Email contains 8-digit code (plus magic link as backup)
+4. User enters code in PWA
+5. Code verified → user logged in within PWA
+
+**Solution (Browser - Fallback):**
 1. After sending magic link, a "Check Login Status" button appears
 2. User clicks link in email (opens browser)
 3. Browser logs in (session stored)
 4. User returns to PWA and taps "Check Login Status"
 5. PWA checks for existing session and logs in
+
+**OTP Features:**
+- 8-digit numeric code
+- Auto-submit on full entry
+- Paste support
+- 60-second resend cooldown
+- Session state persists if modal closes
+- Visual success feedback before closing
 
 ### Auth State Management
 
@@ -222,6 +238,32 @@ Users can choose their preferred primary image per story:
 4. Image becomes your personal primary
 5. Persists across sessions
 
+### Offline Library
+
+Logged-in users can save stories for offline reading:
+
+**Saving Stories:**
+- Download icon (↓) on story page header
+- Click to save story + primary image to device
+- Icon turns green when saved
+- Stories saved to IndexedDB (persists across sessions)
+
+**Accessing Library:**
+- "Library" (📥) filter button on home page
+- Shows only saved stories when offline
+- Stories available without internet connection
+
+**Storage Management (Settings):**
+| Section | Description |
+|---------|-------------|
+| **Automatic Cache** | Recently viewed stories (LRU, auto-managed) |
+| **My Library** | Manually saved stories (permanent until removed) |
+
+**Actions:**
+- "Clear Automatic Cache" — Remove auto-cached stories
+- "Download All Favorites" — Bulk save all favorited stories
+- "Clear My Library" — Remove all saved stories
+
 ### Settings Modal
 
 Accessed via gear icon in header (when logged in):
@@ -232,10 +274,21 @@ Accessed via gear icon in header (when logged in):
 | Font Size | Small/Medium/Large | Medium |
 | Bible Version | NIV/ESV/KJV/NKJV/NLT/NASB/WEB | NIV |
 
+**Offline Storage Section (logged in only):**
+- Shows cache statistics (story count, size)
+- Buttons to manage automatic cache and library
+- Sign-in prompt for guests
+
 **Settings Persistence:**
 - Stored in `localStorage` as `graham-settings`
 - Applied immediately on page load
 - Synced across tabs
+
+**Mobile Settings:**
+- Bottom-sheet style modal (slides up from bottom)
+- Max height 85% of viewport
+- Internal scrolling if content overflows
+- Tap backdrop to close
 
 **Admin Link:**
 - Admin users see "Admin Panel" link in settings
@@ -341,14 +394,37 @@ When admin selects a primary image:
 | **App Shell Caching** | HTML, CSS, JS, icons cached for instant load |
 | **Network-First HTML** | Always fetches fresh content, falls back to cache |
 | **Font Caching** | Google Fonts cached in separate cache |
+| **Image Caching** | Story images cached for offline viewing |
 | **Offline Page** | Beautiful fallback when offline with no cached content |
+| **Offline Banner** | Shows when device is offline with cached story count |
 | **Update Notifications** | Toast appears when new version available |
 | **Install Prompt** | Smart banner with platform-specific instructions |
+| **OTP Authentication** | Code-based login for PWA (no browser redirect) |
+
+### Offline Capabilities
+
+**Automatic Caching:**
+- Stories cached in IndexedDB when viewed
+- Primary images cached in Cache API
+- LRU eviction keeps cache size manageable (~100 stories)
+- Works for all users (logged in or not)
+
+**User Library (logged in):**
+- Manual "Save to Library" button on stories
+- Stories saved permanently until removed
+- Synced to Supabase for cross-device access
+- "Library" filter shows saved stories
+
+**Offline Detection:**
+- Automatic detection via `navigator.onLine`
+- Offline banner shows cached story count
+- Filters automatically show only available stories
+- Graceful degradation when network unavailable
 
 ### Service Worker Strategy
 
 ```
-Static Assets (CSS, JS, images):
+Static Assets (CSS, JS, lib/supabase.min.js):
   → Cache first, network fallback
 
 HTML Pages:
@@ -357,8 +433,13 @@ HTML Pages:
 Google Fonts:
   → Cache first (dedicated font cache)
 
+Story Images (Supabase Storage):
+  → Cache first with network fallback
+  → Stored in dedicated image cache
+
 Supabase API:
-  → Network only (can't cache dynamic data)
+  → Network with 5-second timeout
+  → Falls back to IndexedDB/static JSON
 ```
 
 ### Icons
@@ -538,19 +619,41 @@ Text-to-speech using Web Speech API:
 
 ### Layout Changes (< 768px)
 - Single column grid (2 cards per row)
-- Stacked header (title above stats)
-- Full-width filters
-- Floating navigation buttons
+- Horizontal header (title + settings in same row)
+- Full-width filters with horizontal scroll
+- Floating navigation buttons at bottom
 - Hidden tagline and keyboard shortcuts
+
+### Touch Targets
+All interactive elements meet 44×44px minimum:
+- Navigation buttons
+- Favorite/Library/Read/Share buttons
+- Modal close buttons
+- Image selection overlays
+- Regeneration buttons
+
+### Story Header (Mobile)
+- Action icons row above title (not beside)
+- Title has full width for readability
+- Icons: Favorite, Library, Read, Audio, Share
 
 ### Image Handling
 - `object-fit: contain` (no cropping)
 - Full height images
-- Touch-friendly image selection
+- Touch-friendly image selection (always visible overlay)
+- Tap to select primary image
+
+### Modals (Mobile)
+- Bottom-sheet style (slides up from bottom)
+- Max height 85% of viewport
+- Internal scrolling for overflow
+- Tap backdrop to close
+- Rounded top corners
 
 ### Safe Areas
 - Bottom padding for iPhone home indicator
 - `env(safe-area-inset-bottom)` support
+- Top padding for notch: `env(safe-area-inset-top)`
 
 ### Scroll Improvements
 - Touch events for breadcrumb updates
@@ -623,6 +726,26 @@ await supabase.from('user_primary_images').upsert({
     spread_code: spreadCode,
     image_slot: slot
 });
+```
+
+**Offline Library Operations:**
+```javascript
+// Get user's library
+const { data } = await supabase
+    .from('user_library')
+    .select('spread_code')
+    .eq('user_id', userId);
+
+// Add to library
+await supabase.from('user_library').insert({
+    user_id: userId,
+    spread_code: spreadCode
+});
+
+// Remove from library
+await supabase.from('user_library').delete()
+    .eq('user_id', userId)
+    .eq('spread_code', spreadCode);
 ```
 
 ---
@@ -805,6 +928,11 @@ Copy-Item "data\all-spreads.json" -Destination "viewer\data\all-spreads.json"
 
 | Date | Version | Changes |
 |------|---------|---------|
+| 2025-12-04 | v12.0 | Mobile layout fixes, filter ordering, story header restructure |
+| 2025-12-04 | v11.5 | Supabase timeout wrappers, fallback data for story pages |
+| 2025-12-04 | v11.0 | OTP authentication for PWA, 8-digit code entry |
+| 2025-12-04 | v10.5 | Offline library, IndexedDB storage, image caching |
+| 2025-12-04 | v10.2 | Touch targets 44px minimum, bottom-sheet modals |
 | 2025-12-04 | v10.0 | Self-hosted Supabase library, fallback data loading |
 | 2025-12-04 | v9.5 | Privacy Policy, Terms of Service, legal notices |
 | 2025-12-04 | v9.0 | SEO: robots.txt, sitemap.xml, JSON-LD structured data, 404 page |

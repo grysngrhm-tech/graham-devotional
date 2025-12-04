@@ -151,6 +151,15 @@ user_primary_images (
     image_slot INTEGER (1-4),
     UNIQUE(user_id, spread_code)
 )
+
+-- User offline library (synced list, data stored locally)
+user_library (
+    id UUID PRIMARY KEY,
+    user_id UUID REFERENCES auth.users,
+    spread_code TEXT,
+    created_at TIMESTAMPTZ,
+    UNIQUE(user_id, spread_code)
+)
 ```
 
 ### Regeneration Table
@@ -176,11 +185,12 @@ regeneration_requests (
 |------|---------|---------------|
 | `app.js` | Main app logic | Stories, filters, rendering, SPA views |
 | `router.js` | SPA routing | Hash-based navigation, route handling |
-| `auth.js` | Authentication | Magic links, sessions, roles |
+| `auth.js` | Authentication | Magic links, OTP codes, sessions, library sync |
+| `offline.js` | Offline storage | IndexedDB cache, library, offline detection |
 | `settings.js` | User preferences | Theme, font size, Bible version |
 | `config.js` | Configuration | Supabase URL/key, n8n webhook |
 | `admin.html` | Admin dashboard | Stats, user data, modals |
-| `sw.js` | Service worker | Caching, offline support |
+| `sw.js` | Service worker | App shell caching, image caching |
 | `lib/supabase.min.js` | Supabase client | Self-hosted to avoid tracking blocks |
 | `data/all-spreads.json` | Fallback data | Static story data if Supabase fails |
 
@@ -287,6 +297,8 @@ window.GraceAuth = {
     
     // Authentication
     signInWithMagicLink(email)   // Send magic link email
+    signInWithOtp(email)         // Send OTP code (for PWA)
+    verifyOtpCode(email, code)   // Verify 8-digit OTP code
     signOut()                    // Log out user
     checkSession()               // Check for existing session
     
@@ -301,12 +313,53 @@ window.GraceAuth = {
     
     // UI
     updateAuthUI()               // Update header buttons
-    setupAuthModal()             // Setup sign-in modal
+    setupAuthModal()             // Setup sign-in modal (handles OTP flow)
     setupSettingsModal()         // Setup settings modal
     
     // Helpers
     isPWA()                      // Check if running as PWA
     isMobile()                   // Check if mobile device
+    
+    // Offline Library
+    getUserLibrary()             // Get user's library entries
+    isInLibrary(spreadCode)      // Check if story in library
+    addToLibrary(spreadCode)     // Add story to library
+    removeFromLibrary(spreadCode)// Remove story from library
+    toggleLibrary(spreadCode)    // Toggle library status
+    syncLibrary()                // Sync library with Supabase
+};
+```
+
+### Key Functions in offline.js
+
+```javascript
+window.GraceOffline = {
+    // Automatic Cache (LRU, all users)
+    saveStoryToCache(story, spreadCode)
+    getStoryFromCache(spreadCode)
+    removeStoryFromCache(spreadCode)
+    clearCache()
+    pruneCache(limit)            // Keep N most recent
+    
+    // User Library (logged in users)
+    saveStoryToLibrary(story, spreadCode)
+    getStoryFromLibrary(spreadCode)
+    removeStoryFromLibrary(spreadCode)
+    clearLibrary()
+    getLibrarySpreadCodes()
+    
+    // Combined access
+    getOfflineStory(spreadCode)  // Check cache then library
+    getAllOfflineStoryCodes()    // All available offline
+    
+    // Statistics
+    getCacheStats()              // { count, sizeEstimate }
+    getLibraryStats()            // { count, sizeEstimate }
+    
+    // Utilities
+    isOffline()                  // Check navigator.onLine
+    formatBytes(bytes)           // Human-readable size
+    onOfflineChange(callback)    // Subscribe to online/offline
 };
 ```
 
@@ -477,21 +530,96 @@ function updateAdminUI() {
 - Application > Local Storage — Check settings, auth
 - Network — Monitor API calls
 
+### Offline Architecture
+
+**IndexedDB Stores:**
+```javascript
+// Database: 'graham-bible-offline'
+// Stores:
+{
+    'story-cache': {    // Automatic LRU cache
+        keyPath: 'spread_code',
+        index: 'last_viewed'
+    },
+    'library': {        // User's saved stories
+        keyPath: 'spread_code',
+        index: 'saved_at'
+    }
+}
+```
+
+**Data Flow (Online):**
+```
+User views story
+    → Fetch from Supabase (5s timeout)
+    → Save to IndexedDB cache
+    → Cache primary image in Cache API
+    → Prune if > 100 stories cached
+```
+
+**Data Flow (Offline):**
+```
+User views story
+    → Check IndexedDB cache
+    → Check IndexedDB library
+    → Check fallback JSON
+    → Show error if all fail
+```
+
+**Library Sync:**
+```
+User adds to library
+    → Save to IndexedDB immediately
+    → Sync spread_code to Supabase
+    → (Story data stays local only)
+```
+
+### OTP Authentication Flow
+
+**PWA Detection:**
+```javascript
+function isPWA() {
+    return window.matchMedia('(display-mode: standalone)').matches
+        || window.navigator.standalone === true;
+}
+```
+
+**Flow:**
+```
+User enters email
+    → isPWA() ? signInWithOtp(email) : signInWithMagicLink(email)
+    → Show code entry UI (PWA) or link-sent UI (browser)
+    → User enters 8-digit code
+    → verifyOtpCode(email, code)
+    → Success animation → close modal → logged in
+```
+
+**State Persistence:**
+```javascript
+// Saved to sessionStorage when modal closes:
+{
+    authModalState: 'code_sent',
+    pendingEmail: 'user@example.com'
+}
+// Restored when modal opens → resume at code entry
+```
+
 ### Cache Busting
 
 When deploying changes:
 
 ```html
 <!-- In index.html -->
-<link rel="stylesheet" href="styles.css?v=20">
-<script src="app.js?v=22"></script>
-<script src="auth.js?v=5"></script>
+<link rel="stylesheet" href="styles.css?v=28">
+<script src="app.js?v=27"></script>
+<script src="auth.js?v=10"></script>
+<script src="offline.js?v=1"></script>
 <script src="router.js?v=2"></script>
 ```
 
 ```javascript
 // In sw.js
-const CACHE_NAME = 'graham-bible-v6';
+const CACHE_NAME = 'graham-bible-v10';
 ```
 
 ### Maintaining Self-Hosted Libraries
@@ -677,12 +805,13 @@ git push origin main
 ### Key Files
 - `viewer/app.js` — Main application logic
 - `viewer/router.js` — Hash-based SPA routing
-- `viewer/auth.js` — Authentication logic
+- `viewer/auth.js` — Authentication + OTP + library sync
+- `viewer/offline.js` — IndexedDB storage + offline detection
 - `viewer/settings.js` — User preferences
 - `viewer/styles.css` — All styling
 - `viewer/config.js` — Supabase/n8n config
 - `viewer/admin.html` — Admin dashboard
-- `viewer/sw.js` — Service worker
+- `viewer/sw.js` — Service worker + image caching
 - `viewer/lib/supabase.min.js` — Self-hosted Supabase client
 - `viewer/data/all-spreads.json` — Fallback story data
 
@@ -720,3 +849,9 @@ git push origin main
 
 ### sessionStorage Keys
 - `grace-user-data-changed` — Flag to refresh user data on page load
+- `grace-auth-modal-state` — Auth modal state for OTP resumption
+- `grace-pending-email` — Email address for OTP verification
+
+### IndexedDB Database
+- Database: `graham-bible-offline`
+- Stores: `story-cache` (LRU), `library` (permanent)
