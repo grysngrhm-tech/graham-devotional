@@ -1876,15 +1876,45 @@ function setupStoryAuthControls() {
 
 async function loadStoryList() {
     try {
-        const { data, error } = await supabase
+        // Add timeout to prevent hanging in PWA mode
+        const timeoutMs = 5000;
+        const supabasePromise = supabase
             .from('grahams_devotional_spreads')
             .select('spread_code, title, book, start_chapter, start_verse');
+        
+        const timeoutPromise = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Story list load timeout')), timeoutMs)
+        );
+        
+        const { data, error } = await Promise.race([supabasePromise, timeoutPromise]);
         
         if (error) throw error;
         
         storyList = sortStoriesChronologically(data || []);
     } catch (err) {
-        console.error('Error loading story list:', err);
+        console.warn('[Story] Supabase story list failed, trying fallback:', err.message);
+        
+        // Try loading from fallback JSON
+        try {
+            const response = await fetch('data/all-spreads.json');
+            if (response.ok) {
+                const json = await response.json();
+                if (json.spreads?.length > 0) {
+                    storyList = sortStoriesChronologically(json.spreads.map(s => ({
+                        spread_code: s.spread_code,
+                        title: s.title,
+                        book: s.book,
+                        start_chapter: s.start_chapter,
+                        start_verse: s.start_verse
+                    })));
+                    console.log('[Story] Story list loaded from fallback:', storyList.length);
+                    return;
+                }
+            }
+        } catch (fallbackErr) {
+            console.error('[Story] Fallback also failed:', fallbackErr);
+        }
+        
         storyList = [];
     }
 }
@@ -1901,24 +1931,61 @@ async function loadStory(storyId) {
                 return;
             }
         } else {
-            // Online: fetch from Supabase
-            const { data, error } = await supabase
+            // Online: fetch from Supabase with timeout
+            const timeoutMs = 5000;
+            const supabasePromise = supabase
                 .from('grahams_devotional_spreads')
                 .select('*')
                 .eq('spread_code', storyId)
                 .single();
             
-            if (error || !data) {
-                // Try offline cache as fallback
+            const timeoutPromise = new Promise((_, reject) => 
+                setTimeout(() => reject(new Error('Story load timeout')), timeoutMs)
+            );
+            
+            try {
+                const { data, error } = await Promise.race([supabasePromise, timeoutPromise]);
+                
+                if (error || !data) {
+                    throw new Error(error?.message || 'No data returned');
+                }
+                
+                story = data;
+                // Cache the story for future offline access (async, don't block)
+                window.GraceOffline?.cacheStory(story);
+            } catch (supabaseErr) {
+                console.warn('[Story] Supabase failed, trying fallback:', supabaseErr.message);
+                
+                // Try offline cache first
                 story = await window.GraceOffline?.getOfflineStory(storyId);
+                
+                // If not in cache, try loading from fallback JSON
+                if (!story) {
+                    try {
+                        const response = await fetch('data/all-spreads.json');
+                        if (response.ok) {
+                            const json = await response.json();
+                            const fallbackStory = json.spreads?.find(s => s.spread_code === storyId);
+                            if (fallbackStory) {
+                                // Map fallback data to match expected schema
+                                story = {
+                                    ...fallbackStory,
+                                    kjv_passage_ref: fallbackStory.kjv_key_verse_ref || `${fallbackStory.book} ${fallbackStory.start_chapter}:${fallbackStory.start_verse}`,
+                                    status_text: 'done',
+                                    status_image: 'done'
+                                };
+                                console.log('[Story] Loaded from fallback JSON:', storyId);
+                            }
+                        }
+                    } catch (fallbackErr) {
+                        console.error('[Story] Fallback JSON also failed:', fallbackErr);
+                    }
+                }
+                
                 if (!story) {
                     showError();
                     return;
                 }
-            } else {
-                story = data;
-                // Cache the story for future offline access (async, don't block)
-                window.GraceOffline?.cacheStory(story);
             }
         }
         
