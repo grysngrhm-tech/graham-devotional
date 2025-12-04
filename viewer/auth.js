@@ -275,6 +275,7 @@ function notifyAuthStateListeners() {
 function updateAuthUI() {
     const signInBtn = document.getElementById('signInBtn');
     const settingsBtn = document.getElementById('settingsBtn');
+    const adminBtn = document.getElementById('adminBtn');
     const userFiltersRow = document.getElementById('userFiltersRow');
     
     if (isAuthenticated()) {
@@ -284,11 +285,16 @@ function updateAuthUI() {
             settingsBtn.style.display = 'flex';
             settingsBtn.title = `Settings (${currentUser.email})`;
         }
+        // Show admin button only for admins
+        if (adminBtn) {
+            adminBtn.style.display = isAdmin() ? 'flex' : 'none';
+        }
         if (userFiltersRow) userFiltersRow.style.display = 'flex';
     } else {
         // Show signed-out state
         if (signInBtn) signInBtn.style.display = 'inline-flex';
         if (settingsBtn) settingsBtn.style.display = 'none';
+        if (adminBtn) adminBtn.style.display = 'none';
         if (userFiltersRow) userFiltersRow.style.display = 'none';
     }
     

@@ -1674,13 +1674,19 @@ async function renderImages(story) {
     
     // Check for user's personal primary image selection
     let userPrimarySlot = null;
-    let displayPrimary = globalPrimary;
+    let displayPrimary = null;
+    const isLoggedIn = window.GraceAuth?.isAuthenticated() || false;
     
-    if (window.GraceAuth?.isAuthenticated()) {
+    if (isLoggedIn) {
+        // For logged-in users, only set displayPrimary if they have a personal selection
         userPrimarySlot = await window.GraceAuth.getUserPrimaryImage(story.spread_code);
         if (userPrimarySlot && candidateImages[userPrimarySlot - 1]) {
             displayPrimary = candidateImages[userPrimarySlot - 1];
         }
+        // If no personal selection, displayPrimary stays null - they'll see the grid
+    } else {
+        // For logged-out users, show the global primary
+        displayPrimary = globalPrimary;
     }
     
     // Store for use in other functions
@@ -1688,7 +1694,7 @@ async function renderImages(story) {
     window._currentGlobalPrimary = globalPrimary;
     
     // Check if we should show grid or single image
-    if (!displayPrimary && !hasCandidates) {
+    if (!globalPrimary && !hasCandidates) {
         container.innerHTML = `
             <div class="placeholder" style="display: flex; align-items: center; justify-content: center; height: 100%; color: var(--color-charcoal-light);">
                 <em>No images generated</em>
@@ -1697,13 +1703,22 @@ async function renderImages(story) {
         return;
     }
     
-    // Default to single image view if there's a primary selected
-    if (displayPrimary && !showingGrid) {
+    // Determine what to show:
+    // - Logged OUT: Show single image (global primary)
+    // - Logged IN without personal selection: Show grid so they can choose
+    // - Logged IN with personal selection: Show their selection (unless manually toggled to grid)
+    if (!isLoggedIn && globalPrimary && !showingGrid) {
+        // Logged out - show global primary as single image
+        renderSingleImage(container, globalPrimary, story.title, hasCandidates, null);
+    } else if (isLoggedIn && userPrimarySlot && displayPrimary && !showingGrid) {
+        // Logged in WITH personal selection - show their selection
         renderSingleImage(container, displayPrimary, story.title, hasCandidates, userPrimarySlot);
     } else if (hasCandidates) {
+        // Show grid: logged in without selection, or manually toggled to grid
         renderImageGrid(container, candidateImages, globalPrimary, userPrimarySlot);
-    } else {
-        renderSingleImage(container, displayPrimary, story.title, false, userPrimarySlot);
+    } else if (globalPrimary) {
+        // Fallback to global primary
+        renderSingleImage(container, globalPrimary, story.title, false, null);
     }
 }
 

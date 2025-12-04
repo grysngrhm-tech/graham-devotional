@@ -1,0 +1,835 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Panel - The GRACE Bible</title>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=IM+Fell+English:ital@0;1&family=Inter:wght@300;400;500;600&family=Playfair+Display:wght@400;500;600&display=swap" rel="stylesheet">
+    
+    <link rel="stylesheet" href="styles.css?v=14">
+    
+    <!-- PWA -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#000000">
+    
+    <!-- Favicons -->
+    <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+    <link rel="icon" type="image/svg+xml" href="icons/icon.svg">
+    
+    <style>
+        /* Admin Page Specific Styles */
+        .admin-page {
+            min-height: 100vh;
+            padding: var(--spacing-md);
+            padding-top: 0;
+        }
+        
+        .admin-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: var(--spacing-md) 0;
+            border-bottom: 1px solid var(--border-color);
+            margin-bottom: var(--spacing-lg);
+        }
+        
+        .admin-header h1 {
+            font-family: var(--font-heading);
+            font-size: 1.5rem;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-sm);
+        }
+        
+        .admin-header h1 svg {
+            width: 24px;
+            height: 24px;
+            stroke: var(--color-accent);
+        }
+        
+        .admin-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: var(--color-accent);
+            color: var(--bg-primary);
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-family: var(--font-body);
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        
+        .back-link {
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-family: var(--font-body);
+            font-size: 0.875rem;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: color 0.2s ease;
+        }
+        
+        .back-link:hover {
+            color: var(--color-accent);
+        }
+        
+        /* Dashboard Grid */
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: var(--spacing-md);
+            margin-bottom: var(--spacing-xl);
+        }
+        
+        .stat-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: var(--spacing-lg);
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        
+        .stat-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+        }
+        
+        .stat-card h3 {
+            font-family: var(--font-body);
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: var(--text-secondary);
+            margin-bottom: var(--spacing-sm);
+        }
+        
+        .stat-value {
+            font-family: var(--font-heading);
+            font-size: 2.5rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            line-height: 1.1;
+        }
+        
+        .stat-value.loading {
+            color: var(--text-muted);
+        }
+        
+        .stat-subtitle {
+            font-family: var(--font-body);
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+            margin-top: 4px;
+        }
+        
+        .stat-card.accent {
+            border-color: var(--color-accent);
+            background: linear-gradient(135deg, 
+                rgba(212, 175, 55, 0.05) 0%, 
+                var(--bg-card) 100%);
+        }
+        
+        .stat-card.accent .stat-value {
+            color: var(--color-accent);
+        }
+        
+        /* Section Styles */
+        .admin-section {
+            margin-bottom: var(--spacing-xl);
+        }
+        
+        .admin-section h2 {
+            font-family: var(--font-heading);
+            font-size: 1.25rem;
+            color: var(--text-primary);
+            margin-bottom: var(--spacing-md);
+            padding-bottom: var(--spacing-sm);
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        /* Activity List */
+        .activity-list {
+            display: flex;
+            flex-direction: column;
+            gap: var(--spacing-sm);
+        }
+        
+        .activity-item {
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-md);
+            padding: var(--spacing-md);
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+        }
+        
+        .activity-icon {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: var(--bg-hover);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+        
+        .activity-icon svg {
+            width: 18px;
+            height: 18px;
+            stroke: var(--text-secondary);
+        }
+        
+        .activity-content {
+            flex: 1;
+        }
+        
+        .activity-title {
+            font-family: var(--font-body);
+            font-size: 0.875rem;
+            color: var(--text-primary);
+        }
+        
+        .activity-time {
+            font-family: var(--font-body);
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+        
+        /* Quick Actions */
+        .action-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: var(--spacing-md);
+        }
+        
+        .action-card {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: var(--spacing-lg);
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            text-decoration: none;
+            color: var(--text-primary);
+            transition: all 0.2s ease;
+            cursor: pointer;
+        }
+        
+        .action-card:hover {
+            border-color: var(--color-accent);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+        }
+        
+        .action-card svg {
+            width: 32px;
+            height: 32px;
+            stroke: var(--color-accent);
+            margin-bottom: var(--spacing-sm);
+        }
+        
+        .action-card span {
+            font-family: var(--font-body);
+            font-size: 0.875rem;
+            font-weight: 500;
+        }
+        
+        /* User Table */
+        .user-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-family: var(--font-body);
+            font-size: 0.875rem;
+        }
+        
+        .user-table th,
+        .user-table td {
+            padding: var(--spacing-sm) var(--spacing-md);
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        .user-table th {
+            font-weight: 600;
+            color: var(--text-secondary);
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        
+        .user-table td {
+            color: var(--text-primary);
+        }
+        
+        .user-table tr:hover td {
+            background: var(--bg-hover);
+        }
+        
+        .user-email {
+            font-weight: 500;
+        }
+        
+        .user-role {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        
+        .user-role.admin {
+            background: var(--color-accent);
+            color: var(--bg-primary);
+        }
+        
+        .user-role.user {
+            background: var(--bg-hover);
+            color: var(--text-secondary);
+        }
+        
+        /* Auth Guard Message */
+        .auth-guard {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 60vh;
+            text-align: center;
+            padding: var(--spacing-xl);
+        }
+        
+        .auth-guard svg {
+            width: 64px;
+            height: 64px;
+            stroke: var(--text-muted);
+            margin-bottom: var(--spacing-md);
+        }
+        
+        .auth-guard h2 {
+            font-family: var(--font-heading);
+            font-size: 1.5rem;
+            color: var(--text-primary);
+            margin-bottom: var(--spacing-sm);
+        }
+        
+        .auth-guard p {
+            font-family: var(--font-body);
+            color: var(--text-secondary);
+            margin-bottom: var(--spacing-md);
+        }
+        
+        .auth-guard .btn {
+            padding: 12px 24px;
+            background: var(--color-accent);
+            color: var(--bg-primary);
+            border: none;
+            border-radius: 8px;
+            font-family: var(--font-body);
+            font-size: 0.875rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        
+        .auth-guard .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(212, 175, 55, 0.3);
+        }
+        
+        /* Image Popularity Section */
+        .popularity-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: var(--spacing-md);
+        }
+        
+        .popularity-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            overflow: hidden;
+        }
+        
+        .popularity-card img {
+            width: 100%;
+            height: 150px;
+            object-fit: cover;
+        }
+        
+        .popularity-info {
+            padding: var(--spacing-md);
+        }
+        
+        .popularity-info h4 {
+            font-family: var(--font-heading);
+            font-size: 1rem;
+            color: var(--text-primary);
+            margin-bottom: 4px;
+        }
+        
+        .popularity-info p {
+            font-family: var(--font-body);
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+        }
+        
+        .popularity-bar {
+            height: 8px;
+            background: var(--bg-hover);
+            border-radius: 4px;
+            overflow: hidden;
+            margin-top: var(--spacing-sm);
+        }
+        
+        .popularity-fill {
+            height: 100%;
+            background: var(--color-accent);
+            border-radius: 4px;
+            transition: width 0.3s ease;
+        }
+        
+        /* Loading State */
+        .loading-placeholder {
+            background: var(--bg-hover);
+            border-radius: 4px;
+            animation: pulse 1.5s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        /* Responsive */
+        @media (max-width: 768px) {
+            .admin-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: var(--spacing-sm);
+            }
+            
+            .dashboard-grid {
+                grid-template-columns: 1fr 1fr;
+            }
+            
+            .stat-value {
+                font-size: 2rem;
+            }
+        }
+        
+        @media (max-width: 480px) {
+            .dashboard-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="page-container admin-page">
+        <!-- Auth Guard (shown if not admin) -->
+        <div class="auth-guard" id="authGuard">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                <path d="M12 8v4"/>
+                <path d="M12 16h.01"/>
+            </svg>
+            <h2>Admin Access Required</h2>
+            <p>You need administrator privileges to view this page.</p>
+            <a href="index.html" class="btn">← Back to Home</a>
+        </div>
+        
+        <!-- Admin Content (hidden until verified) -->
+        <div id="adminContent" style="display: none;">
+            <header class="admin-header">
+                <div>
+                    <a href="index.html" class="back-link">← Back to Home</a>
+                    <h1>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                        </svg>
+                        Admin Panel
+                    </h1>
+                </div>
+                <div class="admin-badge" id="adminEmail">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                        <circle cx="12" cy="7" r="4"/>
+                    </svg>
+                    <span id="adminEmailText">Admin</span>
+                </div>
+            </header>
+            
+            <!-- Dashboard Stats -->
+            <section class="admin-section">
+                <h2>Dashboard Overview</h2>
+                <div class="dashboard-grid">
+                    <div class="stat-card">
+                        <h3>Total Stories</h3>
+                        <div class="stat-value" id="statTotalStories">—</div>
+                        <div class="stat-subtitle">in the collection</div>
+                    </div>
+                    <div class="stat-card">
+                        <h3>Complete Stories</h3>
+                        <div class="stat-value" id="statCompleteStories">—</div>
+                        <div class="stat-subtitle">text & images done</div>
+                    </div>
+                    <div class="stat-card accent">
+                        <h3>Registered Users</h3>
+                        <div class="stat-value" id="statTotalUsers">—</div>
+                        <div class="stat-subtitle">with accounts</div>
+                    </div>
+                    <div class="stat-card">
+                        <h3>Total Favorites</h3>
+                        <div class="stat-value" id="statTotalFavorites">—</div>
+                        <div class="stat-subtitle">across all users</div>
+                    </div>
+                    <div class="stat-card">
+                        <h3>Stories Read</h3>
+                        <div class="stat-value" id="statStoriesRead">—</div>
+                        <div class="stat-subtitle">total reads logged</div>
+                    </div>
+                    <div class="stat-card">
+                        <h3>Image Selections</h3>
+                        <div class="stat-value" id="statImageSelections">—</div>
+                        <div class="stat-subtitle">personal primaries set</div>
+                    </div>
+                </div>
+            </section>
+            
+            <!-- Quick Actions -->
+            <section class="admin-section">
+                <h2>Quick Actions</h2>
+                <div class="action-grid">
+                    <a href="index.html" class="action-card">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+                            <polyline points="9 22 9 12 15 12 15 22"/>
+                        </svg>
+                        <span>View Site</span>
+                    </a>
+                    <div class="action-card" onclick="refreshStats()">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="23 4 23 10 17 10"/>
+                            <polyline points="1 20 1 14 7 14"/>
+                            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+                        </svg>
+                        <span>Refresh Stats</span>
+                    </div>
+                    <div class="action-card" onclick="window.open('https://supabase.com/dashboard/project/zekbemqgvupzmukpntog', '_blank')">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <ellipse cx="12" cy="5" rx="9" ry="3"/>
+                            <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/>
+                            <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/>
+                        </svg>
+                        <span>Supabase Dashboard</span>
+                    </div>
+                    <div class="action-card" onclick="window.open('https://github.com/grysngrhm-tech/graham-devotional', '_blank')">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"/>
+                        </svg>
+                        <span>GitHub Repo</span>
+                    </div>
+                </div>
+            </section>
+            
+            <!-- Recent Users -->
+            <section class="admin-section">
+                <h2>Recent Users</h2>
+                <div style="overflow-x: auto;">
+                    <table class="user-table">
+                        <thead>
+                            <tr>
+                                <th>Email</th>
+                                <th>Role</th>
+                                <th>Favorites</th>
+                                <th>Read</th>
+                                <th>Joined</th>
+                            </tr>
+                        </thead>
+                        <tbody id="userTableBody">
+                            <tr>
+                                <td colspan="5" style="text-align: center; color: var(--text-muted);">Loading users...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+            
+            <!-- Popular Images -->
+            <section class="admin-section">
+                <h2>Most Selected Images</h2>
+                <div class="popularity-grid" id="popularityGrid">
+                    <div style="color: var(--text-muted); font-family: var(--font-body);">Loading popularity data...</div>
+                </div>
+            </section>
+        </div>
+    </div>
+    
+    <!-- Supabase -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="settings.js"></script>
+    <script src="auth.js"></script>
+    
+    <script>
+        // Admin page initialization
+        const SUPABASE_URL = 'https://zekbemqgvupzmukpntog.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inpla2JlbXFndnVwem11a3BudG9nIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDczNDIxMTYsImV4cCI6MjA2MjkxODExNn0.kMGJuDcUjfdl8KSKx85tgqBtJg4pcMmsIqyOAdgUIVY';
+        
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        
+        async function initAdminPage() {
+            // Wait for auth to initialize
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
+            // Check if user is admin
+            const isAdmin = window.GraceAuth?.isAdmin() || false;
+            const authGuard = document.getElementById('authGuard');
+            const adminContent = document.getElementById('adminContent');
+            
+            console.log('[Admin] Checking admin status:', isAdmin);
+            
+            if (!isAdmin) {
+                authGuard.style.display = 'flex';
+                adminContent.style.display = 'none';
+                return;
+            }
+            
+            // Show admin content
+            authGuard.style.display = 'none';
+            adminContent.style.display = 'block';
+            
+            // Set admin email
+            const user = window.GraceAuth?.getUser?.();
+            if (user?.email) {
+                document.getElementById('adminEmailText').textContent = user.email;
+            }
+            
+            // Load stats
+            await loadDashboardStats();
+            await loadRecentUsers();
+            await loadPopularImages();
+        }
+        
+        async function loadDashboardStats() {
+            try {
+                // Total stories
+                const { count: totalStories } = await supabase
+                    .from('grahams_devotional_spreads')
+                    .select('*', { count: 'exact', head: true });
+                document.getElementById('statTotalStories').textContent = totalStories || '0';
+                
+                // Complete stories
+                const { count: completeStories } = await supabase
+                    .from('grahams_devotional_spreads')
+                    .select('*', { count: 'exact', head: true })
+                    .eq('status_text', 'done')
+                    .eq('status_image', 'done');
+                document.getElementById('statCompleteStories').textContent = completeStories || '0';
+                
+                // Total users
+                const { count: totalUsers } = await supabase
+                    .from('user_profiles')
+                    .select('*', { count: 'exact', head: true });
+                document.getElementById('statTotalUsers').textContent = totalUsers || '0';
+                
+                // Total favorites
+                const { count: totalFavorites } = await supabase
+                    .from('user_favorites')
+                    .select('*', { count: 'exact', head: true });
+                document.getElementById('statTotalFavorites').textContent = totalFavorites || '0';
+                
+                // Stories read
+                const { count: storiesRead } = await supabase
+                    .from('user_read_stories')
+                    .select('*', { count: 'exact', head: true });
+                document.getElementById('statStoriesRead').textContent = storiesRead || '0';
+                
+                // Image selections
+                const { count: imageSelections } = await supabase
+                    .from('user_primary_images')
+                    .select('*', { count: 'exact', head: true });
+                document.getElementById('statImageSelections').textContent = imageSelections || '0';
+                
+            } catch (err) {
+                console.error('[Admin] Error loading stats:', err);
+            }
+        }
+        
+        async function loadRecentUsers() {
+            try {
+                const { data: users, error } = await supabase
+                    .from('user_profiles')
+                    .select('id, email, is_admin, created_at')
+                    .order('created_at', { ascending: false })
+                    .limit(10);
+                
+                if (error) throw error;
+                
+                const tbody = document.getElementById('userTableBody');
+                
+                if (!users || users.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--text-muted);">No users found</td></tr>';
+                    return;
+                }
+                
+                // Get user stats
+                const userIds = users.map(u => u.id);
+                
+                const { data: favCounts } = await supabase
+                    .from('user_favorites')
+                    .select('user_id')
+                    .in('user_id', userIds);
+                
+                const { data: readCounts } = await supabase
+                    .from('user_read_stories')
+                    .select('user_id')
+                    .in('user_id', userIds);
+                
+                // Count per user
+                const favCountMap = {};
+                const readCountMap = {};
+                
+                (favCounts || []).forEach(f => {
+                    favCountMap[f.user_id] = (favCountMap[f.user_id] || 0) + 1;
+                });
+                
+                (readCounts || []).forEach(r => {
+                    readCountMap[r.user_id] = (readCountMap[r.user_id] || 0) + 1;
+                });
+                
+                tbody.innerHTML = users.map(user => `
+                    <tr>
+                        <td class="user-email">${user.email || 'Unknown'}</td>
+                        <td><span class="user-role ${user.is_admin ? 'admin' : 'user'}">${user.is_admin ? 'Admin' : 'User'}</span></td>
+                        <td>${favCountMap[user.id] || 0}</td>
+                        <td>${readCountMap[user.id] || 0}</td>
+                        <td>${user.created_at ? new Date(user.created_at).toLocaleDateString() : '—'}</td>
+                    </tr>
+                `).join('');
+                
+            } catch (err) {
+                console.error('[Admin] Error loading users:', err);
+                document.getElementById('userTableBody').innerHTML = 
+                    '<tr><td colspan="5" style="text-align: center; color: var(--text-muted);">Error loading users</td></tr>';
+            }
+        }
+        
+        async function loadPopularImages() {
+            try {
+                // Get image selection counts grouped by spread_code and image_slot
+                const { data: selections, error } = await supabase
+                    .from('user_primary_images')
+                    .select('spread_code, image_slot');
+                
+                if (error) throw error;
+                
+                if (!selections || selections.length === 0) {
+                    document.getElementById('popularityGrid').innerHTML = 
+                        '<div style="color: var(--text-muted); font-family: var(--font-body);">No image selections yet</div>';
+                    return;
+                }
+                
+                // Count selections per image
+                const countMap = {};
+                let maxCount = 0;
+                
+                selections.forEach(s => {
+                    const key = `${s.spread_code}_${s.image_slot}`;
+                    countMap[key] = (countMap[key] || 0) + 1;
+                    if (countMap[key] > maxCount) maxCount = countMap[key];
+                });
+                
+                // Get top 6 most selected
+                const topImages = Object.entries(countMap)
+                    .sort((a, b) => b[1] - a[1])
+                    .slice(0, 6);
+                
+                if (topImages.length === 0) {
+                    document.getElementById('popularityGrid').innerHTML = 
+                        '<div style="color: var(--text-muted); font-family: var(--font-body);">No image selections yet</div>';
+                    return;
+                }
+                
+                // Fetch story details for these images
+                const spreadCodes = [...new Set(topImages.map(([key]) => key.split('_')[0]))];
+                
+                const { data: stories } = await supabase
+                    .from('grahams_devotional_spreads')
+                    .select('spread_code, title, image_url_1, image_url_2, image_url_3, image_url_4')
+                    .in('spread_code', spreadCodes);
+                
+                const storyMap = {};
+                (stories || []).forEach(s => {
+                    storyMap[s.spread_code] = s;
+                });
+                
+                // Render popularity cards
+                const html = topImages.map(([key, count]) => {
+                    const [spreadCode, slot] = key.split('_');
+                    const story = storyMap[spreadCode];
+                    const imageUrl = story?.[`image_url_${slot}`] || '';
+                    const title = story?.title || spreadCode;
+                    const percentage = maxCount > 0 ? (count / maxCount) * 100 : 0;
+                    
+                    return `
+                        <div class="popularity-card">
+                            ${imageUrl ? `<img src="${imageUrl}" alt="${title}" loading="lazy">` : '<div style="height: 150px; background: var(--bg-hover);"></div>'}
+                            <div class="popularity-info">
+                                <h4>${title}</h4>
+                                <p>Slot ${slot} • ${count} selection${count !== 1 ? 's' : ''}</p>
+                                <div class="popularity-bar">
+                                    <div class="popularity-fill" style="width: ${percentage}%"></div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+                
+                document.getElementById('popularityGrid').innerHTML = html;
+                
+            } catch (err) {
+                console.error('[Admin] Error loading popularity:', err);
+                document.getElementById('popularityGrid').innerHTML = 
+                    '<div style="color: var(--text-muted); font-family: var(--font-body);">Error loading popularity data</div>';
+            }
+        }
+        
+        async function refreshStats() {
+            document.querySelectorAll('.stat-value').forEach(el => el.textContent = '...');
+            await loadDashboardStats();
+            await loadRecentUsers();
+            await loadPopularImages();
+        }
+        
+        // Initialize when DOM is ready
+        document.addEventListener('DOMContentLoaded', () => {
+            // Wait for auth module to be ready
+            const checkAuth = setInterval(() => {
+                if (window.GraceAuth) {
+                    clearInterval(checkAuth);
+                    initAdminPage();
+                }
+            }, 100);
+            
+            // Timeout after 3 seconds
+            setTimeout(() => clearInterval(checkAuth), 3000);
+        });
+    </script>
+</body>
+</html>
+
