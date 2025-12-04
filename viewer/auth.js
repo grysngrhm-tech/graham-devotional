@@ -259,21 +259,21 @@ function notifyAuthStateListeners() {
  */
 function updateAuthUI() {
     const signInBtn = document.getElementById('signInBtn');
-    const signOutBtn = document.getElementById('signOutBtn');
+    const settingsBtn = document.getElementById('settingsBtn');
     const userFiltersRow = document.getElementById('userFiltersRow');
     
     if (isAuthenticated()) {
         // Show signed-in state
         if (signInBtn) signInBtn.style.display = 'none';
-        if (signOutBtn) {
-            signOutBtn.style.display = 'inline-flex';
-            signOutBtn.title = `Signed in as ${currentUser.email}`;
+        if (settingsBtn) {
+            settingsBtn.style.display = 'flex';
+            settingsBtn.title = `Settings (${currentUser.email})`;
         }
         if (userFiltersRow) userFiltersRow.style.display = 'flex';
     } else {
         // Show signed-out state
         if (signInBtn) signInBtn.style.display = 'inline-flex';
-        if (signOutBtn) signOutBtn.style.display = 'none';
+        if (settingsBtn) settingsBtn.style.display = 'none';
         if (userFiltersRow) userFiltersRow.style.display = 'none';
     }
     
@@ -345,7 +345,6 @@ function hideAuthModal() {
 function setupAuthModal() {
     const modal = document.getElementById('authModal');
     const signInBtn = document.getElementById('signInBtn');
-    const signOutBtn = document.getElementById('signOutBtn');
     const closeBtn = document.getElementById('authClose');
     const sendLinkBtn = document.getElementById('sendMagicLink');
     const emailInput = document.getElementById('authEmail');
@@ -353,15 +352,6 @@ function setupAuthModal() {
     // Open modal
     if (signInBtn) {
         signInBtn.addEventListener('click', showAuthModal);
-    }
-    
-    // Sign out
-    if (signOutBtn) {
-        signOutBtn.addEventListener('click', async () => {
-            await signOut();
-            // Reload page to reset state
-            window.location.reload();
-        });
     }
     
     // Close modal

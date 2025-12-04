@@ -195,7 +195,7 @@ html {
 
 body {
     font-family: var(--font-body);
-    font-size: 1rem;
+    font-size: calc(1rem * var(--font-size-scale, 1));
     line-height: 1.6;
     color: var(--text-primary);
     background: var(--bg-primary);
@@ -453,73 +453,30 @@ body {
    Introduction Section - Two Equal Columns
    ============================================================================ */
 
-.intro-section {
-    background: linear-gradient(to bottom, var(--bg-secondary) 0%, var(--bg-primary) 100%);
-    border-bottom: 1px solid var(--border-color);
-    padding: var(--spacing-xs) var(--spacing-xl);
-    padding-bottom: 0; /* Tighter bottom */
-    transition: background 0.3s ease, border-color 0.3s ease;
-}
-
-.intro-content {
-    max-width: 1100px;
-    margin: 0 auto;
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: var(--spacing-md);
-    align-items: start;
-}
-
-.intro-column {
-    flex: 1;
-}
-
-.intro-heading {
-    font-family: 'Inter', -apple-system, sans-serif;
-    font-size: 0.75rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
-    color: var(--text-primary);
-    margin: 0 0 var(--spacing-xs) 0;
-    transition: color 0.3s ease;
-}
-
-.intro-text {
-    font-family: 'Playfair Display', Georgia, serif;
-    font-size: 0.8125rem;
-    line-height: 1.6;
+/* Tagline */
+.tagline {
+    text-align: center;
+    font-family: var(--font-body);
+    font-size: 1rem;
+    font-style: italic;
     color: var(--text-secondary);
     margin: 0;
-    transition: color 0.3s ease;
+    padding: var(--spacing-sm) var(--spacing-xl);
+    letter-spacing: 0.01em;
 }
 
-/* GRACE accent in intro - old-timey font */
+/* GRACE accent styling */
 .grace-accent {
     font-family: 'IM Fell English', 'Times New Roman', serif;
     font-weight: 400;
     letter-spacing: 0.02em;
 }
 
-/* Intro responsive */
+/* Tagline responsive */
 @media (max-width: 768px) {
-    .intro-section {
-        padding: var(--spacing-sm) var(--spacing-md);
-    }
-    
-    .intro-content {
-        grid-template-columns: 1fr;
-        gap: var(--spacing-md);
-    }
-    
-    .intro-heading {
-        text-align: center;
-        font-size: 0.6875rem;
-    }
-    
-    .intro-text {
+    .tagline {
         font-size: 0.875rem;
-        text-align: center;
+        padding: var(--spacing-xs) var(--spacing-md);
     }
 }
 
@@ -548,6 +505,39 @@ body {
     flex-direction: column;
     gap: var(--spacing-xs);
     margin-bottom: var(--spacing-sm);
+}
+
+.filter-section.compact {
+    gap: var(--spacing-sm);
+}
+
+/* Primary Filter Row - Testament + Search + Surprise */
+.filter-primary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--spacing-md);
+    flex-wrap: wrap;
+}
+
+.filter-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+}
+
+.filter-actions .search-wrapper {
+    max-width: 180px;
+}
+
+.filter-actions .search-wrapper input {
+    padding-right: 12px;
+}
+
+.filter-actions .surprise-btn {
+    padding: 8px 12px;
+    font-size: 1rem;
+    min-width: auto;
 }
 
 .filter-row {
@@ -3426,6 +3416,244 @@ body {
     .auth-submit {
         padding: 12px 14px;
         font-size: 0.9375rem;
+    }
+}
+
+/* ============================================================================
+   Settings Button
+   ============================================================================ */
+
+.settings-btn {
+    width: 40px;
+    height: 40px;
+    border: none;
+    background: rgba(128, 128, 128, 0.15);
+    border-radius: 10px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s ease;
+}
+
+.settings-btn svg {
+    width: 20px;
+    height: 20px;
+    stroke: var(--text-secondary);
+    transition: stroke 0.15s ease, transform 0.3s ease;
+}
+
+.settings-btn:hover {
+    background: rgba(128, 128, 128, 0.25);
+}
+
+.settings-btn:hover svg {
+    stroke: var(--text-primary);
+    transform: rotate(45deg);
+}
+
+/* ============================================================================
+   Settings Modal
+   ============================================================================ */
+
+.settings-modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.75);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10000;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.25s ease, visibility 0.25s ease;
+    padding: 20px;
+}
+
+.settings-modal.visible {
+    opacity: 1;
+    visibility: visible;
+}
+
+.settings-modal-content {
+    background: var(--bg-secondary);
+    border-radius: 20px;
+    padding: 32px;
+    max-width: 400px;
+    width: 100%;
+    position: relative;
+    box-shadow: 
+        0 20px 60px rgba(0, 0, 0, 0.4),
+        0 0 0 1px rgba(255, 255, 255, 0.1);
+    transform: translateY(20px) scale(0.96);
+    transition: transform 0.3s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.settings-modal.visible .settings-modal-content {
+    transform: translateY(0) scale(1);
+}
+
+.settings-modal-content h2 {
+    font-family: var(--font-title);
+    font-size: 1.5rem;
+    font-weight: 500;
+    color: var(--text-primary);
+    margin: 0 0 24px 0;
+    text-align: center;
+}
+
+.settings-close {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    width: 32px;
+    height: 32px;
+    border: none;
+    background: rgba(128, 128, 128, 0.15);
+    border-radius: 50%;
+    font-size: 1.25rem;
+    color: var(--text-muted);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s ease;
+}
+
+.settings-close:hover {
+    background: rgba(128, 128, 128, 0.25);
+    color: var(--text-primary);
+}
+
+.setting-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 0;
+    border-bottom: 1px solid var(--border-light);
+}
+
+.setting-row:first-of-type {
+    padding-top: 0;
+}
+
+.setting-row:last-of-type {
+    border-bottom: none;
+}
+
+.setting-label {
+    font-family: var(--font-body);
+    font-size: 0.9375rem;
+    color: var(--text-primary);
+}
+
+/* iOS-style Toggle Switch */
+.toggle-switch {
+    position: relative;
+    display: inline-block;
+    width: 51px;
+    height: 31px;
+}
+
+.toggle-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.toggle-slider {
+    position: absolute;
+    cursor: pointer;
+    inset: 0;
+    background: rgba(128, 128, 128, 0.3);
+    border-radius: 31px;
+    transition: background 0.25s ease;
+}
+
+.toggle-slider::before {
+    position: absolute;
+    content: "";
+    height: 27px;
+    width: 27px;
+    left: 2px;
+    bottom: 2px;
+    background: white;
+    border-radius: 50%;
+    transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.toggle-switch input:checked + .toggle-slider {
+    background: #D4AF37;
+}
+
+.toggle-switch input:checked + .toggle-slider::before {
+    transform: translateX(20px);
+}
+
+/* Settings Select */
+.setting-select {
+    font-family: var(--font-body);
+    font-size: 0.875rem;
+    padding: 8px 32px 8px 12px;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    cursor: pointer;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23888' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+    min-width: 140px;
+    transition: border-color 0.15s ease;
+}
+
+.setting-select:hover {
+    border-color: var(--text-muted);
+}
+
+.setting-select:focus {
+    outline: none;
+    border-color: #D4AF37;
+}
+
+/* Settings Sign Out Button */
+.settings-signout {
+    width: 100%;
+    margin-top: 24px;
+    padding: 14px 20px;
+    border: none;
+    border-radius: 12px;
+    background: rgba(229, 62, 62, 0.15);
+    color: #E53E3E;
+    font-family: var(--font-body);
+    font-size: 0.9375rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.15s ease;
+}
+
+.settings-signout:hover {
+    background: rgba(229, 62, 62, 0.25);
+}
+
+/* Mobile adjustments for settings modal */
+@media (max-width: 768px) {
+    .settings-modal-content {
+        padding: 24px;
+        border-radius: 16px;
+    }
+    
+    .settings-modal-content h2 {
+        font-size: 1.25rem;
+    }
+    
+    .setting-select {
+        min-width: 120px;
+        font-size: 0.8125rem;
     }
 }
 

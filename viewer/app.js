@@ -35,45 +35,22 @@ let currentFilters = {
 // Theme Management
 // ============================================================================
 
-function initTheme() {
-    // Check for saved preference, then system preference
-    const savedTheme = localStorage.getItem('grace-theme');
-    const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-    
-    const theme = savedTheme || (systemPrefersDark ? 'dark' : 'light');
-    setTheme(theme);
-    
-    // Listen for system theme changes
-    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
-        if (!localStorage.getItem('grace-theme')) {
-            setTheme(e.matches ? 'dark' : 'light');
-        }
-    });
-    
-    // Setup toggle button
-    const themeToggle = document.getElementById('themeToggle');
-    if (themeToggle) {
-        themeToggle.addEventListener('click', toggleTheme);
-    }
-}
-
-function setTheme(theme) {
-    document.documentElement.setAttribute('data-theme', theme);
-    localStorage.setItem('grace-theme', theme);
-}
-
-function toggleTheme() {
-    const currentTheme = document.documentElement.getAttribute('data-theme') || 'light';
-    const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
-    setTheme(newTheme);
-}
-
-// Initialize theme immediately to prevent flash
+// Theme is now managed by settings.js
+// Initialize theme immediately to prevent flash (before settings.js loads)
 (function() {
-    const savedTheme = localStorage.getItem('grace-theme');
-    const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-    const theme = savedTheme || (systemPrefersDark ? 'dark' : 'light');
-    document.documentElement.setAttribute('data-theme', theme);
+    try {
+        const stored = localStorage.getItem('grace-settings');
+        if (stored) {
+            const settings = JSON.parse(stored);
+            document.documentElement.setAttribute('data-theme', settings.darkMode !== false ? 'dark' : 'light');
+        } else {
+            // Check legacy key or default to dark
+            const oldTheme = localStorage.getItem('grace-theme');
+            document.documentElement.setAttribute('data-theme', oldTheme || 'dark');
+        }
+    } catch (e) {
+        document.documentElement.setAttribute('data-theme', 'dark');
+    }
 })();
 
 // Biblical book order (canonical Protestant order)
@@ -165,8 +142,7 @@ function sortStoriesChronologically(stories) {
 // ============================================================================
 
 document.addEventListener('DOMContentLoaded', () => {
-    // Initialize theme toggle
-    initTheme();
+    // Theme is now handled by settings.js
     
     // Register service worker for PWA
     registerServiceWorker();
@@ -3218,7 +3194,9 @@ function setupStickyAudioBar() {
 function getBibleGatewayUrl(passageRef) {
     if (!passageRef) return null;
     const encoded = encodeURIComponent(passageRef);
-    return `https://www.biblegateway.com/passage/?search=${encoded}&version=NIV`;
+    // Use Bible version from settings, default to WEB
+    const version = window.graceBibleVersion || 'WEB';
+    return `https://www.biblegateway.com/passage/?search=${encoded}&version=${version}`;
 }
 
 function debounce(func, wait) {

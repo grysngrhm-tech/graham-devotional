@@ -56,13 +56,14 @@
                     <button class="stat-btn" data-status="pending" title="Show pending stories">
                         <span id="pendingCount">—</span> Pending
                     </button>
-                    <button class="theme-toggle" id="themeToggle" title="Toggle dark mode">
-                        <span class="icon-sun">☀️</span>
-                        <span class="icon-moon">🌙</span>
-                    </button>
                     <div class="auth-controls" id="authControls">
                         <button class="auth-btn" id="signInBtn" title="Sign in to save favorites and track progress">Sign In</button>
-                        <button class="auth-btn signed-in" id="signOutBtn" style="display: none;">Sign Out</button>
+                        <button class="settings-btn" id="settingsBtn" style="display: none;" title="Settings">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="12" cy="12" r="3"/>
+                                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+                            </svg>
+                        </button>
                     </div>
                 </div>
             </div>
@@ -79,72 +80,50 @@
             
         </header>
 
-        <!-- Introduction Section -->
-        <section class="intro-section">
-            <div class="intro-content">
-                <div class="intro-column">
-                    <h3 class="intro-heading">What It Is</h3>
-                    <p class="intro-text">
-                        The <span class="grace-accent">GRACE</span> Bible is a living illustrated devotional, presenting five hundred scenes from Genesis to Revelation. Each narrative is drawn from the World English Bible and enriched with select spoken quotations from the King James Version. Together, they form a single sweeping retelling of Scripture—faithful to the text, vivid in detail, and crafted for modern readers seeking beauty, clarity, and reverence.
-                    </p>
-                </div>
-                <div class="intro-column">
-                    <h3 class="intro-heading">How It Works</h3>
-                    <p class="intro-text">
-                        Every story is accompanied by four AI-rendered sacred artworks shaped in the spirit of the great masters. Choose the image that speaks to you, or regenerate new interpretations when fresh inspiration arises. Each choice becomes part of the curated edition shared with all who explore this evolving, communal, and continually refined devotional experience.
-                    </p>
-                </div>
-            </div>
-        </section>
+        <!-- Tagline -->
+        <p class="tagline">An illustrated journey through 500 stories from Genesis to Revelation</p>
 
         <main class="main-content">
-            <!-- Filter Section - Cascading Sliders -->
-            <section class="filter-section">
-                <!-- Row 1: Testament - Always visible -->
-                <div class="filter-row testament-row">
+            <!-- Unified Filter Section -->
+            <section class="filter-section compact">
+                <!-- Primary Row: Testament + Search + Surprise -->
+                <div class="filter-primary">
                     <div class="segment-control" id="testamentFilter">
                         <button class="segment active" data-value="all">All</button>
                         <button class="segment" data-value="OT">Old Testament</button>
                         <button class="segment" data-value="NT">New Testament</button>
                     </div>
+                    
+                    <div class="filter-actions">
+                        <div class="search-wrapper">
+                            <svg class="search-icon" viewBox="0 0 20 20" fill="currentColor">
+                                <path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd"/>
+                            </svg>
+                            <input type="search" id="searchInput" placeholder="Search...">
+                        </div>
+                        <button class="surprise-btn" id="surpriseBtn" title="Random story">🎲</button>
+                    </div>
                 </div>
                 
-                <!-- Row 2: Book Grouping - Hidden until OT/NT selected -->
+                <!-- Book Grouping - Hidden until OT/NT selected -->
                 <div class="filter-row grouping-row" id="groupingFilterRow">
                     <div class="segment-control scrollable" id="groupingFilter">
                         <!-- Populated dynamically by JavaScript -->
                     </div>
                 </div>
                 
-                <!-- Row 3: Individual Books - Hidden until grouping selected -->
+                <!-- Individual Books - Hidden until grouping selected -->
                 <div class="filter-row book-row" id="bookFilterRow">
                     <div class="segment-control scrollable" id="bookFilter">
                         <!-- Populated dynamically by JavaScript -->
                     </div>
                 </div>
                 
-                <!-- Row 4: Search + Surprise -->
-                <div class="filter-row search-row">
-                    <div class="search-wrapper">
-                        <svg class="search-icon" viewBox="0 0 20 20" fill="currentColor">
-                            <path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd"/>
-                        </svg>
-                        <input type="search" id="searchInput" placeholder="Search titles or verses...">
-                        <kbd class="search-shortcut">⌘K</kbd>
-                    </div>
-                    
-                    <button class="surprise-btn" id="surpriseBtn" title="Go to a random story">
-                        🎲 Surprise Me
-                    </button>
-                </div>
-                
-                <!-- Row 5: User Filters (logged in only) -->
+                <!-- User Filters (logged in only) -->
                 <div class="filter-row user-filters-row" id="userFiltersRow" style="display: none;">
-                    <div class="segment-control" id="userFilter">
-                        <button class="segment active" data-value="all">All Stories</button>
-                        <button class="segment" data-value="favorites">
-                            <span class="filter-icon">♥</span> My Favorites
-                        </button>
+                    <div class="segment-control compact" id="userFilter">
+                        <button class="segment active" data-value="all">All</button>
+                        <button class="segment" data-value="favorites">♥ Favorites</button>
                         <button class="segment" data-value="unread">Unread</button>
                         <button class="segment" data-value="read">Read</button>
                     </div>
@@ -201,7 +180,46 @@
                 <button class="auth-submit" id="sendMagicLink">Send Magic Link</button>
             </div>
             <p class="auth-status" id="authStatus"></p>
-            <p class="auth-footer">No password needed. We'll send you a secure link to sign in.</p>
+        </div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div class="settings-modal" id="settingsModal">
+        <div class="settings-modal-content">
+            <button class="settings-close" id="settingsClose">&times;</button>
+            <h2>Settings</h2>
+            
+            <div class="setting-row">
+                <span class="setting-label">Dark Mode</span>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="darkModeToggle" checked>
+                    <span class="toggle-slider"></span>
+                </label>
+            </div>
+            
+            <div class="setting-row">
+                <span class="setting-label">Font Size</span>
+                <select class="setting-select" id="fontSizeSelect">
+                    <option value="small">Small</option>
+                    <option value="medium" selected>Medium</option>
+                    <option value="large">Large</option>
+                </select>
+            </div>
+            
+            <div class="setting-row">
+                <span class="setting-label">Bible Version</span>
+                <select class="setting-select" id="bibleVersionSelect">
+                    <option value="WEB">World English Bible</option>
+                    <option value="KJV">King James Version</option>
+                    <option value="NIV">New International Version</option>
+                    <option value="ESV">English Standard Version</option>
+                    <option value="NASB">New American Standard</option>
+                    <option value="NLT">New Living Translation</option>
+                    <option value="NKJV">New King James Version</option>
+                </select>
+            </div>
+            
+            <button class="settings-signout" id="settingsSignOut">Sign Out</button>
         </div>
     </div>
 
@@ -209,6 +227,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="config.js"></script>
     <script src="auth.js"></script>
-    <script src="app.js?v=13"></script>
+    <script src="settings.js"></script>
+    <script src="app.js?v=14"></script>
 </body>
 </html>

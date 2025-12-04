@@ -50,13 +50,14 @@
             <button class="nav-btn" id="nextBtn" title="Next Story (→ arrow key)">
                 <span>›</span>
             </button>
-            <button class="theme-toggle" id="themeToggle" title="Toggle dark mode">
-                <span class="icon-sun">☀️</span>
-                <span class="icon-moon">🌙</span>
-            </button>
             <div class="auth-controls" id="authControls">
                 <button class="auth-btn" id="signInBtn" title="Sign in to save favorites">Sign In</button>
-                <button class="auth-btn signed-in" id="signOutBtn" style="display: none;">Sign Out</button>
+                <button class="settings-btn" id="settingsBtn" style="display: none;" title="Settings">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="3"/>
+                        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+                    </svg>
+                </button>
             </div>
         </div>
     </nav>
@@ -267,7 +268,46 @@
                 <button class="auth-submit" id="sendMagicLink">Send Magic Link</button>
             </div>
             <p class="auth-status" id="authStatus"></p>
-            <p class="auth-footer">No password needed. We'll send you a secure link to sign in.</p>
+        </div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div class="settings-modal" id="settingsModal">
+        <div class="settings-modal-content">
+            <button class="settings-close" id="settingsClose">&times;</button>
+            <h2>Settings</h2>
+            
+            <div class="setting-row">
+                <span class="setting-label">Dark Mode</span>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="darkModeToggle" checked>
+                    <span class="toggle-slider"></span>
+                </label>
+            </div>
+            
+            <div class="setting-row">
+                <span class="setting-label">Font Size</span>
+                <select class="setting-select" id="fontSizeSelect">
+                    <option value="small">Small</option>
+                    <option value="medium" selected>Medium</option>
+                    <option value="large">Large</option>
+                </select>
+            </div>
+            
+            <div class="setting-row">
+                <span class="setting-label">Bible Version</span>
+                <select class="setting-select" id="bibleVersionSelect">
+                    <option value="WEB">World English Bible</option>
+                    <option value="KJV">King James Version</option>
+                    <option value="NIV">New International Version</option>
+                    <option value="ESV">English Standard Version</option>
+                    <option value="NASB">New American Standard</option>
+                    <option value="NLT">New Living Translation</option>
+                    <option value="NKJV">New King James Version</option>
+                </select>
+            </div>
+            
+            <button class="settings-signout" id="settingsSignOut">Sign Out</button>
         </div>
     </div>
 
@@ -275,7 +315,8 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="config.js"></script>
     <script src="auth.js"></script>
-    <script src="app.js?v=13"></script>
+    <script src="settings.js"></script>
+    <script src="app.js?v=14"></script>
 </body>
 </html>
 
