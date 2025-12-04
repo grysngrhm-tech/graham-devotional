@@ -1,183 +1,163 @@
 # The Graham Bible
 
-**An illustrated Bible arranged story by story** — A modern-retold devotional featuring 500 Bible stories with AI-generated sacred artwork.
+An interactive, AI-assisted illustrated devotional Bible: 500 scenes from Genesis to Revelation with sacred artwork and narrative retellings.
 
-## Live Demo
-
-🌐 **[grysngrhm-tech.github.io/graham-devotional](https://grysngrhm-tech.github.io/graham-devotional/viewer/index.html)**
-
-## The Vision
-
-Two printed 8.5×11" black-and-white devotional volumes:
-- **Volume 1: Old Testament** — 300 spreads
-- **Volume 2: New Testament** — 200 spreads
-
-Each spread = two pages:
-- **LEFT**: Full-page sacred artwork (Doré/Dürer/Rembrandt style)
-- **RIGHT**: Title, KJV reference, key verse, 440-520 word narrative summary
-
-## Distribution Summary
-
-| Volume | Section | Spreads |
-|--------|---------|---------|
-| **OT** | Torah | 100 |
-| **OT** | History | 90 |
-| **OT** | Wisdom | 45 |
-| **OT** | Prophets | 65 |
-| **NT** | Gospels (Synoptic Harmony) | 105 |
-| **NT** | Acts | 30 |
-| **NT** | Epistles | 50 |
-| **NT** | Revelation | 15 |
-| | **TOTAL** | **500** |
+**[GrahamBible.com](https://www.grahambible.com)** | [View the Demo](https://grysngrhm-tech.github.io/graham-devotional/)
 
 ---
 
-## Web Viewer Features
+## What Is The Graham Bible?
 
-The `viewer/` directory contains a Progressive Web App deployed via GitHub Pages:
+The Graham Bible is a devotional project that presents Scripture as a series of 500 illustrated stories, arranged chronologically from Creation to Revelation. Each story is a two-page "spread" designed for print:
 
-### Core Features
-- **Homepage Grid**: All 500 spreads with filtering and search
-- **Story View**: Two-page book spread layout with image selection
-- **Chronological Order**: Stories sorted Genesis → Revelation
-- **Image Curation**: Select primary image from 4 AI-generated options
-- **Image Regeneration**: Generate new options with countdown timer UI (Admin only)
+- **Left page**: A full-page piece of sacred artwork in black and white, rendered in the cross-hatching style of classical engravers like Gustave Doré, Albrecht Dürer, and Rembrandt.
+- **Right page**: The story title, a Scripture reference, a highlighted key verse, and a 440–520 word narrative retelling.
 
-### User Accounts
+The text is not commentary. It is a faithful retelling of the biblical narrative—reverent and serious, preserving the rawness of Scripture where appropriate. The World English Bible (WEB) is used to help the AI understand the passage in modern language, but all quotations are drawn from the King James Version (KJV).
 
-The app supports user accounts via Supabase Auth with **magic link email authentication**:
+The web viewer at [GrahamBible.com](https://www.grahambible.com) is intentionally minimal. This README serves as the deeper "About" page for those who want to understand the project more fully.
 
-| Role | Capabilities |
-|------|-------------|
-| **Guest** | View all stories, browse images |
-| **User** | All guest features + favorites, read tracking, personal image selections |
-| **Admin** | All user features + image regeneration, global default images, admin dashboard |
+---
 
-### User Features (Logged In)
-- **Favorites**: Heart button to save stories, filter by favorites on home page
-- **Read Tracking**: Automatic tracking when scrolling to bottom of story
-- **Personal Image Selection**: Choose your preferred primary image per story
-- **Settings**: Dark mode, font size, Bible version for links
+## How the Web Viewer Works
 
-### Admin Features
-- **Image Regeneration**: Generate new AI images for any story
-- **Global Primary Images**: Set default images for all users
-- **Admin Dashboard**: User statistics, top favorites, most read stories, image popularity
+When you open The Graham Bible, you can:
+
+- **Browse all 500 stories** in a visual grid, with each card showing a thumbnail and title.
+- **Filter by Testament** (Old or New), by book category (Torah, Prophets, Gospels, etc.), or search by title.
+- **Open any story** to see the full artwork alongside the devotional text.
+- **See multiple illustrations** for each story—four AI-generated options—and select your favorite as the primary image.
+- **Tap "Surprise Me"** to jump to a random story.
+- **Listen to audio narration** using text-to-speech.
+- **Save favorites** and track which stories you've read (with a free account).
+- **Install as an app** on your phone or tablet for offline access.
+
+The interface is dark by default, with gold accents. It works on desktop and mobile, and can be installed as a Progressive Web App (PWA).
+
+---
+
+## The Vision: Printed Volumes
+
+The ultimate goal is two printed 8.5×11" black-and-white devotional volumes:
+
+| Volume | Content | Spreads |
+|--------|---------|---------|
+| **Volume 1** | Old Testament | 300 |
+| **Volume 2** | New Testament | 200 |
+
+Each spread is designed to be read as a single devotional unit—a moment of reflection with Scripture and art.
+
+### Distribution by Section
+
+| Testament | Section | Spreads |
+|-----------|---------|---------|
+| OT | Torah | 100 |
+| OT | History | 90 |
+| OT | Wisdom | 45 |
+| OT | Prophets | 65 |
+| NT | Gospels (Synoptic Harmony) | 105 |
+| NT | Acts | 30 |
+| NT | Epistles | 50 |
+| NT | Revelation | 15 |
+| | **Total** | **500** |
+
+The web viewer serves two purposes: it is a devotional experience in its own right, and it is the curation tool used to prepare spreads for eventual print publication.
+
+---
+
+## AI and Art Pipeline
+
+The Graham Bible uses AI to assist with both text and image generation, but all output is reviewed and curated by humans. Here is how it works at a high level:
+
+1. **Define Spreads** — Story outlines are created with Scripture references (book, chapter, verse ranges).
+2. **Fetch Scripture** — The KJV text is retrieved for quotations; the WEB text is used to give the AI modern context.
+3. **Generate Summaries** — GPT-4 produces a 440–520 word narrative retelling and identifies a key verse.
+4. **Generate Artwork** — Flux (an AI image model) creates four unique black-and-white illustrations per story, each with a different artistic interpretation.
+5. **Curate and Display** — Humans select the primary image for each story. Users can also choose their own preferred image.
+
+The pipeline is automated using n8n workflows, with data stored in Supabase (PostgreSQL). The web viewer is a static site hosted on GitHub Pages.
+
+---
+
+## Web Viewer Features (Technical)
+
+For developers and contributors, here is a summary of the viewer's technical capabilities:
 
 ### Progressive Web App (PWA)
-- **Installable**: Add to home screen on iOS and Android
-- **Offline Support**: App shell cached for fast loading
-- **Smart Install Prompt**: Platform-specific installation guidance
-- **Update Notifications**: Toast when new version available
+- Installable on iOS and Android
+- Offline caching via service worker
+- Update notifications when new content is available
 
-### UI Features
-- **Dark Mode**: Rich dark theme with gold accents (default)
-- **Unified Breadcrumb**: Scroll-reveal header showing current section
-- **Audio Narration**: Text-to-speech using Web Speech API
-- **Surprise Me**: Random story selection
-- **Mobile Optimized**: Floating navigation, full-height images
+### User Accounts
+- Magic link email authentication (Supabase Auth)
+- Roles: Guest, User, Admin
+- User features: favorites, read tracking, personal image selection
+- Admin features: image regeneration, global default images, usage dashboard
 
 ### Filter System
-| Category | Options |
-|----------|---------|
-| User Filters | All / Favorites / Unread / Read |
-| Testament | All / Old Testament / New Testament |
-| Book Groupings | Torah, History, Poetry, Prophets, Gospels, Acts, Epistles, Revelation |
-| Individual Books | All 66 books (cascading based on testament) |
-| Status (Admin) | All / Complete / Pending |
+- By Testament (All / OT / NT)
+- By book category (Torah, History, Poetry, Prophets, Gospels, Acts, Epistles, Revelation)
+- By individual book (all 66)
+- By user state (Favorites, Unread, Read)
+
+### UI
+- Dark mode (default), with gold accents
+- Responsive layout for desktop and mobile
+- Audio narration via Web Speech API
+- Keyboard shortcuts for navigation
+
+For implementation details, see [docs/VIEWER.md](docs/VIEWER.md).
 
 ---
 
-## Architecture
-
-### Production Pipeline
-
-| Component | Purpose | Technology |
-|-----------|---------|------------|
-| **Outline Builder** | Import spreads + fetch KJV/WEB scripture | n8n workflow |
-| **Processing Pipeline** | Generate summaries + images | n8n + GPT-4 + Flux |
-| **Database** | Store all spread data + user data | Supabase (PostgreSQL) |
-| **Authentication** | User accounts with magic links | Supabase Auth |
-| **Storage** | Host generated images | Supabase Storage |
-| **Web Viewer** | Display, curate, and personalize | Static HTML/CSS/JS |
-| **Hosting** | Serve web viewer | GitHub Pages |
-
-### Data Flow
-```
-1. Paste spread definitions into Outline Builder
-2. Scripture (KJV + WEB) fetched and stored in Supabase
-3. Processing Pipeline generates summaries with GPT-4
-4. Processing Pipeline generates 4 images per spread with Flux
-5. Web viewer displays for curation
-6. Admin selects global primary images
-7. Users can select personal primary images
-```
-
-### Workflow IDs (n8n)
-| Workflow | ID |
-|----------|-----|
-| Outline Builder | `dRZE4EHTdCr1pSjX` |
-| Processing Pipeline | `Ixn36R5CgzjJn0WH` |
-
----
-
-## Project Structure
+## Architecture and Project Structure
 
 ```
 graham-devotional/
 ├── viewer/                    # Static web viewer (PWA)
-│   ├── index.html            # Homepage - grid of all spreads
-│   ├── spread.html           # Individual spread view
-│   ├── admin.html            # Admin dashboard (admin only)
-│   ├── offline.html          # Offline fallback page
-│   ├── styles.css            # All styling (4000+ lines)
-│   ├── app.js                # Main application logic (3200+ lines)
-│   ├── auth.js               # Authentication logic (800+ lines)
-│   ├── settings.js           # User preferences logic (~150 lines)
-│   ├── config.js             # Supabase & n8n configuration
-│   ├── sw.js                 # Service worker for PWA
+│   ├── index.html            # Homepage grid
+│   ├── spread.html           # Individual story view
+│   ├── admin.html            # Admin dashboard
+│   ├── styles.css            # All styling
+│   ├── app.js                # Main application logic
+│   ├── auth.js               # Authentication logic
+│   ├── settings.js           # User preferences
+│   ├── config.js             # Supabase and n8n configuration
+│   ├── sw.js                 # Service worker
 │   ├── manifest.json         # PWA manifest
-│   └── icons/                # PWA icons (192, 512, maskable, etc.)
+│   └── icons/                # App icons
 ├── docs/
-│   ├── SYSTEM.md             # Technical reference (pipelines, schema)
-│   ├── VIEWER.md             # Viewer documentation
-│   └── CURSOR.md             # AI/Cursor development guide
+│   ├── SYSTEM.md             # Pipelines, database schema, troubleshooting
+│   ├── VIEWER.md             # Viewer features, UI, PWA, authentication
+│   └── CURSOR.md             # AI/Cursor development patterns
 ├── supabase/
 │   └── migrations/           # Database migration SQL files
-│       ├── 001-006           # Core spread tables
-│       ├── 007_user_accounts.sql  # User auth tables
-│       └── 008_set_admin.sql # Admin role assignment
-├── scripts/
-│   └── backfill-testament-book.sql
 └── README.md                 # This file
 ```
 
----
-
-## Documentation
+### Documentation
 
 | Document | Purpose |
 |----------|---------|
-| [docs/SYSTEM.md](docs/SYSTEM.md) | Technical reference — pipelines, schema, troubleshooting |
-| [docs/VIEWER.md](docs/VIEWER.md) | Web viewer features — UI, filtering, PWA, auth |
-| [docs/CURSOR.md](docs/CURSOR.md) | AI development guide — MCPs, secrets, architecture |
+| [docs/SYSTEM.md](docs/SYSTEM.md) | Technical reference for pipelines, schema, and troubleshooting |
+| [docs/VIEWER.md](docs/VIEWER.md) | Viewer implementation details, UI, PWA, and authentication |
+| [docs/CURSOR.md](docs/CURSOR.md) | Guide for AI-assisted development with Cursor |
 
 ---
 
 ## Quick Start (Development)
 
 ### Prerequisites
-- Node.js (for icon generation)
 - Git
-- Code editor (Cursor recommended)
+- A local HTTP server (Python, Node, etc.)
 
 ### Local Development
 ```bash
-# Clone repository
+# Clone the repository
 git clone https://github.com/grysngrhm-tech/graham-devotional.git
 cd graham-devotional
 
-# Start local server
+# Start a local server
 cd viewer
 python -m http.server 8000
 # or: npx serve .
@@ -187,68 +167,32 @@ python -m http.server 8000
 ```
 
 ### Deployment
-Push to `main` branch — GitHub Pages auto-deploys from `viewer/` directory.
+Push to the `main` branch. GitHub Pages automatically deploys from the `viewer/` directory.
 
 ---
 
-## Security Notes
+## Security
 
-### Safe to Commit (Public Keys)
-- `SUPABASE_URL` — Project URL (public)
-- `SUPABASE_ANON_KEY` — Anonymous/public key (protected by RLS)
-- `N8N_WEBHOOK_URL` — Public webhook endpoints
+### Public Keys (Safe to Commit)
+- `SUPABASE_URL` — Public project URL
+- `SUPABASE_ANON_KEY` — Public key, protected by Row Level Security
+- `N8N_WEBHOOK_URL` — Public webhook endpoint
 
-### Never Commit (Secrets)
+### Secret Keys (Never Commit)
 - `SUPABASE_SERVICE_ROLE_KEY` — Full database access
 - `REPLICATE_API_KEY` — Image generation credits
 - `OPENAI_API_KEY` — GPT-4 credits
 
-All sensitive keys are stored in n8n's credential manager, not in this repository.
+All secrets are stored in n8n's credential manager, not in this repository.
 
 ---
 
-## User Account System
+## About
 
-### Authentication Flow
-1. User clicks "Sign In" button
-2. Modal opens with email input
-3. User enters email, receives magic link
-4. User clicks link, automatically logged in
-5. PWA users: Click link in browser, then "Check Login Status" in app
+The Graham Bible is a family devotional project that combines AI-assisted text and image generation with careful human curation. Scripture quotations are from the King James Version. Modern comprehension is aided by the World English Bible. All summaries and artwork are reviewed and curated by humans before publication.
 
-### User Data Tables
-| Table | Purpose |
-|-------|---------|
-| `user_profiles` | User metadata + `is_admin` flag |
-| `user_favorites` | Stories favorited by each user |
-| `user_read_stories` | Stories read by each user |
-| `user_primary_images` | Personal image selections per story |
-
-### Row Level Security (RLS)
-All user tables have RLS policies ensuring users can only:
-- Read/write their own data
-- Not access other users' data
+This project is made publicly available as a technical and artistic experiment.
 
 ---
 
-## Status Flow
-
-```
-After Outline Builder:
-  status_outline    = done
-  status_scripture  = done
-  status_text       = pending
-  status_image      = pending
-
-After Processing Pipeline:
-  status_text       = done (440-520 word summary)
-  status_image      = done (4 image URLs populated)
-```
-
-A spread is **complete** when all four statuses = `done`.
-
----
-
-## License
-
-Private project for The Grahams' Devotional book.
+*For questions or feedback, visit the repository or reach out through the site.*
