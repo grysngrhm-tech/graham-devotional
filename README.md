@@ -1,211 +1,106 @@
 # The Graham Bible
 
-An interactive, AI-assisted illustrated devotional Bible: 500 scenes from Genesis to Revelation with sacred artwork and narrative retellings.
+**Experience Scripture in a whole new way.**
 
-**[GrahamBible.com](https://www.grahambible.com)** | [View the Demo](https://grysngrhm-tech.github.io/graham-devotional/)
+An illustrated devotional journey through 500 stories from Genesis to Revelation—sacred artwork paired with faithful narrative retellings, designed to deepen your understanding of God's Word.
 
----
-
-## What Is The Graham Bible?
-
-The Graham Bible is a devotional project that presents Scripture as a series of 500 illustrated stories, arranged chronologically from Creation to Revelation. Each story is a two-page "spread" designed for print:
-
-- **Left page**: A full-page piece of sacred artwork in black and white, rendered in the cross-hatching style of classical engravers like Gustave Doré, Albrecht Dürer, and Rembrandt.
-- **Right page**: The story title, a Scripture reference, a highlighted key verse, and a 440–520 word narrative retelling.
-
-The text is not commentary. It is a faithful retelling of the biblical narrative—reverent and serious, preserving the rawness of Scripture where appropriate. The World English Bible (WEB) is used to help the AI understand the passage in modern language, but all quotations are drawn from the King James Version (KJV).
-
-The web viewer at [GrahamBible.com](https://www.grahambible.com) is intentionally minimal. This README serves as the deeper "About" page for those who want to understand the project more fully.
+**[GrahamBible.com](https://www.grahambible.com)**
 
 ---
 
-## How the Web Viewer Works
+## A New Way to Engage with Scripture
 
-When you open The Graham Bible, you can:
+The Bible is the greatest story ever told, yet many of us struggle to engage with it deeply. We read the same passages, but the words can feel distant. The stories blur together. The richness gets lost.
 
-- **Browse all 500 stories** in a visual grid, with each card showing a thumbnail and title.
-- **Filter by Testament** (Old or New), by book category (Torah, Prophets, Gospels, etc.), or search by title.
-- **Open any story** to see the full artwork alongside the devotional text.
-- **See multiple illustrations** for each story—four AI-generated options—and select your favorite as the primary image.
-- **Tap "Surprise Me"** to jump to a random story.
-- **Listen to audio narration** using text-to-speech.
-- **Save favorites** and track which stories you've read (with a free account).
-- **Install as an app** on your phone or tablet for offline access.
+**The Graham Bible exists to change that.**
 
-The interface is dark by default, with gold accents. It works on desktop and mobile, and can be installed as a Progressive Web App (PWA).
+Each story is presented as a visual devotional—a full-page piece of sacred artwork on one side, and a carefully crafted narrative retelling on the other. This isn't commentary or interpretation. It's the biblical narrative itself, retold with reverence and clarity, preserving the rawness and beauty of Scripture.
+
+The artwork draws from the tradition of classical sacred illustration—the cross-hatching style of Gustave Doré, Albrecht Dürer, and Rembrandt—rendered in black and white to focus your attention on the scene itself. Four unique illustrations are generated for each story, allowing you to choose the one that speaks most powerfully to you.
 
 ---
 
-## The Vision: Printed Volumes
+## How It Works
 
-The ultimate goal is two printed 8.5×11" black-and-white devotional volumes:
+When you open The Graham Bible, you'll find:
 
-| Volume | Content | Spreads |
-|--------|---------|---------|
-| **Volume 1** | Old Testament | 300 |
-| **Volume 2** | New Testament | 200 |
+### 500 Stories, Chronologically Arranged
+From Creation to Revelation, the entire biblical narrative is divided into 500 devotional moments. Each story covers a specific passage—sometimes a single chapter, sometimes spanning several—and presents it as a complete scene.
 
-Each spread is designed to be read as a single devotional unit—a moment of reflection with Scripture and art.
+### Sacred Artwork for Every Story
+Every story features AI-generated sacred art in the classical cross-hatching style. Four unique illustrations are created for each passage, each with a different artistic interpretation. You can view all four and select your favorite.
 
-### Distribution by Section
+### Faithful Narrative Retellings
+Each story includes a 440–520 word retelling that brings the Scripture to life. These aren't modern reinterpretations—they're faithful to the biblical text, using the King James Version for all quotations. The language is reverent and serious, honoring the weight of God's Word.
 
-| Testament | Section | Spreads |
-|-----------|---------|---------|
-| OT | Torah | 100 |
-| OT | History | 90 |
-| OT | Wisdom | 45 |
-| OT | Prophets | 65 |
-| NT | Gospels (Synoptic Harmony) | 105 |
-| NT | Acts | 30 |
-| NT | Epistles | 50 |
-| NT | Revelation | 15 |
-| | **Total** | **500** |
-
-The web viewer serves two purposes: it is a devotional experience in its own right, and it is the curation tool used to prepare spreads for eventual print publication.
+### A Key Verse to Carry With You
+Every story highlights a key verse from the passage—a single line of Scripture to meditate on, memorize, or carry with you through your day.
 
 ---
 
-## AI and Art Pipeline
+## Your Personal Devotional Space
 
-The Graham Bible uses AI to assist with both text and image generation, but all output is reviewed and curated by humans. Here is how it works at a high level:
+The Graham Bible is designed to meet you where you are:
 
-1. **Define Spreads** — Story outlines are created with Scripture references (book, chapter, verse ranges).
-2. **Fetch Scripture** — The KJV text is retrieved for quotations; the WEB text is used to give the AI modern context.
-3. **Generate Summaries** — GPT-4 produces a 440–520 word narrative retelling and identifies a key verse.
-4. **Generate Artwork** — Flux (an AI image model) creates four unique black-and-white illustrations per story, each with a different artistic interpretation.
-5. **Curate and Display** — Humans select the primary image for each story. Users can also choose their own preferred image.
+- **Browse freely** through 500 stories, filtering by Testament, book category, or searching by title
+- **Save your favorites** to build a personal collection of meaningful passages
+- **Track your progress** as you journey through Scripture
+- **Choose your artwork** and make each story your own
+- **Listen to narration** when you want to hear the Word spoken aloud
+- **Install the app** on your phone or tablet for offline reading, anytime, anywhere
 
-The pipeline is automated using n8n workflows, with data stored in Supabase (PostgreSQL). The web viewer is a static site hosted on GitHub Pages.
-
----
-
-## Web Viewer Features (Technical)
-
-For developers and contributors, here is a summary of the viewer's technical capabilities:
-
-### Progressive Web App (PWA)
-- Installable on iOS and Android
-- Offline caching via service worker
-- Update notifications when new content is available
-
-### User Accounts
-- Magic link email authentication (Supabase Auth)
-- Roles: Guest, User, Admin
-- User features: favorites, read tracking, personal image selection
-- Admin features: image regeneration, global default images, usage dashboard
-
-### Filter System
-- By Testament (All / OT / NT)
-- By book category (Torah, History, Poetry, Prophets, Gospels, Acts, Epistles, Revelation)
-- By individual book (all 66)
-- By user state (Favorites, Unread, Read)
-
-### UI
-- Dark mode (default), with gold accents
-- Responsive layout for desktop and mobile
-- Audio narration via Web Speech API
-- Keyboard shortcuts for navigation
-
-For implementation details, see [docs/VIEWER.md](docs/VIEWER.md).
+Create a free account to sync your favorites and reading progress across devices. Or simply browse as a guest—no account required.
 
 ---
 
-## Architecture and Project Structure
+## The Heart Behind the Project
 
-```
-graham-devotional/
-├── viewer/                    # Static web viewer (PWA)
-│   ├── index.html            # Single-page application (SPA)
-│   ├── admin.html            # Admin dashboard
-│   ├── privacy.html          # Privacy Policy
-│   ├── terms.html            # Terms of Service
-│   ├── 404.html              # Custom error page
-│   ├── offline.html          # Offline fallback
-│   ├── styles.css            # All styling
-│   ├── app.js                # Main application logic
-│   ├── router.js             # Hash-based SPA router
-│   ├── auth.js               # Authentication logic
-│   ├── settings.js           # User preferences
-│   ├── config.js             # Supabase and n8n configuration
-│   ├── sw.js                 # Service worker
-│   ├── manifest.json         # PWA manifest
-│   ├── robots.txt            # Search engine directives
-│   ├── sitemap.xml           # SEO sitemap
-│   ├── CNAME                 # Custom domain config
-│   ├── lib/                  # Self-hosted libraries
-│   │   └── supabase.min.js   # Supabase JS client
-│   ├── data/                 # Fallback data
-│   │   └── all-spreads.json  # Static story data
-│   └── icons/                # App icons
-├── docs/
-│   ├── SYSTEM.md             # Pipelines, database schema, troubleshooting
-│   ├── VIEWER.md             # Viewer features, UI, PWA, authentication
-│   └── CURSOR.md             # AI/Cursor development patterns
-├── data/
-│   └── all-spreads.json      # Source story outlines
-├── supabase/
-│   └── migrations/           # Database migration SQL files
-└── README.md                 # This file
-```
+The Graham Bible began as a family devotional project—a way to help our children (and ourselves) encounter Scripture with fresh eyes.
 
-### Documentation
+We believe that:
 
-| Document | Purpose |
-|----------|---------|
-| [docs/SYSTEM.md](docs/SYSTEM.md) | Technical reference for pipelines, schema, and troubleshooting |
-| [docs/VIEWER.md](docs/VIEWER.md) | Viewer implementation details, UI, PWA, and authentication |
-| [docs/CURSOR.md](docs/CURSOR.md) | Guide for AI-assisted development with Cursor |
+- **Scripture should be accessible.** The Bible is for everyone, not just scholars and theologians.
+- **Stories shape us.** We remember narratives. We connect with characters. We learn through scenes and moments.
+- **Beauty draws us in.** Art has the power to open our hearts to truths we might otherwise skim past.
+- **Technology can serve faith.** AI is a tool. Used thoughtfully, it can help us create things that honor God and serve people.
+
+Every summary is reviewed. Every piece of artwork is curated. The AI assists, but humans guide. This is a labor of love, not an algorithm.
 
 ---
 
-## Quick Start (Development)
+## Features at a Glance
 
-### Prerequisites
-- Git
-- A local HTTP server (Python, Node, etc.)
-
-### Local Development
-```bash
-# Clone the repository
-git clone https://github.com/grysngrhm-tech/graham-devotional.git
-cd graham-devotional
-
-# Start a local server
-cd viewer
-python -m http.server 8000
-# or: npx serve .
-
-# Open in browser
-# http://localhost:8000
-```
-
-### Deployment
-Push to the `main` branch. GitHub Pages automatically deploys from the `viewer/` directory.
+| Feature | Description |
+|---------|-------------|
+| **500 Illustrated Stories** | The complete biblical narrative from Genesis to Revelation |
+| **Sacred Artwork** | Classical cross-hatching style, four options per story |
+| **Faithful Retellings** | 440–520 word narratives with KJV quotations |
+| **Key Verses** | A highlighted verse for each story |
+| **Personal Library** | Save favorites, track reading, choose your artwork |
+| **Audio Narration** | Listen to stories read aloud |
+| **Offline Access** | Install as an app, read without internet |
+| **Dark Mode** | Easy on the eyes, beautiful design |
+| **Free to Use** | No subscription, no ads, no paywall |
 
 ---
 
-## Security
+## Start Your Journey
 
-### Public Keys (Safe to Commit)
-- `SUPABASE_URL` — Public project URL
-- `SUPABASE_ANON_KEY` — Public key, protected by Row Level Security
-- `N8N_WEBHOOK_URL` — Public webhook endpoint
+Whether you're beginning to explore the Bible or returning to passages you've read a hundred times, The Graham Bible offers a new way to see, hear, and understand God's Word.
 
-### Secret Keys (Never Commit)
-- `SUPABASE_SERVICE_ROLE_KEY` — Full database access
-- `REPLICATE_API_KEY` — Image generation credits
-- `OPENAI_API_KEY` — GPT-4 credits
-
-All secrets are stored in n8n's credential manager, not in this repository.
+**[Begin at GrahamBible.com →](https://www.grahambible.com)**
 
 ---
 
-## About
+## For Developers
 
-The Graham Bible is a family devotional project that combines AI-assisted text and image generation with careful human curation. Scripture quotations are from the King James Version. Modern comprehension is aided by the World English Bible. All summaries and artwork are reviewed and curated by humans before publication.
+The Graham Bible is an open-source project. The web viewer is a Progressive Web App (PWA) built with vanilla JavaScript, hosted on GitHub Pages, with data stored in Supabase.
 
-This project is made publicly available as a technical and artistic experiment.
+For technical documentation:
+- [docs/VIEWER.md](docs/VIEWER.md) — Web viewer implementation
+- [docs/SYSTEM.md](docs/SYSTEM.md) — Data pipeline and database schema
+- [docs/CURSOR.md](docs/CURSOR.md) — Development patterns
 
 ---
 
-*For questions or feedback, visit the repository or reach out through the site.*
+*Scripture quotations are from the King James Version. Narrative comprehension assisted by the World English Bible. All content reviewed and curated by humans.*
