@@ -545,8 +545,14 @@ async function initIndexPage() {
     // Load stories (testament/book now come from Supabase directly)
     await loadAllStories();
     
-    // Load user data if authenticated
+    // Load user data if authenticated (always refresh to catch changes from story page)
     await loadUserData();
+    
+    // Check if we need to refresh due to changes on story page
+    if (sessionStorage.getItem('grace-user-data-changed')) {
+        sessionStorage.removeItem('grace-user-data-changed');
+        console.log('[GRACE] User data changed on story page, data refreshed');
+    }
     
     populateBookDropdown();
     setupFilters();
@@ -580,8 +586,9 @@ function setupScrollMemory() {
 
 /**
  * Load user favorites and read stories when authenticated
+ * @param {boolean} rerender - Whether to re-render stories after loading (for home page)
  */
-async function loadUserData() {
+async function loadUserData(rerender = false) {
     if (!window.GraceAuth?.isAuthenticated()) {
         userFavorites = new Set();
         userReadStories = new Set();
@@ -601,6 +608,11 @@ async function loadUserData() {
             favorites: userFavorites.size,
             read: userReadStories.size
         });
+        
+        // Re-render stories if on home page and requested
+        if (rerender && document.getElementById('storiesGrid')) {
+            applyFilters();
+        }
     } catch (err) {
         console.error('[GRACE] Error loading user data:', err);
     }
@@ -2541,13 +2553,25 @@ function setupFavoriteButton() {
         
         if (!currentStory) return;
         
-        // Toggle favorite
-        const isFavorited = await window.GraceAuth.toggleFavorite(currentStory.spread_code);
+        const spreadCode = currentStory.spread_code;
+        
+        // Toggle favorite in database
+        const isFavorited = await window.GraceAuth.toggleFavorite(spreadCode);
+        
+        // Update local state for cross-page sync
+        if (isFavorited) {
+            userFavorites.add(spreadCode);
+        } else {
+            userFavorites.delete(spreadCode);
+        }
+        
+        // Set flag so home page knows to refresh
+        sessionStorage.setItem('grace-user-data-changed', 'true');
         
         // Update UI
         favoriteBtn.classList.toggle('active', isFavorited);
         favoriteBtn.classList.add('just-toggled');
-        setTimeout(() => favoriteBtn.classList.remove('just-toggled'), 300);
+        setTimeout(() => favoriteBtn.classList.remove('just-toggled'), 350);
         
         // Haptic feedback
         hapticFeedback('light');
@@ -2614,7 +2638,15 @@ function setupReadTracking() {
         
         if (isNearBottom && currentStory) {
             hasMarkedAsRead = true;
-            await window.GraceAuth.markAsRead(currentStory.spread_code);
+            const spreadCode = currentStory.spread_code;
+            
+            await window.GraceAuth.markAsRead(spreadCode);
+            
+            // Update local state for cross-page sync
+            userReadStories.add(spreadCode);
+            
+            // Set flag so home page knows to refresh
+            sessionStorage.setItem('grace-user-data-changed', 'true');
             
             // Update indicator
             const readIndicator = document.getElementById('readIndicator');
@@ -2622,7 +2654,7 @@ function setupReadTracking() {
                 readIndicator.style.display = 'inline-flex';
             }
             
-            console.log('[GRACE] Marked as read:', currentStory.spread_code);
+            console.log('[GRACE] Marked as read:', spreadCode);
         }
     };
     

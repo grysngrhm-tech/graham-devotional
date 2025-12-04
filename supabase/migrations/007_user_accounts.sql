@@ -146,6 +146,10 @@ CREATE POLICY "Users can insert own read stories"
     ON public.user_read_stories FOR INSERT
     WITH CHECK (auth.uid() = user_id);
 
+CREATE POLICY "Users can update own read stories"
+    ON public.user_read_stories FOR UPDATE
+    USING (auth.uid() = user_id);
+
 CREATE POLICY "Users can delete own read stories"
     ON public.user_read_stories FOR DELETE
     USING (auth.uid() = user_id);
