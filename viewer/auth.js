@@ -25,6 +25,15 @@ function isPWA() {
            document.referrer.includes('android-app://');
 }
 
+/**
+ * Check if on a mobile device
+ * @returns {boolean}
+ */
+function isMobile() {
+    return window.matchMedia('(max-width: 768px)').matches ||
+           /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+}
+
 // ============================================================================
 // Initialization
 // ============================================================================
@@ -329,15 +338,19 @@ function updateAuthUI() {
  * Update admin-only UI elements
  */
 function updateAdminUI() {
-    const adminElements = document.querySelectorAll('.admin-only');
+    const isAdminUser = isAdmin();
+    
+    // Add/remove body class for CSS-based visibility control
+    if (isAdminUser) {
+        document.body.classList.add('is-admin');
+    } else {
+        document.body.classList.remove('is-admin');
+    }
+    
+    // Also directly toggle user-only elements
     const userElements = document.querySelectorAll('.user-only');
-    
-    adminElements.forEach(el => {
-        el.style.display = isAdmin() ? '' : 'none';
-    });
-    
     userElements.forEach(el => {
-        el.style.display = isAuthenticated() && !isAdmin() ? '' : 'none';
+        el.style.display = isAuthenticated() && !isAdminUser ? '' : 'none';
     });
 }
 
@@ -483,12 +496,15 @@ async function handleSendMagicLink() {
             sendBtn.textContent = 'Link Sent!';
         }
         
-        // Show PWA hint if running as installed app
-        if (isPWA() && pwaHint) {
-            pwaHint.style.display = 'block';
-        }
-        if (checkStatusBtn) {
-            checkStatusBtn.style.display = 'block';
+        // Show PWA hint and check login button only on mobile (for PWA users)
+        // PWA users can't use magic links directly since they open in browser
+        if (isMobile()) {
+            if (isPWA() && pwaHint) {
+                pwaHint.style.display = 'block';
+            }
+            if (checkStatusBtn) {
+                checkStatusBtn.style.display = 'block';
+            }
         }
     } else {
         status.textContent = result.error || 'Error sending link';
@@ -772,6 +788,7 @@ window.GraceAuth = {
     isAdmin,
     getUserId,
     isPWA,
+    isMobile,
     
     // UI
     updateAuthUI,

@@ -582,12 +582,14 @@
     
     <!-- Supabase - MUST be initialized before auth.js loads -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="config.js"></script>
     <script>
-        // Initialize Supabase client BEFORE auth.js loads
+        // Initialize Supabase client using shared config (same key as other pages)
         // Using var (not const) to ensure it's truly global and accessible by auth.js
-        var SUPABASE_URL = 'https://zekbemqgvupzmukpntog.supabase.co';
-        var SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inpla2JlbXFndnVwem11a3BudG9nIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDczNDIxMTYsImV4cCI6MjA2MjkxODExNn0.kMGJuDcUjfdl8KSKx85tgqBtJg4pcMmsIqyOAdgUIVY';
-        var supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        var supabase = window.supabase.createClient(
+            window.SUPABASE_CONFIG.url,
+            window.SUPABASE_CONFIG.anonKey
+        );
         // Also attach to window for extra safety
         window.supabaseClient = supabase;
         console.log('[Admin] Supabase client initialized:', supabase ? 'success' : 'FAILED');

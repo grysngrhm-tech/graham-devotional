@@ -47,15 +47,17 @@
                     </h1>
                 </div>
                 <div class="header-stats" id="statusFilter">
-                    <button class="stat-btn active" data-status="all" title="Show all stories">
-                        <span id="totalCount">—</span> Total
-                    </button>
-                    <button class="stat-btn" data-status="complete" title="Show complete stories">
-                        <span id="completeCount">—</span> Complete
-                    </button>
-                    <button class="stat-btn" data-status="pending" title="Show pending stories">
-                        <span id="pendingCount">—</span> Pending
-                    </button>
+                    <div class="admin-only" id="headerStatusBtns">
+                        <button class="stat-btn active" data-status="all" title="Show all stories">
+                            <span id="totalCount">—</span> Total
+                        </button>
+                        <button class="stat-btn" data-status="complete" title="Show complete stories">
+                            <span id="completeCount">—</span> Complete
+                        </button>
+                        <button class="stat-btn" data-status="pending" title="Show pending stories">
+                            <span id="pendingCount">—</span> Pending
+                        </button>
+                    </div>
                     <div class="auth-controls" id="authControls">
                         <button class="auth-btn" id="signInBtn" title="Sign in to save favorites and track progress">Sign In</button>
                         <button class="settings-btn" id="settingsBtn" style="display: none;" title="Settings">

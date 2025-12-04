@@ -1198,7 +1198,7 @@ function renderStories() {
                         ? `<img src="${imageUrl}" alt="${story.title}" loading="lazy">`
                         : `<div class="placeholder">No image yet</div>`
                     }
-                    <span class="card-status ${statusClass}">${statusText}</span>
+                    <span class="card-status ${statusClass} admin-only">${statusText}</span>
                 </div>
                 <div class="card-content">
                     <h3 class="card-title">${story.title || 'Untitled'}</h3>

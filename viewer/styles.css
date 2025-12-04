@@ -408,6 +408,27 @@ body {
     align-items: center;
 }
 
+/* Admin-only wrapper inside header stats - maintains flex layout when visible */
+.header-stats .admin-only {
+    display: none;
+    gap: 6px;
+    align-items: center;
+}
+
+/* Show admin-only elements when body has is-admin class */
+body.is-admin .admin-only {
+    display: flex;
+}
+
+/* Card status badges should display inline when visible */
+.card-status.admin-only {
+    display: none;
+}
+
+body.is-admin .card-status.admin-only {
+    display: flex;
+}
+
 /* Status Filter Buttons in Header */
 .stat-btn {
     display: inline-flex;
