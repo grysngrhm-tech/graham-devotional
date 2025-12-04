@@ -12,6 +12,20 @@ let userProfile = null;
 let authStateListeners = [];
 
 // ============================================================================
+// PWA Detection
+// ============================================================================
+
+/**
+ * Check if running as a PWA (installed app)
+ * @returns {boolean}
+ */
+function isPWA() {
+    return window.matchMedia('(display-mode: standalone)').matches ||
+           window.navigator.standalone === true ||
+           document.referrer.includes('android-app://');
+}
+
+// ============================================================================
 // Initialization
 // ============================================================================
 
@@ -284,16 +298,25 @@ function updateAuthUI() {
         if (settingsBtn) {
             settingsBtn.style.display = 'flex';
             settingsBtn.title = `Settings (${currentUser.email})`;
+            // Add gold glow for admin users
+            if (isAdmin()) {
+                settingsBtn.classList.add('is-admin');
+            } else {
+                settingsBtn.classList.remove('is-admin');
+            }
         }
-        // Show admin button only for admins
+        // Hide admin button from header (moved to settings)
         if (adminBtn) {
-            adminBtn.style.display = isAdmin() ? 'flex' : 'none';
+            adminBtn.style.display = 'none';
         }
         if (userFiltersRow) userFiltersRow.style.display = 'flex';
     } else {
         // Show signed-out state
         if (signInBtn) signInBtn.style.display = 'inline-flex';
-        if (settingsBtn) settingsBtn.style.display = 'none';
+        if (settingsBtn) {
+            settingsBtn.style.display = 'none';
+            settingsBtn.classList.remove('is-admin');
+        }
         if (adminBtn) adminBtn.style.display = 'none';
         if (userFiltersRow) userFiltersRow.style.display = 'none';
     }
@@ -403,6 +426,12 @@ function setupAuthModal() {
         });
     }
     
+    // Check login status button (for PWA users)
+    const checkStatusBtn = document.getElementById('checkLoginStatus');
+    if (checkStatusBtn) {
+        checkStatusBtn.addEventListener('click', checkLoginStatus);
+    }
+    
     // Escape to close
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape' && modal?.classList.contains('visible')) {
@@ -418,6 +447,8 @@ async function handleSendMagicLink() {
     const emailInput = document.getElementById('authEmail');
     const status = document.getElementById('authStatus');
     const sendBtn = document.getElementById('sendMagicLink');
+    const pwaHint = document.getElementById('pwaHint');
+    const checkStatusBtn = document.getElementById('checkLoginStatus');
     
     if (!emailInput || !status) return;
     
@@ -451,12 +482,75 @@ async function handleSendMagicLink() {
         if (sendBtn) {
             sendBtn.textContent = 'Link Sent!';
         }
+        
+        // Show PWA hint if running as installed app
+        if (isPWA() && pwaHint) {
+            pwaHint.style.display = 'block';
+        }
+        if (checkStatusBtn) {
+            checkStatusBtn.style.display = 'block';
+        }
     } else {
         status.textContent = result.error || 'Error sending link';
         status.className = 'auth-status error';
         if (sendBtn) {
             sendBtn.disabled = false;
             sendBtn.textContent = 'Send Magic Link';
+        }
+    }
+}
+
+/**
+ * Check login status - useful for PWA users after clicking magic link in browser
+ */
+async function checkLoginStatus() {
+    const status = document.getElementById('authStatus');
+    const checkBtn = document.getElementById('checkLoginStatus');
+    
+    if (checkBtn) {
+        checkBtn.disabled = true;
+        checkBtn.textContent = 'Checking...';
+    }
+    
+    try {
+        // Re-check session from Supabase
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        if (session?.user) {
+            await setCurrentUser(session.user);
+            updateAuthUI();
+            notifyAuthStateListeners();
+            
+            if (status) {
+                status.textContent = 'Logged in successfully!';
+                status.className = 'auth-status success';
+            }
+            
+            // Close modal after brief delay
+            setTimeout(() => {
+                hideAuthModal();
+                // Reload page to refresh all user data
+                window.location.reload();
+            }, 1000);
+        } else {
+            if (status) {
+                status.textContent = 'Not logged in yet. Click the link in your email, then try again.';
+                status.className = 'auth-status error';
+            }
+            if (checkBtn) {
+                checkBtn.disabled = false;
+                checkBtn.textContent = 'Check Login Status';
+            }
+        }
+    } catch (err) {
+        console.error('[Auth] Error checking status:', err);
+        if (status) {
+            status.textContent = 'Error checking login status';
+            status.className = 'auth-status error';
+        }
+        if (checkBtn) {
+            checkBtn.disabled = false;
+            checkBtn.textContent = 'Check Login Status';
         }
     }
 }
@@ -669,6 +763,7 @@ window.GraceAuth = {
     // Auth actions
     signInWithMagicLink,
     signOut,
+    checkLoginStatus,
     
     // State accessors
     getCurrentUser,
@@ -676,6 +771,7 @@ window.GraceAuth = {
     isAuthenticated,
     isAdmin,
     getUserId,
+    isPWA,
     
     // UI
     updateAuthUI,

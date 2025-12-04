@@ -10,7 +10,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=IM+Fell+English:ital@0;1&family=Inter:wght@300;400;500;600&family=Playfair+Display:wght@400;500;600&display=swap" rel="stylesheet">
     
-    <link rel="stylesheet" href="styles.css?v=14">
+    <link rel="stylesheet" href="styles.css?v=15">
     
     <!-- PWA -->
     <link rel="manifest" href="manifest.json">
@@ -593,19 +593,49 @@
         const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
         
         async function initAdminPage() {
-            // Wait for auth to initialize
-            await new Promise(resolve => setTimeout(resolve, 500));
-            
-            // Check if user is admin
-            const isAdmin = window.GraceAuth?.isAdmin() || false;
             const authGuard = document.getElementById('authGuard');
             const adminContent = document.getElementById('adminContent');
             
-            console.log('[Admin] Checking admin status:', isAdmin);
+            // First, wait for auth.js to initialize
+            await window.GraceAuth.initAuth();
+            
+            // Check admin status after auth is fully initialized
+            checkAdminAccess();
+            
+            // Also listen for auth state changes (in case user logs in/out)
+            window.GraceAuth.onAuthStateChange((state) => {
+                console.log('[Admin] Auth state changed:', state);
+                checkAdminAccess();
+            });
+        }
+        
+        async function checkAdminAccess() {
+            const authGuard = document.getElementById('authGuard');
+            const adminContent = document.getElementById('adminContent');
+            
+            const isAuthenticated = window.GraceAuth?.isAuthenticated() || false;
+            const isAdmin = window.GraceAuth?.isAdmin() || false;
+            const user = window.GraceAuth?.getCurrentUser?.();
+            const profile = window.GraceAuth?.getUserProfile?.();
+            
+            console.log('[Admin] Auth check:', {
+                isAuthenticated,
+                isAdmin,
+                email: user?.email,
+                profile: profile
+            });
             
             if (!isAdmin) {
                 authGuard.style.display = 'flex';
                 adminContent.style.display = 'none';
+                
+                // Update auth guard message based on state
+                const guardMessage = authGuard.querySelector('p');
+                if (!isAuthenticated) {
+                    guardMessage.textContent = 'Please sign in to access the admin panel.';
+                } else {
+                    guardMessage.textContent = `You're signed in as ${user?.email || 'unknown'}, but this account doesn't have admin privileges.`;
+                }
                 return;
             }
             
@@ -614,7 +644,6 @@
             adminContent.style.display = 'block';
             
             // Set admin email
-            const user = window.GraceAuth?.getUser?.();
             if (user?.email) {
                 document.getElementById('adminEmailText').textContent = user.email;
             }
@@ -818,16 +847,26 @@
         
         // Initialize when DOM is ready
         document.addEventListener('DOMContentLoaded', () => {
-            // Wait for auth module to be ready
+            // Wait for auth module to be ready, then initialize
             const checkAuth = setInterval(() => {
-                if (window.GraceAuth) {
+                if (window.GraceAuth && window.GraceAuth.initAuth) {
                     clearInterval(checkAuth);
-                    initAdminPage();
+                    console.log('[Admin] GraceAuth module found, initializing...');
+                    initAdminPage().catch(err => {
+                        console.error('[Admin] Init error:', err);
+                    });
                 }
             }, 100);
             
-            // Timeout after 3 seconds
-            setTimeout(() => clearInterval(checkAuth), 3000);
+            // Timeout after 5 seconds with error message
+            setTimeout(() => {
+                clearInterval(checkAuth);
+                if (!window.GraceAuth) {
+                    console.error('[Admin] Auth module failed to load after 5 seconds');
+                    document.getElementById('authGuard').querySelector('p').textContent = 
+                        'Error loading authentication. Please refresh the page.';
+                }
+            }, 5000);
         });
     </script>
 </body>

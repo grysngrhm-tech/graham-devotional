@@ -10,7 +10,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=IM+Fell+English:ital@0;1&family=Inter:wght@300;400;500;600&family=Playfair+Display:wght@400;500;600&display=swap" rel="stylesheet">
     
-    <link rel="stylesheet" href="styles.css?v=14">
+    <link rel="stylesheet" href="styles.css?v=15">
     
     <!-- PWA -->
     <link rel="manifest" href="manifest.json">
@@ -58,13 +58,6 @@
                     </button>
                     <div class="auth-controls" id="authControls">
                         <button class="auth-btn" id="signInBtn" title="Sign in to save favorites and track progress">Sign In</button>
-                        <a href="admin.html" class="admin-btn" id="adminBtn" style="display: none;" title="Admin Panel">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-                                <path d="M12 8v4"/>
-                                <path d="M12 16h.01"/>
-                            </svg>
-                        </a>
                         <button class="settings-btn" id="settingsBtn" style="display: none;" title="Settings">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <circle cx="12" cy="12" r="3"/>
@@ -187,6 +180,10 @@
                 <button class="auth-submit" id="sendMagicLink">Send Magic Link</button>
             </div>
             <p class="auth-status" id="authStatus"></p>
+            <p class="pwa-hint" id="pwaHint" style="display: none;">
+                After clicking the link in your email, return here and tap the button below.
+            </p>
+            <button class="auth-check-status" id="checkLoginStatus" style="display: none;">Check Login Status</button>
         </div>
     </div>
 
@@ -224,6 +221,17 @@
                     <option value="NASB">New American Standard</option>
                     <option value="WEB">World English Bible</option>
                 </select>
+            </div>
+            
+            <a href="admin.html" class="settings-admin-link" id="settingsAdminLink" style="display: none;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                </svg>
+                Admin Panel
+            </a>
+            
+            <div class="settings-user-info" id="settingsUserInfo">
+                Logged in as: <span id="settingsUserEmail"></span>
             </div>
             
             <button class="settings-signout" id="settingsSignOut">Sign Out</button>

@@ -3393,6 +3393,44 @@ body {
     color: #F44336;
 }
 
+.pwa-hint {
+    text-align: center;
+    font-family: var(--font-body);
+    font-size: 0.8125rem;
+    color: var(--color-accent);
+    margin: var(--spacing-md) 0 0 0;
+    padding: var(--spacing-sm);
+    background: rgba(212, 175, 55, 0.1);
+    border-radius: 8px;
+    line-height: 1.4;
+}
+
+.auth-check-status {
+    width: 100%;
+    padding: 12px;
+    background: var(--bg-hover);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    color: var(--text-primary);
+    font-family: var(--font-body);
+    font-size: 0.875rem;
+    font-weight: 500;
+    cursor: pointer;
+    margin-top: var(--spacing-sm);
+    transition: all 0.2s ease;
+}
+
+.auth-check-status:hover:not(:disabled) {
+    background: var(--color-accent);
+    color: var(--bg-primary);
+    border-color: var(--color-accent);
+}
+
+.auth-check-status:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
 .auth-footer {
     text-align: center;
     font-family: 'Inter', -apple-system, sans-serif;
@@ -3450,6 +3488,26 @@ body {
 .settings-btn:hover svg {
     stroke: var(--text-primary);
     transform: rotate(45deg);
+}
+
+/* Admin glow effect for settings button */
+.settings-btn.is-admin {
+    background: rgba(212, 175, 55, 0.2);
+    box-shadow: 0 0 12px rgba(212, 175, 55, 0.4), 0 0 24px rgba(212, 175, 55, 0.2);
+    animation: adminGlow 2s ease-in-out infinite alternate;
+}
+
+.settings-btn.is-admin svg {
+    stroke: var(--color-accent);
+}
+
+@keyframes adminGlow {
+    from {
+        box-shadow: 0 0 8px rgba(212, 175, 55, 0.3), 0 0 16px rgba(212, 175, 55, 0.15);
+    }
+    to {
+        box-shadow: 0 0 16px rgba(212, 175, 55, 0.5), 0 0 32px rgba(212, 175, 55, 0.25);
+    }
 }
 
 /* Admin Button */
@@ -3651,10 +3709,59 @@ body {
     border-color: #D4AF37;
 }
 
+/* Settings Admin Link */
+.settings-admin-link {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    margin-top: 24px;
+    padding: 14px 20px;
+    border: 1px solid var(--color-accent);
+    border-radius: 12px;
+    background: rgba(212, 175, 55, 0.1);
+    color: var(--color-accent);
+    font-family: var(--font-body);
+    font-size: 0.9375rem;
+    font-weight: 500;
+    text-decoration: none;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.settings-admin-link svg {
+    width: 18px;
+    height: 18px;
+    stroke: currentColor;
+}
+
+.settings-admin-link:hover {
+    background: var(--color-accent);
+    color: var(--bg-primary);
+}
+
+/* Settings User Info */
+.settings-user-info {
+    text-align: center;
+    font-family: var(--font-body);
+    font-size: 0.8125rem;
+    color: var(--text-secondary);
+    margin-top: 20px;
+    padding: 12px;
+    background: var(--bg-hover);
+    border-radius: 8px;
+}
+
+.settings-user-info span {
+    color: var(--text-primary);
+    font-weight: 500;
+}
+
 /* Settings Sign Out Button */
 .settings-signout {
     width: 100%;
-    margin-top: 24px;
+    margin-top: 12px;
     padding: 14px 20px;
     border: none;
     border-radius: 12px;

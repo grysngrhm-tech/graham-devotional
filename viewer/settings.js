@@ -123,6 +123,20 @@ const GraceSettings = (function() {
                 if (fontSizeSelect) fontSizeSelect.value = currentSettings.fontSize;
                 if (bibleVersionSelect) bibleVersionSelect.value = currentSettings.bibleVersion;
                 
+                // Update user email display
+                const userEmailEl = document.getElementById('settingsUserEmail');
+                const userInfoEl = document.getElementById('settingsUserInfo');
+                if (userEmailEl && window.GraceAuth) {
+                    const user = window.GraceAuth.getCurrentUser();
+                    userEmailEl.textContent = user?.email || 'Unknown';
+                }
+                
+                // Show/hide admin link
+                const adminLink = document.getElementById('settingsAdminLink');
+                if (adminLink && window.GraceAuth) {
+                    adminLink.style.display = window.GraceAuth.isAdmin() ? 'flex' : 'none';
+                }
+                
                 settingsModal.classList.add('visible');
             });
         }
