@@ -3704,6 +3704,170 @@ body.is-offline {
     margin: 16px 0 0 0;
 }
 
+/* ============================================================================
+   Auth Modal - OTP Code Entry (PWA Users)
+   ============================================================================ */
+
+/* View container for smooth transitions */
+.auth-view {
+    animation: authViewFadeIn 0.25s ease;
+}
+
+@keyframes authViewFadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Success icon for link sent view */
+.auth-success-icon {
+    font-size: 3rem;
+    margin-bottom: 12px;
+}
+
+/* OTP Input Container */
+.otp-container {
+    display: flex;
+    justify-content: center;
+    margin: 8px 0 16px 0;
+}
+
+/* Single input styled to look like 6 separate boxes */
+.otp-input {
+    width: 100%;
+    max-width: 280px;
+    padding: 16px 12px;
+    font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+    font-size: 1.75rem;
+    font-weight: 600;
+    letter-spacing: 1.2em;
+    text-align: center;
+    background: var(--bg-card);
+    border: 2px solid var(--border-color);
+    border-radius: 12px;
+    color: var(--text-primary);
+    caret-color: var(--color-gold);
+    transition: all 0.2s ease;
+}
+
+.otp-input:focus {
+    outline: none;
+    border-color: var(--color-gold);
+    box-shadow: 0 0 0 3px rgba(201, 162, 39, 0.15);
+}
+
+.otp-input::placeholder {
+    color: var(--text-muted);
+    opacity: 0.3;
+    letter-spacing: 1.2em;
+}
+
+.otp-input:disabled {
+    opacity: 0.6;
+    background: var(--bg-hover);
+}
+
+/* Auth action buttons row */
+.auth-actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 8px;
+}
+
+.auth-back,
+.auth-resend {
+    padding: 10px 16px;
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    font-family: var(--font-body);
+    font-size: 0.875rem;
+    font-weight: 500;
+    cursor: pointer;
+    border-radius: 8px;
+    transition: all 0.15s ease;
+}
+
+.auth-back:hover {
+    color: var(--text-primary);
+    background: rgba(128, 128, 128, 0.1);
+}
+
+.auth-resend:hover:not(:disabled) {
+    color: var(--color-gold);
+    background: rgba(201, 162, 39, 0.1);
+}
+
+.auth-resend:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* Back to email link (link sent view) */
+.auth-back-link {
+    width: 100%;
+    padding: 10px;
+    border: none;
+    background: transparent;
+    color: var(--text-muted);
+    font-family: var(--font-body);
+    font-size: 0.8125rem;
+    cursor: pointer;
+    margin-top: 8px;
+    transition: color 0.15s ease;
+}
+
+.auth-back-link:hover {
+    color: var(--text-secondary);
+}
+
+/* Hint text */
+.auth-hint {
+    text-align: center;
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+    margin: 0 0 16px 0;
+    line-height: 1.5;
+}
+
+/* Error message */
+.auth-error {
+    text-align: center;
+    font-size: 0.875rem;
+    color: #F44336;
+    margin: 12px 0 0 0;
+    padding: 8px 12px;
+    background: rgba(244, 67, 54, 0.1);
+    border-radius: 8px;
+}
+
+/* Shake animation for invalid code */
+@keyframes authShake {
+    0%, 100% { transform: translateX(0); }
+    10%, 30%, 50%, 70%, 90% { transform: translateX(-4px); }
+    20%, 40%, 60%, 80% { transform: translateX(4px); }
+}
+
+#authCodeView.shake {
+    animation: authShake 0.5s ease;
+}
+
+#authCodeView.shake .otp-input {
+    border-color: #F44336;
+}
+
+/* Success state */
+#authCodeView.success .otp-input {
+    border-color: #4CAF50;
+    background: rgba(76, 175, 80, 0.1);
+}
+
 /* Mobile adjustments for auth modal */
 @media (max-width: 768px) {
     .auth-modal-content {
@@ -3719,6 +3883,22 @@ body.is-offline {
     .auth-submit {
         padding: 12px 14px;
         font-size: 0.9375rem;
+    }
+    
+    .otp-input {
+        font-size: 1.5rem;
+        padding: 14px 10px;
+        letter-spacing: 1em;
+    }
+    
+    .auth-actions {
+        flex-direction: column;
+        gap: 8px;
+    }
+    
+    .auth-back,
+    .auth-resend {
+        width: 100%;
     }
 }
 

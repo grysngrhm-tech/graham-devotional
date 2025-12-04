@@ -195,6 +195,89 @@ async function signInWithMagicLink(email) {
 }
 
 /**
+ * Send OTP code to email address (for PWA users)
+ * Unlike magic link, this sends a 6-digit code that user enters manually
+ * @param {string} email - User's email address
+ * @returns {Promise<{success: boolean, error?: string}>}
+ */
+async function sendOTPCode(email) {
+    if (!email || !email.includes('@')) {
+        return { success: false, error: 'Please enter a valid email address' };
+    }
+    
+    try {
+        // Don't include emailRedirectTo - this makes Supabase send a code instead of link
+        const { error } = await supabase.auth.signInWithOtp({
+            email: email,
+            options: {
+                shouldCreateUser: true
+            }
+        });
+        
+        if (error) {
+            console.error('[Auth] OTP send error:', error);
+            return { success: false, error: error.message };
+        }
+        
+        return { success: true };
+    } catch (err) {
+        console.error('[Auth] OTP send error:', err);
+        return { success: false, error: 'An error occurred. Please try again.' };
+    }
+}
+
+/**
+ * Verify OTP code entered by user
+ * @param {string} email - User's email address
+ * @param {string} code - 6-digit OTP code
+ * @returns {Promise<{success: boolean, error?: string}>}
+ */
+async function verifyOTPCode(email, code) {
+    if (!email || !code) {
+        return { success: false, error: 'Email and code are required' };
+    }
+    
+    // Clean the code - remove spaces and non-digits
+    const cleanCode = code.replace(/\D/g, '');
+    
+    if (cleanCode.length !== 6) {
+        return { success: false, error: 'Please enter a 6-digit code' };
+    }
+    
+    try {
+        const { data, error } = await supabase.auth.verifyOtp({
+            email: email,
+            token: cleanCode,
+            type: 'email'
+        });
+        
+        if (error) {
+            console.error('[Auth] OTP verify error:', error);
+            // User-friendly error messages
+            if (error.message.includes('expired')) {
+                return { success: false, error: 'Code expired. Please request a new one.' };
+            }
+            if (error.message.includes('invalid')) {
+                return { success: false, error: 'Invalid code. Please try again.' };
+            }
+            return { success: false, error: error.message };
+        }
+        
+        if (data?.user) {
+            currentUser = data.user;
+            await loadUserProfile();
+            notifyAuthListeners({ isAuthenticated: true, user: currentUser });
+            return { success: true };
+        }
+        
+        return { success: false, error: 'Verification failed. Please try again.' };
+    } catch (err) {
+        console.error('[Auth] OTP verify error:', err);
+        return { success: false, error: 'An error occurred. Please try again.' };
+    }
+}
+
+/**
  * Sign out current user
  */
 async function signOut() {
@@ -377,24 +460,9 @@ function showAuthModal() {
     const modal = document.getElementById('authModal');
     if (modal) {
         modal.classList.add('visible');
-        const emailInput = document.getElementById('authEmail');
-        if (emailInput) {
-            emailInput.value = '';
-            emailInput.disabled = false;
-            setTimeout(() => emailInput.focus(), 150);
-        }
-        // Clear any previous status
-        const status = document.getElementById('authStatus');
-        if (status) {
-            status.textContent = '';
-            status.className = 'auth-status';
-        }
-        // Reset send button
-        const sendBtn = document.getElementById('sendMagicLink');
-        if (sendBtn) {
-            sendBtn.disabled = false;
-            sendBtn.textContent = 'Send Magic Link';
-        }
+        // Reset to email entry state
+        setAuthModalState('email');
+        hideAuthError();
     }
 }
 
@@ -406,17 +474,30 @@ function hideAuthModal() {
     if (modal) {
         modal.classList.remove('visible');
     }
+    // Clear resend timer
+    if (resendTimer) {
+        clearInterval(resendTimer);
+        resendTimer = null;
+    }
 }
 
 /**
  * Setup auth modal event handlers
  */
+// Auth modal state
+let authModalState = 'email'; // 'email' | 'code_sent' | 'link_sent' | 'verifying'
+let pendingEmail = '';
+let resendTimer = null;
+let resendCountdown = 0;
+
 function setupAuthModal() {
     const modal = document.getElementById('authModal');
     const signInBtn = document.getElementById('signInBtn');
     const closeBtn = document.getElementById('authClose');
-    const sendLinkBtn = document.getElementById('sendMagicLink');
+    const continueBtn = document.getElementById('sendMagicLink');
     const emailInput = document.getElementById('authEmail');
+    const backBtn = document.getElementById('authBack');
+    const resendBtn = document.getElementById('authResend');
     
     // Open modal
     if (signInBtn) {
@@ -437,25 +518,48 @@ function setupAuthModal() {
         });
     }
     
-    // Send magic link
-    if (sendLinkBtn) {
-        sendLinkBtn.addEventListener('click', handleSendMagicLink);
+    // Continue button (sends magic link or OTP based on context)
+    if (continueBtn) {
+        continueBtn.addEventListener('click', handleAuthContinue);
     }
     
     // Enter key in email input
     if (emailInput) {
         emailInput.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') {
-                handleSendMagicLink();
+                handleAuthContinue();
             }
         });
     }
     
-    // Check login status button (for PWA users)
+    // Back button (returns to email entry from code view)
+    if (backBtn) {
+        backBtn.addEventListener('click', () => {
+            setAuthModalState('email');
+        });
+    }
+    
+    // Back to email button (from link sent view)
+    const backToEmailBtn = document.getElementById('authBackToEmail');
+    if (backToEmailBtn) {
+        backToEmailBtn.addEventListener('click', () => {
+            setAuthModalState('email');
+        });
+    }
+    
+    // Resend code button
+    if (resendBtn) {
+        resendBtn.addEventListener('click', handleResendCode);
+    }
+    
+    // Check login status button (for browser users after magic link)
     const checkStatusBtn = document.getElementById('checkLoginStatus');
     if (checkStatusBtn) {
         checkStatusBtn.addEventListener('click', checkLoginStatus);
     }
+    
+    // Setup OTP input behavior
+    setupOTPInput();
     
     // Escape to close
     document.addEventListener('keydown', (e) => {
@@ -466,67 +570,310 @@ function setupAuthModal() {
 }
 
 /**
- * Handle sending magic link
+ * Setup OTP input with auto-advance, paste support, and auto-submit
  */
-async function handleSendMagicLink() {
-    const emailInput = document.getElementById('authEmail');
-    const status = document.getElementById('authStatus');
-    const sendBtn = document.getElementById('sendMagicLink');
-    const pwaHint = document.getElementById('pwaHint');
-    const checkStatusBtn = document.getElementById('checkLoginStatus');
+function setupOTPInput() {
+    const otpInput = document.getElementById('otpInput');
+    if (!otpInput) return;
     
-    if (!emailInput || !status) return;
+    // Handle input
+    otpInput.addEventListener('input', (e) => {
+        // Only allow digits
+        let value = e.target.value.replace(/\D/g, '');
+        
+        // Limit to 6 digits
+        if (value.length > 6) {
+            value = value.substring(0, 6);
+        }
+        
+        otpInput.value = value;
+        
+        // Auto-submit when 6 digits entered
+        if (value.length === 6) {
+            handleVerifyCode();
+        }
+    });
+    
+    // Handle paste
+    otpInput.addEventListener('paste', (e) => {
+        e.preventDefault();
+        const pastedText = (e.clipboardData || window.clipboardData).getData('text');
+        const digits = pastedText.replace(/\D/g, '').substring(0, 6);
+        otpInput.value = digits;
+        
+        if (digits.length === 6) {
+            handleVerifyCode();
+        }
+    });
+    
+    // Handle keydown for better UX
+    otpInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && otpInput.value.length === 6) {
+            handleVerifyCode();
+        }
+    });
+}
+
+/**
+ * Set auth modal state and update UI accordingly
+ */
+function setAuthModalState(state) {
+    authModalState = state;
+    
+    const emailView = document.getElementById('authEmailView');
+    const codeView = document.getElementById('authCodeView');
+    const linkSentView = document.getElementById('authLinkSentView');
+    const modal = document.getElementById('authModal');
+    const codeEmail = document.getElementById('codeEmail');
+    const otpInput = document.getElementById('otpInput');
+    const resendBtn = document.getElementById('authResend');
+    
+    // Clear any existing timers
+    if (resendTimer) {
+        clearInterval(resendTimer);
+        resendTimer = null;
+    }
+    
+    // Hide all views
+    if (emailView) emailView.style.display = 'none';
+    if (codeView) codeView.style.display = 'none';
+    if (linkSentView) linkSentView.style.display = 'none';
+    
+    // Update modal data attribute for CSS transitions
+    if (modal) modal.dataset.state = state;
+    
+    switch (state) {
+        case 'email':
+            if (emailView) emailView.style.display = 'block';
+            const emailInput = document.getElementById('authEmail');
+            if (emailInput) {
+                emailInput.disabled = false;
+                emailInput.value = pendingEmail || '';
+                emailInput.focus();
+            }
+            const continueBtn = document.getElementById('sendMagicLink');
+            if (continueBtn) {
+                continueBtn.disabled = false;
+                continueBtn.textContent = 'Continue';
+            }
+            break;
+            
+        case 'code_sent':
+            if (codeView) codeView.style.display = 'block';
+            if (codeEmail) codeEmail.textContent = pendingEmail;
+            if (otpInput) {
+                otpInput.value = '';
+                otpInput.disabled = false;
+                setTimeout(() => otpInput.focus(), 100);
+            }
+            // Start resend countdown (30 seconds)
+            startResendCountdown(30);
+            break;
+            
+        case 'link_sent':
+            if (linkSentView) linkSentView.style.display = 'block';
+            const linkEmail = document.getElementById('linkEmail');
+            if (linkEmail) linkEmail.textContent = pendingEmail;
+            break;
+            
+        case 'verifying':
+            if (otpInput) otpInput.disabled = true;
+            break;
+    }
+}
+
+/**
+ * Start countdown for resend button
+ */
+function startResendCountdown(seconds) {
+    resendCountdown = seconds;
+    const resendBtn = document.getElementById('authResend');
+    
+    if (resendBtn) {
+        resendBtn.disabled = true;
+        resendBtn.textContent = `Resend in ${resendCountdown}s`;
+    }
+    
+    resendTimer = setInterval(() => {
+        resendCountdown--;
+        
+        if (resendCountdown <= 0) {
+            clearInterval(resendTimer);
+            resendTimer = null;
+            if (resendBtn) {
+                resendBtn.disabled = false;
+                resendBtn.textContent = 'Resend code';
+            }
+        } else if (resendBtn) {
+            resendBtn.textContent = `Resend in ${resendCountdown}s`;
+        }
+    }, 1000);
+}
+
+/**
+ * Handle continue button - sends OTP for PWA, magic link for browser
+ */
+async function handleAuthContinue() {
+    const emailInput = document.getElementById('authEmail');
+    const continueBtn = document.getElementById('sendMagicLink');
+    const errorEl = document.getElementById('authError');
+    
+    if (!emailInput) return;
     
     const email = emailInput.value.trim();
     
+    // Validate email
     if (!email) {
-        status.textContent = 'Please enter your email address';
-        status.className = 'auth-status error';
+        showAuthError('Please enter your email address');
         emailInput.focus();
         return;
     }
     
     if (!email.includes('@')) {
-        status.textContent = 'Please enter a valid email address';
-        status.className = 'auth-status error';
+        showAuthError('Please enter a valid email address');
         return;
     }
     
-    // Disable button and show loading
-    if (sendBtn) {
-        sendBtn.disabled = true;
-        sendBtn.textContent = 'Sending...';
+    // Store email for later use
+    pendingEmail = email;
+    
+    // Show loading state
+    if (continueBtn) {
+        continueBtn.disabled = true;
+        continueBtn.textContent = 'Sending...';
     }
+    hideAuthError();
     
-    const result = await signInWithMagicLink(email);
-    
-    if (result.success) {
-        status.textContent = 'Check your email for a magic link!';
-        status.className = 'auth-status success';
-        emailInput.disabled = true;
-        if (sendBtn) {
-            sendBtn.textContent = 'Link Sent!';
-        }
+    // Determine flow based on PWA detection
+    if (isPWA()) {
+        // PWA: Send OTP code
+        const result = await sendOTPCode(email);
         
-        // Show PWA hint and check login button for PWA users (always) or mobile web users
-        // PWA users can't use magic links directly since they open in browser
-        if (isPWA()) {
-            // Always show for PWA users regardless of viewport size
-            if (pwaHint) pwaHint.style.display = 'block';
-            if (checkStatusBtn) checkStatusBtn.style.display = 'block';
-        } else if (isMobile()) {
-            // Show check button on mobile web too (helpful for mobile browsers)
-            if (checkStatusBtn) checkStatusBtn.style.display = 'block';
+        if (result.success) {
+            setAuthModalState('code_sent');
+        } else {
+            showAuthError(result.error || 'Error sending code');
+            if (continueBtn) {
+                continueBtn.disabled = false;
+                continueBtn.textContent = 'Continue';
+            }
         }
     } else {
-        status.textContent = result.error || 'Error sending link';
-        status.className = 'auth-status error';
-        if (sendBtn) {
-            sendBtn.disabled = false;
-            sendBtn.textContent = 'Send Magic Link';
+        // Browser: Send magic link
+        const result = await signInWithMagicLink(email);
+        
+        if (result.success) {
+            setAuthModalState('link_sent');
+        } else {
+            showAuthError(result.error || 'Error sending link');
+            if (continueBtn) {
+                continueBtn.disabled = false;
+                continueBtn.textContent = 'Continue';
+            }
         }
     }
 }
+
+/**
+ * Handle OTP code verification
+ */
+async function handleVerifyCode() {
+    const otpInput = document.getElementById('otpInput');
+    const codeView = document.getElementById('authCodeView');
+    
+    if (!otpInput || !pendingEmail) return;
+    
+    const code = otpInput.value.trim();
+    
+    if (code.length !== 6) {
+        showAuthError('Please enter the 6-digit code');
+        return;
+    }
+    
+    // Show verifying state
+    setAuthModalState('verifying');
+    hideAuthError();
+    
+    const result = await verifyOTPCode(pendingEmail, code);
+    
+    if (result.success) {
+        // Success! Show brief feedback then close
+        if (codeView) codeView.classList.add('success');
+        
+        setTimeout(() => {
+            hideAuthModal();
+            // Reset state for next time
+            pendingEmail = '';
+            authModalState = 'email';
+            // Reload to refresh user data
+            window.location.reload();
+        }, 800);
+    } else {
+        // Error - shake and reset input
+        if (codeView) {
+            codeView.classList.add('shake');
+            setTimeout(() => codeView.classList.remove('shake'), 500);
+        }
+        
+        showAuthError(result.error || 'Invalid code');
+        setAuthModalState('code_sent');
+        
+        // Clear and refocus input
+        if (otpInput) {
+            otpInput.value = '';
+            setTimeout(() => otpInput.focus(), 100);
+        }
+    }
+}
+
+/**
+ * Handle resend code button
+ */
+async function handleResendCode() {
+    const resendBtn = document.getElementById('authResend');
+    
+    if (!pendingEmail || resendCountdown > 0) return;
+    
+    if (resendBtn) {
+        resendBtn.disabled = true;
+        resendBtn.textContent = 'Sending...';
+    }
+    
+    const result = await sendOTPCode(pendingEmail);
+    
+    if (result.success) {
+        startResendCountdown(30);
+    } else {
+        showAuthError(result.error || 'Error resending code');
+        if (resendBtn) {
+            resendBtn.disabled = false;
+            resendBtn.textContent = 'Resend code';
+        }
+    }
+}
+
+/**
+ * Show error message in auth modal
+ */
+function showAuthError(message) {
+    const errorEl = document.getElementById('authError');
+    if (errorEl) {
+        errorEl.textContent = message;
+        errorEl.style.display = 'block';
+    }
+}
+
+/**
+ * Hide error message in auth modal
+ */
+function hideAuthError() {
+    const errorEl = document.getElementById('authError');
+    if (errorEl) {
+        errorEl.textContent = '';
+        errorEl.style.display = 'none';
+    }
+}
+
 
 /**
  * Check login status - useful for PWA users after clicking magic link in browser
@@ -980,6 +1327,8 @@ window.GraceAuth = {
     
     // Auth actions
     signInWithMagicLink,
+    sendOTPCode,
+    verifyOTPCode,
     signOut,
     checkLoginStatus,
     
@@ -1020,4 +1369,5 @@ window.GraceAuth = {
     syncLibrary,
     clearLibrary
 };
+
 

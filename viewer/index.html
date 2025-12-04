@@ -24,7 +24,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=IM+Fell+English:ital@0;1&family=Inter:wght@300;400;500;600&family=Playfair+Display:ital,opsz,wght@0,8..72,400;0,8..72,500;0,8..72,600;0,8..72,700;1,8..72,400&family=Source+Serif+4:ital,opsz,wght@0,8..60,300;0,8..60,400;0,8..60,500;1,8..60,400&display=swap" rel="stylesheet">
     
-    <link rel="stylesheet" href="styles.css?v=21">
+    <link rel="stylesheet" href="styles.css?v=22">
     
     <!-- PWA -->
     <link rel="manifest" href="manifest.json">
@@ -531,24 +531,62 @@
          ============================================================================ -->
 
     <!-- Auth Modal -->
-    <div class="auth-modal" id="authModal">
+    <div class="auth-modal" id="authModal" data-state="email">
         <div class="auth-modal-content">
             <button class="auth-close" id="authClose">&times;</button>
-            <div class="auth-header">
-                <h2>Sign In</h2>
-                <p>Enter your email to receive a magic link</p>
+            
+            <!-- View 1: Email Entry (initial state) -->
+            <div class="auth-view" id="authEmailView">
+                <div class="auth-header">
+                    <h2>Sign In</h2>
+                    <p>Enter your email to continue</p>
+                </div>
+                <div class="auth-form">
+                    <input type="email" id="authEmail" placeholder="you@example.com" autocomplete="email">
+                    <button class="auth-submit" id="sendMagicLink">Continue</button>
+                    <p class="auth-legal">By signing in, you agree to our <a href="privacy.html" target="_blank">Privacy Policy</a> and <a href="terms.html" target="_blank">Terms of Service</a></p>
+                </div>
             </div>
-            <div class="auth-form">
-                <input type="email" id="authEmail" placeholder="you@example.com" autocomplete="email">
-                <button class="auth-submit" id="sendMagicLink">Send Magic Link</button>
-                <p class="auth-legal">By signing in, you agree to our <a href="privacy.html" target="_blank">Privacy Policy</a> and <a href="terms.html" target="_blank">Terms of Service</a></p>
+            
+            <!-- View 2: OTP Code Entry (PWA users) -->
+            <div class="auth-view" id="authCodeView" style="display: none;">
+                <div class="auth-header">
+                    <h2>Enter Code</h2>
+                    <p>We sent a 6-digit code to<br><strong id="codeEmail"></strong></p>
+                </div>
+                <div class="auth-form">
+                    <div class="otp-container">
+                        <input type="text" 
+                               id="otpInput" 
+                               class="otp-input" 
+                               inputmode="numeric" 
+                               maxlength="6" 
+                               autocomplete="one-time-code"
+                               placeholder="000000">
+                    </div>
+                    <div class="auth-actions">
+                        <button class="auth-back" id="authBack">← Back</button>
+                        <button class="auth-resend" id="authResend" disabled>Resend in 30s</button>
+                    </div>
+                </div>
             </div>
-            <p class="auth-status" id="authStatus"></p>
-            <div class="pwa-hint" id="pwaHint" style="display: none;">
-                <p><strong>PWA Login:</strong> The login link will open in your browser. After logging in there, return here and tap the button below.</p>
-                <p class="pwa-hint-alt">Alternatively, log in using your browser and add the site to your home screen after logging in.</p>
+            
+            <!-- View 3: Magic Link Sent (browser users) -->
+            <div class="auth-view" id="authLinkSentView" style="display: none;">
+                <div class="auth-header">
+                    <div class="auth-success-icon">✉️</div>
+                    <h2>Check Your Email</h2>
+                    <p>We sent a magic link to<br><strong id="linkEmail"></strong></p>
+                </div>
+                <div class="auth-form">
+                    <p class="auth-hint">Click the link in your email to sign in. You can close this window.</p>
+                    <button class="auth-check-status" id="checkLoginStatus">I've clicked the link</button>
+                    <button class="auth-back-link" id="authBackToEmail">Use a different email</button>
+                </div>
             </div>
-            <button class="auth-check-status" id="checkLoginStatus" style="display: none;">Check Login Status</button>
+            
+            <!-- Error message (shared across views) -->
+            <p class="auth-error" id="authError" style="display: none;"></p>
         </div>
     </div>
 
@@ -645,7 +683,7 @@
     <script src="lib/supabase.min.js"></script>
     <script src="config.js"></script>
     <script src="offline.js?v=1"></script>
-    <script src="auth.js?v=6"></script>
+    <script src="auth.js?v=7"></script>
     <script src="settings.js?v=2"></script>
     <script src="router.js?v=2"></script>
     <script src="app.js?v=23"></script>
