@@ -52,32 +52,48 @@ async function initAuth() {
         return null;
     }
     
-    // Check for existing session
+    // Check for existing session with timeout (tracking prevention can cause hangs)
     console.log('[Auth] Checking for existing session...');
-    const { data: { session } } = await sb.auth.getSession();
-    console.log('[Auth] Session check complete:', session ? 'logged in' : 'not logged in');
+    let session = null;
+    try {
+        const sessionPromise = sb.auth.getSession();
+        const timeoutPromise = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Session check timeout')), 5000)
+        );
+        const result = await Promise.race([sessionPromise, timeoutPromise]);
+        session = result?.data?.session;
+        console.log('[Auth] Session check complete:', session ? 'logged in' : 'not logged in');
+    } catch (err) {
+        console.warn('[Auth] Session check failed (possibly blocked by tracking prevention):', err.message);
+        console.warn('[Auth] Continuing without authentication. To enable login, disable tracking prevention for this site.');
+    }
     
     if (session?.user) {
         await setCurrentUser(session.user);
     }
     
     // Listen for auth state changes (login, logout, token refresh)
-    sb.auth.onAuthStateChange(async (event, session) => {
-        console.log('[Auth] State change:', event);
-        
-        if (event === 'SIGNED_IN' && session?.user) {
-            await setCurrentUser(session.user);
-            updateAuthUI();
-            notifyAuthStateListeners();
-        } else if (event === 'SIGNED_OUT') {
-            currentUser = null;
-            userProfile = null;
-            updateAuthUI();
-            notifyAuthStateListeners();
-        } else if (event === 'TOKEN_REFRESHED' && session?.user) {
-            currentUser = session.user;
-        }
-    });
+    // Wrap in try-catch in case storage is blocked
+    try {
+        sb.auth.onAuthStateChange(async (event, session) => {
+            console.log('[Auth] State change:', event);
+            
+            if (event === 'SIGNED_IN' && session?.user) {
+                await setCurrentUser(session.user);
+                updateAuthUI();
+                notifyAuthStateListeners();
+            } else if (event === 'SIGNED_OUT') {
+                currentUser = null;
+                userProfile = null;
+                updateAuthUI();
+                notifyAuthStateListeners();
+            } else if (event === 'TOKEN_REFRESHED' && session?.user) {
+                currentUser = session.user;
+            }
+        });
+    } catch (err) {
+        console.warn('[Auth] Could not set up auth state listener:', err.message);
+    }
     
     // Update UI based on initial state
     updateAuthUI();
