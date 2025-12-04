@@ -174,12 +174,15 @@ regeneration_requests (
 
 | File | Purpose | Key Functions |
 |------|---------|---------------|
-| `app.js` | Main app logic | Stories, filters, rendering |
+| `app.js` | Main app logic | Stories, filters, rendering, SPA views |
+| `router.js` | SPA routing | Hash-based navigation, route handling |
 | `auth.js` | Authentication | Magic links, sessions, roles |
 | `settings.js` | User preferences | Theme, font size, Bible version |
 | `config.js` | Configuration | Supabase URL/key, n8n webhook |
 | `admin.html` | Admin dashboard | Stats, user data, modals |
 | `sw.js` | Service worker | Caching, offline support |
+| `lib/supabase.min.js` | Supabase client | Self-hosted to avoid tracking blocks |
+| `data/all-spreads.json` | Fallback data | Static story data if Supabase fails |
 
 ### Viewer Flow
 
@@ -191,24 +194,54 @@ Service Worker checks cache
 HTML loads (network-first)
     ↓
 Scripts load:
-    1. config.js (Supabase config)
-    2. settings.js (user preferences)
+    1. lib/supabase.min.js (Supabase client - self-hosted)
+    2. config.js (Supabase config)
     3. auth.js (authentication)
-    4. app.js (main logic)
+    4. settings.js (user preferences)
+    5. router.js (SPA routing)
+    6. app.js (main logic)
+    ↓
+router.js initializes:
+    - Parse current URL hash
+    - Set up hashchange listener
+    - Notify app.js of initial route
     ↓
 auth.js initializes:
-    - Check existing session
+    - Check existing session (with timeout for blocked storage)
     - Load user profile (including is_admin)
     - Set up auth state change listener
     ↓
 app.js initializes:
     - Apply theme from settings
     - Register service worker
-    - Page-specific init (index/spread/admin)
+    - Handle route (show home or story view)
     ↓
-Supabase queries for data
+Supabase queries for data (with fallback to static JSON)
     ↓
-Render UI based on auth state
+Render UI based on auth state and route
+```
+
+### SPA Navigation
+
+```javascript
+// Navigate to a story
+window.GraceRouter.navigate('#/story/GEN-001');
+
+// Navigate home
+window.GraceRouter.navigateHome();
+
+// Get current route
+const route = window.GraceRouter.getCurrentRoute();
+// Returns: { type: 'home' } or { type: 'story', id: 'GEN-001' }
+
+// Listen for route changes
+window.GraceRouter.onRouteChange((newRoute, prevRoute) => {
+    if (newRoute.type === 'story') {
+        showStoryView(newRoute.id);
+    } else {
+        showHomeView();
+    }
+});
 ```
 
 ### Key Functions in app.js
@@ -449,15 +482,53 @@ function updateAdminUI() {
 When deploying changes:
 
 ```html
-<!-- In index.html and spread.html -->
-<link rel="stylesheet" href="styles.css?v=17">
-<script src="app.js?v=17"></script>
+<!-- In index.html -->
+<link rel="stylesheet" href="styles.css?v=20">
+<script src="app.js?v=22"></script>
+<script src="auth.js?v=5"></script>
+<script src="router.js?v=2"></script>
 ```
 
 ```javascript
 // In sw.js
-const CACHE_NAME = 'graham-bible-v2';
+const CACHE_NAME = 'graham-bible-v6';
 ```
+
+### Maintaining Self-Hosted Libraries
+
+**Supabase Library (`lib/supabase.min.js`):**
+
+Update when Supabase releases security fixes or needed features:
+
+```bash
+# PowerShell
+Invoke-WebRequest -Uri "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js" -OutFile "viewer\lib\supabase.min.js"
+
+# Bash
+curl -o viewer/lib/supabase.min.js https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js
+```
+
+**Why Self-Hosted?**
+Browser tracking prevention (Edge, Firefox, Safari, Brave) blocks third-party CDN scripts from accessing localStorage. Self-hosting makes it "first-party".
+
+### Maintaining Fallback Data
+
+**Static JSON (`data/all-spreads.json`):**
+
+Update when story outlines change:
+
+```bash
+# PowerShell
+Copy-Item "data\all-spreads.json" -Destination "viewer\data\all-spreads.json"
+
+# Bash
+cp data/all-spreads.json viewer/data/all-spreads.json
+```
+
+**When to update:**
+- New stories added
+- Story metadata changes (titles, references)
+- NOT needed for image/status updates (those come from Supabase)
 
 ### Testing PWA
 
@@ -581,18 +652,49 @@ git push origin main
 - Check browser console for auth-related errors
 - Clear localStorage and try again
 
+### If App Hangs or Shows Blank Page
+
+**Symptom:** Skeleton cards show but stories never load
+
+**Cause:** Browser tracking prevention blocking localStorage access
+
+**Solution:** This is fixed by self-hosting Supabase. If issue recurs:
+1. Verify `lib/supabase.min.js` exists and loads
+2. Check console for "Tracking Prevention blocked" errors
+3. Verify script tag in index.html points to local file, not CDN
+4. Test in private/incognito window
+
+**Technical Background:**
+- Browsers block third-party scripts (CDNs) from localStorage
+- Supabase uses localStorage for auth tokens
+- Self-hosted scripts are "first-party" and unrestricted
+- Fallback data loading ensures stories show even if Supabase fails
+
 ---
 
 ## Quick Reference
 
 ### Key Files
 - `viewer/app.js` — Main application logic
+- `viewer/router.js` — Hash-based SPA routing
 - `viewer/auth.js` — Authentication logic
 - `viewer/settings.js` — User preferences
 - `viewer/styles.css` — All styling
 - `viewer/config.js` — Supabase/n8n config
 - `viewer/admin.html` — Admin dashboard
 - `viewer/sw.js` — Service worker
+- `viewer/lib/supabase.min.js` — Self-hosted Supabase client
+- `viewer/data/all-spreads.json` — Fallback story data
+
+### URL Structure (Hash-Based Routing)
+- Home: `https://www.grahambible.com/` or `/#/`
+- Story: `https://www.grahambible.com/#/story/GEN-001`
+
+### Files That Need Sync
+| Source | Deployed Copy | Sync Trigger |
+|--------|---------------|--------------|
+| CDN supabase-js | `viewer/lib/supabase.min.js` | Security updates |
+| `data/all-spreads.json` | `viewer/data/all-spreads.json` | Story changes |
 
 ### Key IDs (HTML)
 - `#mainHeader` — Sticky header

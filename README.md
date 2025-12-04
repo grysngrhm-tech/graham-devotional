@@ -115,21 +115,34 @@ For implementation details, see [docs/VIEWER.md](docs/VIEWER.md).
 ```
 graham-devotional/
 ├── viewer/                    # Static web viewer (PWA)
-│   ├── index.html            # Homepage grid
-│   ├── spread.html           # Individual story view
+│   ├── index.html            # Single-page application (SPA)
 │   ├── admin.html            # Admin dashboard
+│   ├── privacy.html          # Privacy Policy
+│   ├── terms.html            # Terms of Service
+│   ├── 404.html              # Custom error page
+│   ├── offline.html          # Offline fallback
 │   ├── styles.css            # All styling
 │   ├── app.js                # Main application logic
+│   ├── router.js             # Hash-based SPA router
 │   ├── auth.js               # Authentication logic
 │   ├── settings.js           # User preferences
 │   ├── config.js             # Supabase and n8n configuration
 │   ├── sw.js                 # Service worker
 │   ├── manifest.json         # PWA manifest
+│   ├── robots.txt            # Search engine directives
+│   ├── sitemap.xml           # SEO sitemap
+│   ├── CNAME                 # Custom domain config
+│   ├── lib/                  # Self-hosted libraries
+│   │   └── supabase.min.js   # Supabase JS client
+│   ├── data/                 # Fallback data
+│   │   └── all-spreads.json  # Static story data
 │   └── icons/                # App icons
 ├── docs/
 │   ├── SYSTEM.md             # Pipelines, database schema, troubleshooting
 │   ├── VIEWER.md             # Viewer features, UI, PWA, authentication
 │   └── CURSOR.md             # AI/Cursor development patterns
+├── data/
+│   └── all-spreads.json      # Source story outlines
 ├── supabase/
 │   └── migrations/           # Database migration SQL files
 └── README.md                 # This file

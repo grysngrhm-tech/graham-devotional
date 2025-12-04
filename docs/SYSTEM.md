@@ -376,16 +376,16 @@ CREATE POLICY "Users can manage own image selections" ON user_primary_images
 
 ### Supabase Auth Configuration
 
-**Site URL:** `https://grysngrhm-tech.github.io/graham-devotional/`
+**Site URL:** `https://www.grahambible.com`
 
 **Redirect URLs (must include):**
-- `https://grysngrhm-tech.github.io/graham-devotional/`
-- `https://grysngrhm-tech.github.io/graham-devotional/viewer/`
-- `https://grysngrhm-tech.github.io/graham-devotional/viewer/index.html`
-- `https://grysngrhm-tech.github.io/graham-devotional/viewer/spread.html`
+- `https://www.grahambible.com`
+- `https://www.grahambible.com/`
+- `https://grysngrhm-tech.github.io/graham-devotional/` (legacy/alternate)
 
 **Email Templates:**
 - Magic Link template should use `{{ .SiteURL }}` for redirect
+- Custom branding available in Supabase dashboard under Auth > Email Templates
 
 ### Making a User Admin
 
@@ -611,6 +611,12 @@ WHERE email = 'admin@example.com';
 
 | Date | Version | Changes |
 |------|---------|---------|
+| 2025-12-04 | v10.0 | Self-hosted Supabase library for tracking prevention compatibility |
+| 2025-12-04 | v9.5 | Privacy Policy, Terms of Service pages |
+| 2025-12-04 | v9.0 | SEO: robots.txt, sitemap.xml, JSON-LD, 404 page |
+| 2025-12-04 | v8.5 | Share button, dynamic Open Graph tags |
+| 2025-12-04 | v8.2 | SPA architecture with hash-based routing |
+| 2025-12-04 | v8.1 | Custom domain: www.grahambible.com |
 | 2025-12-04 | v8.0 | Rebrand to "The Graham Bible", admin tile modals |
 | 2025-12-04 | v7.0 | User accounts, favorites, read tracking, admin dashboard |
 | 2025-12-03 | v6.8 | PWA install prompt with iOS/Android detection |

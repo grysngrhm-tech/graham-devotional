@@ -6,28 +6,92 @@
 
 ## Overview
 
-The web viewer is a **Progressive Web App (PWA)** that displays devotional spreads, supports user accounts with favorites and read tracking, and provides curation tools for admins. It's deployed via GitHub Pages and connects directly to Supabase for data and authentication.
+The web viewer is a **Progressive Web App (PWA)** and **Single-Page Application (SPA)** that displays devotional spreads, supports user accounts with favorites and read tracking, and provides curation tools for admins. It's deployed via GitHub Pages with a custom domain and connects directly to Supabase for data and authentication.
 
-**Live URL:** [grysngrhm-tech.github.io/graham-devotional](https://grysngrhm-tech.github.io/graham-devotional/viewer/index.html)
+**Live URL:** [www.grahambible.com](https://www.grahambible.com)  
+**Alternate URL:** [grysngrhm-tech.github.io/graham-devotional](https://grysngrhm-tech.github.io/graham-devotional/)
 
 ---
 
 ## File Structure
 
-| File | Purpose | Lines |
-|------|---------|-------|
-| `index.html` | Homepage - grid of all spreads | ~240 |
-| `spread.html` | Individual spread view | ~340 |
-| `admin.html` | Admin dashboard | ~1100 |
-| `offline.html` | Offline fallback page | ~150 |
-| `styles.css` | All CSS styling | ~4000 |
-| `app.js` | Main application logic | ~3200 |
-| `auth.js` | Authentication logic | ~820 |
-| `settings.js` | User preferences | ~150 |
-| `config.js` | Supabase & n8n configuration | ~20 |
-| `sw.js` | Service worker for PWA | ~100 |
-| `manifest.json` | PWA manifest | ~60 |
-| `icons/` | PWA icons (7 files) | — |
+| File | Purpose |
+|------|---------|
+| `index.html` | Single-page app (home + story views) |
+| `admin.html` | Admin dashboard |
+| `privacy.html` | Privacy Policy page |
+| `terms.html` | Terms of Service page |
+| `404.html` | Custom error page |
+| `offline.html` | Offline fallback page |
+| `styles.css` | All CSS styling |
+| `app.js` | Main application logic |
+| `router.js` | Hash-based SPA router |
+| `auth.js` | Authentication logic |
+| `settings.js` | User preferences |
+| `config.js` | Supabase & n8n configuration |
+| `sw.js` | Service worker for PWA |
+| `manifest.json` | PWA manifest |
+| `robots.txt` | Search engine directives |
+| `sitemap.xml` | SEO sitemap |
+| `CNAME` | Custom domain configuration |
+| `lib/supabase.min.js` | Self-hosted Supabase client |
+| `data/all-spreads.json` | Fallback story data |
+| `icons/` | PWA icons (7 files) |
+
+---
+
+## Architecture
+
+### Single-Page Application (SPA)
+
+The viewer uses **hash-based routing** to provide a seamless single-page experience while remaining compatible with GitHub Pages (static hosting).
+
+**URL Structure:**
+- Home: `https://www.grahambible.com/` or `/#/`
+- Story: `https://www.grahambible.com/#/story/GEN-001`
+
+**Router (`router.js`):**
+```javascript
+// Routes
+{ type: 'home' }               // Homepage with story grid
+{ type: 'story', id: 'GEN-001' } // Individual story view
+
+// Navigation
+window.GraceRouter.navigate('#/story/GEN-001');
+window.GraceRouter.navigateHome();
+
+// Listen for changes
+window.GraceRouter.onRouteChange((newRoute, prevRoute) => {
+    // Handle view transitions
+});
+```
+
+**View Switching:**
+- Both views exist in `index.html` (`#homeView` and `#storyView`)
+- Router toggles visibility via `display: none/block`
+- State preserved when navigating between views
+
+### Self-Hosted Dependencies
+
+To avoid browser tracking prevention blocking third-party CDNs, the Supabase JS library is self-hosted:
+
+**Location:** `viewer/lib/supabase.min.js`
+
+**Why Self-Hosting?**
+- Browser privacy features (Edge, Firefox, Safari, Brave) block third-party scripts from accessing localStorage
+- This breaks Supabase auth and can hang data loading
+- Self-hosted scripts are "first-party" and never blocked
+
+### Fallback Data Loading
+
+If Supabase is unreachable, the app falls back to static JSON data:
+
+**Location:** `viewer/data/all-spreads.json`
+
+**Flow:**
+1. Try loading from Supabase (live data with images, status)
+2. If failed, load from static JSON (basic story info)
+3. If both fail, show error with retry button
 
 ---
 
@@ -647,7 +711,93 @@ const CACHE_NAME = 'graham-bible-v1';
 
 Push to `main` branch — GitHub Pages auto-deploys.
 
-Site available at: `https://grysngrhm-tech.github.io/graham-devotional/viewer/`
+**Primary URL:** `https://www.grahambible.com`  
+**Alternate URL:** `https://grysngrhm-tech.github.io/graham-devotional/`
+
+---
+
+## SEO & Social Sharing
+
+### Search Engine Optimization
+
+**robots.txt:**
+```
+User-agent: *
+Allow: /
+Sitemap: https://www.grahambible.com/sitemap.xml
+```
+
+**sitemap.xml:**
+- Lists the homepage URL
+- Note: Hash-based URLs (`/#/story/...`) are not indexed by search engines
+- For full story indexing, server-side rendering would be needed
+
+**JSON-LD Structured Data:**
+```json
+{
+  "@type": "WebSite",
+  "name": "The Graham Bible",
+  "url": "https://www.grahambible.com",
+  "description": "An illustrated devotional Bible..."
+}
+```
+
+### Social Sharing
+
+**Open Graph Tags (Dynamic):**
+- Home page: Default site metadata
+- Story pages: Dynamic title, description, image based on story
+- Updated via JavaScript when navigating to story
+
+**Share Button:**
+- Uses Web Share API on mobile (native share sheet)
+- Falls back to copy-to-clipboard on desktop
+- Located in story header next to audio controls
+
+---
+
+## Maintenance Tasks
+
+### When to Update Files
+
+| File | Update When | How |
+|------|-------------|-----|
+| `lib/supabase.min.js` | Supabase releases security fixes or needed features | Re-download from jsdelivr |
+| `data/all-spreads.json` | Story outlines change | Copy from `data/all-spreads.json` in repo root |
+| `sitemap.xml` | New static pages added | Add new `<url>` entries |
+| `sw.js` (cache version) | Any file changes | Bump `CACHE_NAME` version |
+| CSS/JS query strings | Any CSS/JS changes | Bump `?v=X` in `index.html` |
+
+### Updating Supabase Library
+
+```bash
+# Download latest version
+curl -o viewer/lib/supabase.min.js \
+  https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js
+
+# Or with PowerShell
+Invoke-WebRequest -Uri "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js" -OutFile "viewer\lib\supabase.min.js"
+```
+
+**When to update:**
+- Security vulnerabilities announced
+- New Supabase features needed
+- Breaking API changes (test thoroughly!)
+
+### Updating Fallback Data
+
+```bash
+# Copy from source
+cp data/all-spreads.json viewer/data/all-spreads.json
+
+# Or with PowerShell
+Copy-Item "data\all-spreads.json" -Destination "viewer\data\all-spreads.json"
+```
+
+**When to update:**
+- New stories added to the outline
+- Story metadata changes (titles, references)
+- Not needed for: image updates, status changes (those come from Supabase)
 
 ---
 
@@ -655,6 +805,12 @@ Site available at: `https://grysngrhm-tech.github.io/graham-devotional/viewer/`
 
 | Date | Version | Changes |
 |------|---------|---------|
+| 2025-12-04 | v10.0 | Self-hosted Supabase library, fallback data loading |
+| 2025-12-04 | v9.5 | Privacy Policy, Terms of Service, legal notices |
+| 2025-12-04 | v9.0 | SEO: robots.txt, sitemap.xml, JSON-LD structured data, 404 page |
+| 2025-12-04 | v8.5 | Share button with Web Share API, dynamic OG tags |
+| 2025-12-04 | v8.2 | SPA conversion: hash-based routing, single index.html |
+| 2025-12-04 | v8.1 | Custom domain: www.grahambible.com |
 | 2025-12-04 | v8.0 | Rebrand to "The Graham Bible", admin tile modals |
 | 2025-12-04 | v7.5 | Fix PWA login button, tagline in header |
 | 2025-12-04 | v7.4 | Admin-only status indicators, mobile PWA detection |
