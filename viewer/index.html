@@ -81,11 +81,21 @@
         </header>
 
         <!-- Tagline -->
-        <p class="tagline">An illustrated journey through 500 stories from Genesis to Revelation</p>
+        <p class="tagline">An illustrated Bible arranged story by story for a clearer, deeper journey through Scripture.</p>
 
         <main class="main-content">
             <!-- Unified Filter Section -->
             <section class="filter-section compact">
+                <!-- User Filters (logged in only) - shown first -->
+                <div class="filter-row user-filters-row" id="userFiltersRow" style="display: none;">
+                    <div class="segment-control compact" id="userFilter">
+                        <button class="segment active" data-value="all">All</button>
+                        <button class="segment" data-value="favorites">♥ Favorites</button>
+                        <button class="segment" data-value="unread">Unread</button>
+                        <button class="segment" data-value="read">Read</button>
+                    </div>
+                </div>
+                
                 <!-- Primary Row: Testament + Search + Surprise -->
                 <div class="filter-primary">
                     <div class="segment-control" id="testamentFilter">
@@ -116,16 +126,6 @@
                 <div class="filter-row book-row" id="bookFilterRow">
                     <div class="segment-control scrollable" id="bookFilter">
                         <!-- Populated dynamically by JavaScript -->
-                    </div>
-                </div>
-                
-                <!-- User Filters (logged in only) -->
-                <div class="filter-row user-filters-row" id="userFiltersRow" style="display: none;">
-                    <div class="segment-control compact" id="userFilter">
-                        <button class="segment active" data-value="all">All</button>
-                        <button class="segment" data-value="favorites">♥ Favorites</button>
-                        <button class="segment" data-value="unread">Unread</button>
-                        <button class="segment" data-value="read">Read</button>
                     </div>
                 </div>
             </section>
@@ -209,13 +209,13 @@
             <div class="setting-row">
                 <span class="setting-label">Bible Version</span>
                 <select class="setting-select" id="bibleVersionSelect">
-                    <option value="WEB">World English Bible</option>
-                    <option value="KJV">King James Version</option>
-                    <option value="NIV">New International Version</option>
+                    <option value="NIV" selected>New International Version</option>
                     <option value="ESV">English Standard Version</option>
-                    <option value="NASB">New American Standard</option>
-                    <option value="NLT">New Living Translation</option>
+                    <option value="KJV">King James Version</option>
                     <option value="NKJV">New King James Version</option>
+                    <option value="NLT">New Living Translation</option>
+                    <option value="NASB">New American Standard</option>
+                    <option value="WEB">World English Bible</option>
                 </select>
             </div>
             
@@ -228,6 +228,6 @@
     <script src="config.js"></script>
     <script src="auth.js"></script>
     <script src="settings.js"></script>
-    <script src="app.js?v=14"></script>
+    <script src="app.js?v=15"></script>
 </body>
 </html>

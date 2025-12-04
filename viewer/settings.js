@@ -10,7 +10,7 @@ const GraceSettings = (function() {
     const defaults = {
         darkMode: true,  // Dark mode is default
         fontSize: 'medium',
-        bibleVersion: 'WEB'
+        bibleVersion: 'NIV'  // NIV is a popular, readable translation
     };
     
     let currentSettings = { ...defaults };

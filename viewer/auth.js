@@ -58,6 +58,7 @@ async function setCurrentUser(user) {
     
     // Load or create user profile
     try {
+        console.log('[Auth] Loading profile for user:', user.id, user.email);
         const { data: profile, error } = await supabase
             .from('user_profiles')
             .select('*')
@@ -67,6 +68,7 @@ async function setCurrentUser(user) {
         if (error && error.code === 'PGRST116') {
             // Profile doesn't exist yet (trigger may not have fired)
             // Create it manually
+            console.log('[Auth] Profile not found, creating new profile...');
             const { data: newProfile, error: createError } = await supabase
                 .from('user_profiles')
                 .insert({ id: user.id, email: user.email })
@@ -75,15 +77,28 @@ async function setCurrentUser(user) {
             
             if (!createError) {
                 userProfile = newProfile;
+                console.log('[Auth] Created new profile:', newProfile);
+            } else {
+                console.error('[Auth] Failed to create profile:', createError);
             }
         } else if (!error) {
             userProfile = profile;
+            console.log('[Auth] Loaded existing profile:', profile);
+        } else {
+            console.error('[Auth] Error loading profile:', error);
         }
     } catch (err) {
-        console.error('[Auth] Error loading profile:', err);
+        console.error('[Auth] Exception loading profile:', err);
     }
     
-    console.log('[Auth] User set:', user.email, 'Admin:', userProfile?.is_admin);
+    // Prominent admin status logging
+    const adminStatus = userProfile?.is_admin === true;
+    console.log('%c[Auth] User: ' + user.email + ' | Admin: ' + adminStatus, 
+        adminStatus ? 'color: green; font-weight: bold' : 'color: gray');
+    
+    if (adminStatus) {
+        console.log('%c[Auth] ADMIN privileges enabled - regeneration controls will be visible', 'color: green');
+    }
 }
 
 // ============================================================================

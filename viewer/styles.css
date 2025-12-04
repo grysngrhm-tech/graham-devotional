@@ -3662,9 +3662,7 @@ body {
    ============================================================================ */
 
 .user-filters-row {
-    margin-top: var(--spacing-sm);
-    padding-top: var(--spacing-sm);
-    border-top: 1px solid var(--border-light);
+    /* No border or extra spacing - seamlessly above testament filter */
 }
 
 .user-filters-row .segment {

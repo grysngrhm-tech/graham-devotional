@@ -159,6 +159,20 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
+// Handle bfcache (back-forward cache) - reload content when returning via back button
+window.addEventListener('pageshow', (event) => {
+    if (event.persisted) {
+        // Page was restored from bfcache
+        console.log('[GRACE] Page restored from bfcache, refreshing...');
+        const isStoryPage = document.body.classList.contains('story-page');
+        
+        if (!isStoryPage) {
+            // Re-initialize the index page to ensure fresh state
+            window.location.reload();
+        }
+    }
+});
+
 // Add 'loaded' class to images for fade-in effect
 function setupImageFadeIn() {
     // Handle existing images
