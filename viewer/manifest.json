@@ -2,8 +2,8 @@
   "name": "The Graham Bible",
   "short_name": "Graham Bible",
   "description": "The Graham Bible - 500 illustrated Biblical stories arranged story by story",
-  "id": "/viewer/",
-  "start_url": "./index.html",
+  "id": "/",
+  "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "background_color": "#121212",
@@ -47,13 +47,13 @@
     {
       "name": "Old Testament",
       "short_name": "OT",
-      "url": "./index.html?testament=ot",
+      "url": "./#/?filter=ot",
       "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }]
     },
     {
       "name": "New Testament",
       "short_name": "NT",
-      "url": "./index.html?testament=nt",
+      "url": "./#/?filter=nt",
       "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }]
     }
   ],

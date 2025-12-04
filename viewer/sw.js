@@ -1,19 +1,21 @@
 /**
- * The GRACE Bible - Service Worker
+ * The Graham Bible - Service Worker
  * Provides offline caching with smart caching strategies
  */
 
-const CACHE_NAME = 'graham-bible-v3';
+const CACHE_NAME = 'graham-bible-v4';
 
 // App shell files to cache on install
 const APP_SHELL = [
     './',
     './index.html',
-    './spread.html',
     './admin.html',
     './offline.html',
     './styles.css',
     './app.js',
+    './router.js',
+    './auth.js',
+    './settings.js',
     './config.js',
     './manifest.json',
     './icons/icon.svg',
@@ -94,6 +96,7 @@ self.addEventListener('fetch', (event) => {
     if (!url.href.startsWith(self.location.origin)) return;
     
     // HTML pages - network first, fall back to cache, then offline page
+    // For SPA, always serve index.html for navigation requests
     if (request.headers.get('accept')?.includes('text/html') || 
         url.pathname.endsWith('.html') || 
         url.pathname.endsWith('/')) {
@@ -125,6 +128,12 @@ async function handleHtmlRequest(request) {
             return cachedResponse;
         }
         
+        // For SPA navigation, try serving index.html
+        const indexResponse = await caches.match('./index.html');
+        if (indexResponse) {
+            return indexResponse;
+        }
+        
         // No cache, return offline page
         const offlineResponse = await caches.match('./offline.html');
         if (offlineResponse) {
@@ -133,7 +142,7 @@ async function handleHtmlRequest(request) {
         
         // Last resort - simple offline message
         return new Response(
-            '<html><body><h1>Offline</h1><p>The GRACE Bible is not available offline.</p></body></html>',
+            '<html><body><h1>Offline</h1><p>The Graham Bible is not available offline.</p></body></html>',
             { headers: { 'Content-Type': 'text/html' } }
         );
     }

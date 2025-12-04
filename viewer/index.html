@@ -5,12 +5,26 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>The Graham Bible</title>
     
+    <!-- Open Graph Meta Tags for Social Sharing -->
+    <meta property="og:title" content="The Graham Bible">
+    <meta property="og:description" content="An illustrated devotional Bible featuring 500 stories from Genesis to Revelation, each with AI-generated sacred artwork and faithful narrative retellings.">
+    <meta property="og:image" content="https://www.grahambible.com/icons/icon-512.png">
+    <meta property="og:url" content="https://www.grahambible.com">
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="The Graham Bible">
+    
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="The Graham Bible">
+    <meta name="twitter:description" content="An illustrated devotional Bible arranged story by story">
+    <meta name="twitter:image" content="https://www.grahambible.com/icons/icon-512.png">
+    
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=IM+Fell+English:ital@0;1&family=Inter:wght@300;400;500;600&family=Playfair+Display:wght@400;500;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=IM+Fell+English:ital@0;1&family=Inter:wght@300;400;500;600&family=Playfair+Display:ital,opsz,wght@0,8..72,400;0,8..72,500;0,8..72,600;0,8..72,700;1,8..72,400&family=Source+Serif+4:ital,opsz,wght@0,8..60,300;0,8..60,400;0,8..60,500;1,8..60,400&display=swap" rel="stylesheet">
     
-    <link rel="stylesheet" href="styles.css?v=17">
+    <link rel="stylesheet" href="styles.css?v=18">
     
     <!-- PWA -->
     <link rel="manifest" href="manifest.json">
@@ -25,13 +39,18 @@
     <link rel="icon" type="image/svg+xml" href="icons/icon.svg">
 </head>
 <body>
-    <div class="page-container index-page">
+    <!-- ============================================================================
+         HOME VIEW - Story Grid
+         ============================================================================ -->
+    <div id="homeView" class="page-container index-page">
         <!-- Compact Header with Collapsible Breadcrumb -->
         <header class="compact-header" id="mainHeader">
             <!-- Primary header row -->
             <div class="header-row header-primary">
                 <div class="header-left">
-                    <h1 class="brand-title" id="brandTitle">The Graham Bible</h1>
+                    <a href="#/" class="brand-link">
+                        <h1 class="brand-title" id="brandTitle">The Graham Bible</h1>
+                    </a>
                     <span class="header-divider">—</span>
                     <p class="header-tagline">An illustrated Bible arranged story by story</p>
                 </div>
@@ -169,6 +188,256 @@
         </footer>
     </div>
 
+    <!-- ============================================================================
+         STORY VIEW - Individual Story Page
+         ============================================================================ -->
+    <div id="storyView" class="page-container story-page" style="display: none;">
+        <!-- Sticky Audio Bar (appears during playback) -->
+        <div class="audio-sticky-bar" id="audioStickyBar">
+            <button class="skip-btn" id="skipPrevBtn" title="Previous section">⏮</button>
+            <button class="sticky-control-btn" id="stickyPlayPauseBtn" title="Play/Pause">
+                <span class="play-icon">▶</span>
+                <span class="pause-icon">⏸</span>
+            </button>
+            <button class="skip-btn" id="skipNextBtn" title="Next section">⏭</button>
+            <div class="audio-progress-dots" id="audioProgressDots">
+                <!-- Populated by JS -->
+            </div>
+            <span class="speed-indicator" id="stickySpeedBtn">1×</span>
+            <button class="sticky-control-btn secondary" id="stickyStopBtn" title="Stop">⏹</button>
+        </div>
+
+        <nav class="story-nav">
+            <a href="#/" class="nav-back">← All Stories</a>
+            <div class="nav-controls">
+                <button class="nav-btn" id="prevBtn" title="Previous Story (← arrow key)">
+                    <span>‹</span>
+                </button>
+                <span class="nav-position" id="navPosition">— / —</span>
+                <button class="nav-btn" id="nextBtn" title="Next Story (→ arrow key)">
+                    <span>›</span>
+                </button>
+                <div class="auth-controls story-auth-controls" id="storyAuthControls">
+                    <button class="auth-btn" id="storySignInBtn" title="Sign in to save favorites">Sign In</button>
+                    <button class="settings-btn" id="storySettingsBtn" style="display: none;" title="Settings">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="3"/>
+                            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </nav>
+
+        <main class="book-story" id="bookStory">
+            <div class="loading-state">
+                <div class="loading-spinner"></div>
+                <p>Loading story...</p>
+            </div>
+        </main>
+
+        <!-- Floating Story Navigation (Mobile) -->
+        <nav class="floating-story-nav" id="floatingNav">
+            <button class="floating-nav-btn" id="floatingPrevBtn" title="Previous Story">
+                <span>‹</span>
+            </button>
+            <button class="floating-nav-btn" id="floatingNextBtn" title="Next Story">
+                <span>›</span>
+            </button>
+        </nav>
+
+        <!-- Scroll Indicator -->
+        <div class="scroll-indicator" id="scrollIndicator">
+            <span>Scroll for more</span>
+        </div>
+
+        <!-- Lightbox -->
+        <div class="lightbox" id="lightbox">
+            <button class="lightbox-close" id="lightboxClose">&times;</button>
+            <img src="" alt="" id="lightboxImage">
+            <p class="lightbox-caption" id="lightboxCaption"></p>
+        </div>
+
+        <!-- Toast Notification -->
+        <div class="toast" id="toast">
+            <span class="toast-icon">✓</span>
+            <span class="toast-message" id="toastMessage">Image saved as primary</span>
+        </div>
+    </div>
+
+    <!-- ============================================================================
+         TEMPLATES
+         ============================================================================ -->
+    
+    <!-- Story Content Template -->
+    <template id="storyTemplate">
+        <article class="story-layout">
+            <!-- Left Page: Image Area -->
+            <div class="left-page">
+                <div class="image-container" id="imageContainer">
+                    <!-- Dynamic: single image or 2x2 grid -->
+                </div>
+            </div>
+
+            <!-- Right Page: Text Area -->
+            <div class="right-page" id="rightPage">
+                <div class="text-content-wrapper">
+                    <header class="story-header">
+                        <div class="story-header-row">
+                            <h1 class="story-title" id="storyTitle"></h1>
+                            <div class="story-header-actions">
+                                <button class="favorite-btn" id="favoriteBtn" title="Add to favorites" style="display: none;">
+                                    <svg class="heart-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+                                    </svg>
+                                </button>
+                                <button class="read-btn" id="readBtn" title="Mark as read" style="display: none;">
+                                    <svg class="read-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                                        <polyline class="check-mark" points="22 4 12 14.01 9 11.01"/>
+                                    </svg>
+                                </button>
+                                <button class="audio-btn" id="audioBtn" title="Play/Pause narration">
+                                    🔊
+                                </button>
+                            </div>
+                        </div>
+                        <div class="verse-range-row">
+                            <a class="verse-range" id="verseRange" target="_blank" rel="noopener" title="Read passage on Bible Gateway"></a>
+                        </div>
+                    </header>
+
+                    <blockquote class="key-verse">
+                        <p class="verse-text" id="keyVerseText"></p>
+                        <cite class="verse-ref" id="keyVerseRef"></cite>
+                    </blockquote>
+
+                    <div class="divider"></div>
+
+                    <div class="summary-text" id="summaryText"></div>
+
+                    <footer class="story-footer">
+                        <span class="story-code" id="storyCode"></span>
+                        <span class="batch-info" id="batchInfo"></span>
+                    </footer>
+                </div>
+            </div>
+        </article>
+    </template>
+
+    <!-- Single Image Template -->
+    <template id="singleImageTemplate">
+        <div class="primary-image-container">
+            <div class="single-image">
+                <img src="" alt="" id="selectedImage">
+                <div class="primary-badge">✓ Primary</div>
+            </div>
+            <button class="expand-options-btn" id="expandOptionsBtn" title="View all 4 image options and select a different primary">
+                <span>Change Image Selection</span>
+                <span class="expand-icon">▼</span>
+            </button>
+        </div>
+    </template>
+
+    <!-- Grid Image Template -->
+    <template id="gridImageTemplate">
+        <div class="image-selection-grid">
+            <div class="selection-header" id="selectionHeader">
+                <span class="selection-title">Select Primary Image</span>
+                <button class="collapse-btn" id="collapseBtn" style="display: none;">
+                    <span>Show Primary Only</span>
+                    <span class="collapse-icon">▲</span>
+                </button>
+            </div>
+            <div class="image-grid">
+                <div class="grid-image selectable" data-index="1">
+                    <img src="" alt="">
+                    <div class="image-overlay">
+                        <span class="select-label">Select as Primary</span>
+                    </div>
+                    <span class="image-number">1</span>
+                    <div class="current-primary-badge" style="display: none;">✓ Current</div>
+                    <button class="regen-btn" data-slot="1" title="Regenerate this image">↻</button>
+                </div>
+                <div class="grid-image selectable" data-index="2">
+                    <img src="" alt="">
+                    <div class="image-overlay">
+                        <span class="select-label">Select as Primary</span>
+                    </div>
+                    <span class="image-number">2</span>
+                    <div class="current-primary-badge" style="display: none;">✓ Current</div>
+                    <button class="regen-btn" data-slot="2" title="Regenerate this image">↻</button>
+                </div>
+                <div class="grid-image selectable" data-index="3">
+                    <img src="" alt="">
+                    <div class="image-overlay">
+                        <span class="select-label">Select as Primary</span>
+                    </div>
+                    <span class="image-number">3</span>
+                    <div class="current-primary-badge" style="display: none;">✓ Current</div>
+                    <button class="regen-btn" data-slot="3" title="Regenerate this image">↻</button>
+                </div>
+                <div class="grid-image selectable" data-index="4">
+                    <img src="" alt="">
+                    <div class="image-overlay">
+                        <span class="select-label">Select as Primary</span>
+                    </div>
+                    <span class="image-number">4</span>
+                    <div class="current-primary-badge" style="display: none;">✓ Current</div>
+                    <button class="regen-btn" data-slot="4" title="Regenerate this image">↻</button>
+                </div>
+            </div>
+        </div>
+    </template>
+
+    <!-- Error Template -->
+    <template id="errorTemplate">
+        <div class="error-state">
+            <h2>Story Not Found</h2>
+            <p>The requested story could not be loaded.</p>
+            <a href="#/" class="btn">Return to All Stories</a>
+        </div>
+    </template>
+
+    <!-- Regeneration Modal Template -->
+    <template id="regenerationModalTemplate">
+        <div class="modal-overlay">
+            <div class="modal-content">
+                <h2>Regenerate Image</h2>
+                <p>Creating 4 new options for slot <span id="regenSlotNumber"></span></p>
+                
+                <!-- Countdown Timer (shown while processing) -->
+                <div class="countdown-container" id="countdownContainer">
+                    <div class="progress-ring-wrapper">
+                        <svg class="progress-ring" viewBox="0 0 100 100">
+                            <circle class="progress-ring-bg" cx="50" cy="50" r="45"/>
+                            <circle class="progress-ring-fill" id="progressRingFill" cx="50" cy="50" r="45"/>
+                        </svg>
+                        <span class="countdown-text" id="countdownText">~1:30</span>
+                    </div>
+                    <span class="stage-text" id="stageText">Analyzing passage...</span>
+                </div>
+                
+                <!-- Image Options Grid (hidden until ready) -->
+                <div class="new-image-options-grid" id="newImageOptionsGrid" style="display: none;">
+                    <div class="skeleton-image-option"></div>
+                    <div class="skeleton-image-option"></div>
+                    <div class="skeleton-image-option"></div>
+                    <div class="skeleton-image-option"></div>
+                </div>
+                
+                <div class="modal-actions">
+                    <button class="btn secondary" id="cancelRegenBtn">Cancel</button>
+                    <button class="btn primary" id="selectNewImageBtn" style="display: none;">Select New Image</button>
+                </div>
+            </div>
+        </div>
+    </template>
+
+    <!-- ============================================================================
+         MODALS (Shared between views)
+         ============================================================================ -->
+
     <!-- Auth Modal -->
     <div class="auth-modal" id="authModal">
         <div class="auth-modal-content">
@@ -246,6 +515,7 @@
     <script src="config.js"></script>
     <script src="auth.js"></script>
     <script src="settings.js"></script>
-    <script src="app.js?v=17"></script>
+    <script src="router.js"></script>
+    <script src="app.js?v=18"></script>
 </body>
 </html>

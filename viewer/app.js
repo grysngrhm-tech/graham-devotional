@@ -138,8 +138,13 @@ function sortStoriesChronologically(stories) {
 }
 
 // ============================================================================
-// Initialization
+// Initialization - Single Page App with Router
 // ============================================================================
+
+// View elements
+let homeView = null;
+let storyView = null;
+let currentView = null;
 
 document.addEventListener('DOMContentLoaded', () => {
     // Theme is now handled by settings.js
@@ -150,25 +155,119 @@ document.addEventListener('DOMContentLoaded', () => {
     // Set up smooth image loading
     setupImageFadeIn();
     
-    const isStoryPage = document.body.classList.contains('story-page');
+    // Get view containers
+    homeView = document.getElementById('homeView');
+    storyView = document.getElementById('storyView');
     
-    if (isStoryPage) {
-        initStoryPage();
+    // Initialize the router
+    if (window.GraceRouter) {
+        window.GraceRouter.init();
+        window.GraceRouter.onRouteChange(handleRouteChange);
+        
+        // Handle initial route
+        const route = window.GraceRouter.getCurrentRoute();
+        handleRouteChange(route, null);
     } else {
+        // Fallback if router not loaded - show home
+        console.warn('[GRACE] Router not loaded, defaulting to home view');
         initIndexPage();
     }
 });
 
-// Handle bfcache (back-forward cache) - reload content when returning via back button
+/**
+ * Handle route changes - show/hide appropriate views
+ */
+async function handleRouteChange(newRoute, previousRoute) {
+    console.log('[GRACE] Route change:', previousRoute?.type, '->', newRoute.type);
+    
+    // Stop any audio playback when changing routes
+    if (previousRoute && previousRoute.type !== newRoute.type) {
+        stopAudioPlayback();
+    }
+    
+    if (newRoute.type === 'story') {
+        await showStoryView(newRoute.storyId);
+    } else {
+        await showHomeView();
+    }
+}
+
+/**
+ * Show the home view (story grid)
+ */
+async function showHomeView() {
+    if (currentView === 'home') {
+        return; // Already showing home
+    }
+    
+    // Hide story view, show home view
+    if (storyView) storyView.style.display = 'none';
+    if (homeView) homeView.style.display = 'block';
+    
+    // Remove story-page class from body
+    document.body.classList.remove('story-page');
+    
+    currentView = 'home';
+    
+    // Initialize home page if not already done
+    if (!allStories.length) {
+        await initIndexPage();
+    } else {
+        // Refresh user data in case it changed on story page
+        if (sessionStorage.getItem('grace-user-data-changed')) {
+            sessionStorage.removeItem('grace-user-data-changed');
+            await loadUserData(true);
+        }
+    }
+    
+    // Update page title
+    document.title = 'The Graham Bible';
+    
+    // Scroll to top
+    window.scrollTo(0, 0);
+}
+
+/**
+ * Show the story view
+ */
+async function showStoryView(storyId) {
+    // Hide home view, show story view
+    if (homeView) homeView.style.display = 'none';
+    if (storyView) storyView.style.display = 'block';
+    
+    // Add story-page class to body for styling
+    document.body.classList.add('story-page');
+    
+    currentView = 'story';
+    
+    // Initialize and load the story
+    await initStoryPage(storyId);
+    
+    // Scroll to top
+    window.scrollTo(0, 0);
+}
+
+/**
+ * Stop audio playback if running
+ */
+function stopAudioPlayback() {
+    if (window.speechSynthesis) {
+        window.speechSynthesis.cancel();
+    }
+    // Reset audio state
+    isAudioPlaying = false;
+    const stickyBar = document.getElementById('audioStickyBar');
+    if (stickyBar) stickyBar.classList.remove('visible');
+}
+
+// Handle bfcache (back-forward cache)
 window.addEventListener('pageshow', (event) => {
     if (event.persisted) {
-        // Page was restored from bfcache
-        console.log('[GRACE] Page restored from bfcache, refreshing...');
-        const isStoryPage = document.body.classList.contains('story-page');
-        
-        if (!isStoryPage) {
-            // Re-initialize the index page to ensure fresh state
-            window.location.reload();
+        console.log('[GRACE] Page restored from bfcache');
+        // Just refresh the current view state
+        const route = window.GraceRouter?.getCurrentRoute();
+        if (route) {
+            handleRouteChange(route, null);
         }
     }
 });
@@ -899,7 +998,12 @@ function goToRandomStory() {
     const randomIndex = Math.floor(Math.random() * storiesToChooseFrom.length);
     const randomStory = storiesToChooseFrom[randomIndex];
     
-    window.location.href = `spread.html?id=${randomStory.spread_code}`;
+    // Use hash-based routing
+    if (window.GraceRouter) {
+        window.GraceRouter.navigateToStory(randomStory.spread_code);
+    } else {
+        window.location.hash = `#/story/${randomStory.spread_code}`;
+    }
 }
 
 function setupKeyboardShortcuts() {
@@ -1166,7 +1270,7 @@ function renderStories() {
         ].filter(Boolean).join(' ');
         
         html += `
-            <a href="spread.html?id=${story.spread_code}" class="story-card ${userClasses}">
+            <a href="#/story/${story.spread_code}" class="story-card ${userClasses}">
                 <div class="card-image">
                     ${imageUrl 
                         ? `<img src="${imageUrl}" alt="${story.title}" loading="lazy">`
@@ -1486,23 +1590,34 @@ let currentStory = null;
 let storyList = [];
 let showingGrid = false;
 
-async function initStoryPage() {
-    const urlParams = new URLSearchParams(window.location.search);
-    const storyId = urlParams.get('id');
+async function initStoryPage(storyId) {
+    // Get storyId from parameter or fall back to URL params (for direct links)
+    if (!storyId) {
+        const urlParams = new URLSearchParams(window.location.search);
+        storyId = urlParams.get('id');
+    }
+    
+    // Also check hash route
+    if (!storyId && window.GraceRouter) {
+        storyId = window.GraceRouter.getCurrentStoryId();
+    }
     
     if (!storyId) {
         showError();
         return;
     }
     
-    // Initialize authentication
-    if (window.GraceAuth) {
+    // Initialize authentication (only once)
+    if (window.GraceAuth && !window.GraceAuth.getCurrentUser()) {
         await window.GraceAuth.initAuth();
         window.GraceAuth.setupAuthModal();
-        
-        // Listen for auth state changes
-        window.GraceAuth.onAuthStateChange(handleStoryAuthStateChange);
     }
+    
+    // Setup story auth controls
+    setupStoryAuthControls();
+    
+    // Listen for auth state changes
+    window.GraceAuth?.onAuthStateChange(handleStoryAuthStateChange);
     
     // Load all stories for navigation
     await loadStoryList();
@@ -1524,8 +1639,31 @@ async function initStoryPage() {
     // Setup read button click handler
     setupReadButton();
     
-    // Setup read tracking (auto-mark at 50% scroll)
+    // Setup read tracking (auto-mark on scroll)
     setupReadTracking();
+}
+
+/**
+ * Setup auth controls specific to story view
+ */
+function setupStoryAuthControls() {
+    const signInBtn = document.getElementById('storySignInBtn');
+    const settingsBtn = document.getElementById('storySettingsBtn');
+    
+    if (signInBtn) {
+        signInBtn.addEventListener('click', () => {
+            window.GraceAuth?.showAuthModal();
+        });
+    }
+    
+    // Update visibility based on auth state
+    if (window.GraceAuth?.isAuthenticated()) {
+        if (signInBtn) signInBtn.style.display = 'none';
+        if (settingsBtn) settingsBtn.style.display = 'flex';
+    } else {
+        if (signInBtn) signInBtn.style.display = 'inline-flex';
+        if (settingsBtn) settingsBtn.style.display = 'none';
+    }
 }
 
 async function loadStoryList() {
@@ -2466,7 +2604,12 @@ function navigateStory(direction) {
     
     if (newIndex >= 0 && newIndex < storyList.length) {
         const newStory = storyList[newIndex];
-        window.location.href = `spread.html?id=${newStory.spread_code}`;
+        // Use hash-based routing
+        if (window.GraceRouter) {
+            window.GraceRouter.navigateToStory(newStory.spread_code);
+        } else {
+            window.location.hash = `#/story/${newStory.spread_code}`;
+        }
     }
 }
 
@@ -2629,27 +2772,49 @@ async function updateReadButton() {
 
 /**
  * Setup read button click handler
+ * Uses event delegation to handle dynamically created buttons
  */
+let readButtonInitialized = false;
+
 function setupReadButton() {
-    const readBtn = document.getElementById('readBtn');
-    if (!readBtn) return;
+    // Prevent multiple initializations
+    if (readButtonInitialized) {
+        updateReadButton();
+        return;
+    }
+    readButtonInitialized = true;
     
-    readBtn.addEventListener('click', async () => {
-        if (!window.GraceAuth?.isAuthenticated() || !currentStory) return;
+    // Use event delegation on the document for reliability
+    document.addEventListener('click', async (e) => {
+        const readBtn = e.target.closest('#readBtn');
+        if (!readBtn) return;
+        
+        e.preventDefault();
+        e.stopPropagation();
+        
+        if (!window.GraceAuth?.isAuthenticated() || !currentStory) {
+            console.log('[Graham] Read button click ignored - not authenticated or no story');
+            return;
+        }
         
         const spreadCode = currentStory.spread_code;
         const isCurrentlyRead = readBtn.classList.contains('is-read');
         
+        console.log('[Graham] Read button clicked:', { spreadCode, isCurrentlyRead });
+        
         try {
             if (isCurrentlyRead) {
                 // Unmark as read
+                console.log('[Graham] Unmarking as read...');
                 await window.GraceAuth.unmarkAsRead(spreadCode);
                 userReadStories.delete(spreadCode);
                 readBtn.classList.remove('is-read');
                 readBtn.title = 'Mark as read';
                 showToast('Marked as unread');
+                console.log('[Graham] Successfully unmarked as read');
             } else {
                 // Mark as read
+                console.log('[Graham] Marking as read...');
                 await window.GraceAuth.markAsRead(spreadCode);
                 userReadStories.add(spreadCode);
                 readBtn.classList.add('is-read');
@@ -2657,6 +2822,7 @@ function setupReadButton() {
                 readBtn.title = 'Mark as unread';
                 setTimeout(() => readBtn.classList.remove('pop'), 300);
                 showToast('Marked as read');
+                console.log('[Graham] Successfully marked as read');
             }
             
             // Set flag so home page knows to refresh
@@ -2674,12 +2840,9 @@ function setupReadButton() {
 
 /**
  * Setup read tracking - auto-mark as read when user scrolls to bottom of content
- * Only triggers when user has actually scrolled through most of the text content
+ * Uses window scroll since .right-page doesn't have overflow:scroll
  */
 function setupReadTracking() {
-    const rightPage = document.getElementById('rightPage');
-    if (!rightPage) return;
-    
     let hasAutoMarkedAsRead = false;
     let maxScrollReached = 0; // Track how far user has scrolled
     
@@ -2697,69 +2860,55 @@ function setupReadTracking() {
             return;
         }
         
-        // Calculate actual scroll progress through the content
-        // For mobile (stacked layout): use window scroll relative to document
-        // For desktop (side-by-side): use rightPage scroll
-        
+        // Calculate scroll progress using window scroll
+        // Both mobile and desktop use window scroll (rightPage doesn't have overflow:scroll)
+        const totalScrollable = document.body.scrollHeight - window.innerHeight;
         let scrollProgress = 0;
         
-        // Check if we're in mobile/stacked layout (right-page not scrollable internally)
-        const isStackedLayout = window.innerWidth <= 1024;
-        
-        if (isStackedLayout) {
-            // Mobile: calculate how far through the page content we've scrolled
-            // Only count scrolling that happens AFTER the image area
-            const totalScrollable = document.body.scrollHeight - window.innerHeight;
-            if (totalScrollable > 100) { // Need at least 100px of scrollable content
-                const currentScroll = window.scrollY;
-                scrollProgress = currentScroll / totalScrollable;
-            }
-        } else {
-            // Desktop: right-page has its own scroll
-            const totalScrollable = rightPage.scrollHeight - rightPage.clientHeight;
-            if (totalScrollable > 100) {
-                scrollProgress = rightPage.scrollTop / totalScrollable;
-            }
+        if (totalScrollable > 100) { // Need at least 100px of scrollable content
+            scrollProgress = window.scrollY / totalScrollable;
         }
         
         // Track maximum scroll reached (in case user scrolls up)
         maxScrollReached = Math.max(maxScrollReached, scrollProgress);
         
-        // Trigger at 90% scroll AND user must have actually scrolled significantly
-        // This prevents triggering on short content that doesn't require much scrolling
-        const hasScrolledEnough = maxScrollReached >= 0.90;
-        const hasMinimumEngagement = maxScrollReached > 0.3; // User must scroll past 30% at some point
+        // Trigger at 85% scroll AND user must have scrolled meaningfully
+        const hasScrolledEnough = maxScrollReached >= 0.85;
+        const hasMinimumEngagement = maxScrollReached > 0.2; // User must scroll past 20%
         
         if (hasScrolledEnough && hasMinimumEngagement && currentStory) {
             hasAutoMarkedAsRead = true;
             const spreadCode = currentStory.spread_code;
             
-            await window.GraceAuth.markAsRead(spreadCode);
-            
-            // Update local state for cross-page sync
-            userReadStories.add(spreadCode);
-            
-            // Set flag so home page knows to refresh
-            sessionStorage.setItem('grace-user-data-changed', 'true');
-            
-            // Update button state with animation
-            if (readBtn) {
-                readBtn.classList.add('is-read');
-                readBtn.classList.add('pop');
-                readBtn.title = 'Mark as unread';
-                setTimeout(() => readBtn.classList.remove('pop'), 300);
+            try {
+                await window.GraceAuth.markAsRead(spreadCode);
+                
+                // Update local state for cross-page sync
+                userReadStories.add(spreadCode);
+                
+                // Set flag so home page knows to refresh
+                sessionStorage.setItem('grace-user-data-changed', 'true');
+                
+                // Update button state with animation
+                if (readBtn) {
+                    readBtn.classList.add('is-read');
+                    readBtn.classList.add('pop');
+                    readBtn.title = 'Mark as unread';
+                    setTimeout(() => readBtn.classList.remove('pop'), 300);
+                }
+                
+                console.log('[Graham] Auto-marked as read:', spreadCode, 'at scroll', Math.round(maxScrollReached * 100) + '%');
+            } catch (err) {
+                console.error('[Graham] Error auto-marking as read:', err);
             }
-            
-            console.log('[Graham] Auto-marked as read:', spreadCode, 'at scroll', Math.round(maxScrollReached * 100) + '%');
         }
     };
     
-    // Listen to both window scroll and right-page scroll (for desktop layout)
+    // Listen to window scroll (both mobile and desktop use this)
     window.addEventListener('scroll', checkReadStatus, { passive: true });
-    rightPage.addEventListener('scroll', checkReadStatus, { passive: true });
     
     // Also check on touch end for mobile
-    rightPage.addEventListener('touchend', () => {
+    document.addEventListener('touchend', () => {
         setTimeout(checkReadStatus, 100);
     }, { passive: true });
 }

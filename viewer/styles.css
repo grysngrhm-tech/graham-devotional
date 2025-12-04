@@ -335,6 +335,16 @@ body {
     }
 }
 
+/* Brand link - no underline */
+.brand-link {
+    text-decoration: none;
+    color: inherit;
+}
+
+.brand-link:hover {
+    opacity: 0.9;
+}
+
 .brand-title {
     font-family: 'Playfair Display', Georgia, serif;
     font-size: 1.5rem;
@@ -345,9 +355,6 @@ body {
     align-items: baseline;
     gap: 0.3em;
     margin: 0;
-    display: flex;
-    align-items: baseline;
-    gap: 0.3em;
 }
 
 /* Standard font for "The" and "Bible" */
