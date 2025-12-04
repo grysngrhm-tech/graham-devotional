@@ -223,6 +223,9 @@ async function showHomeView() {
     // Update page title
     document.title = 'The Graham Bible';
     
+    // Reset Open Graph tags to defaults
+    updateOpenGraphTags(null);
+    
     // Scroll to top
     window.scrollTo(0, 0);
 }
@@ -1191,6 +1194,110 @@ function updateResultsCount() {
     }
 }
 
+/**
+ * Get contextual empty state HTML based on active filters
+ */
+function getEmptyStateHTML() {
+    const userFilter = currentFilters.userFilter;
+    const hasSearch = currentFilters.search && currentFilters.search.trim().length > 0;
+    
+    // Different messages for different filter states
+    if (userFilter === 'favorites') {
+        return `
+            <div class="empty-state empty-state-favorites">
+                <div class="empty-icon">♥</div>
+                <h3>No Favorites Yet</h3>
+                <p>Stories you favorite will appear here. Tap the heart icon on any story to save it!</p>
+                <button class="empty-action-btn" onclick="document.querySelector('#userFilter .segment[data-value=\\'all\\']').click()">
+                    Browse All Stories
+                </button>
+            </div>
+        `;
+    }
+    
+    if (userFilter === 'read') {
+        return `
+            <div class="empty-state empty-state-read">
+                <div class="empty-icon">📖</div>
+                <h3>No Stories Read Yet</h3>
+                <p>Stories are automatically marked as read when you scroll through them, or you can tap the checkmark icon.</p>
+                <button class="empty-action-btn" onclick="document.querySelector('#userFilter .segment[data-value=\\'all\\']').click()">
+                    Start Reading
+                </button>
+            </div>
+        `;
+    }
+    
+    if (userFilter === 'unread') {
+        return `
+            <div class="empty-state empty-state-celebration">
+                <div class="empty-icon">🎉</div>
+                <h3>You've Read Everything!</h3>
+                <p>Amazing! You've completed all the stories in your current view. What a journey through Scripture!</p>
+                <button class="empty-action-btn" onclick="document.querySelector('#userFilter .segment[data-value=\\'all\\']').click()">
+                    Review All Stories
+                </button>
+            </div>
+        `;
+    }
+    
+    if (hasSearch) {
+        return `
+            <div class="empty-state empty-state-search">
+                <div class="empty-icon">🔍</div>
+                <h3>No Results Found</h3>
+                <p>No stories match "<strong>${escapeHTML(currentFilters.search)}</strong>". Try different keywords or browse by book.</p>
+                <button class="empty-action-btn" onclick="document.getElementById('searchInput').value=''; currentFilters.search=''; applyFilters();">
+                    Clear Search
+                </button>
+            </div>
+        `;
+    }
+    
+    // Default empty state
+    return `
+        <div class="empty-state">
+            <div class="empty-icon">📜</div>
+            <h3>No Stories Found</h3>
+            <p>No stories match your current filters. Try adjusting your selections.</p>
+            <button class="empty-action-btn" onclick="resetFilters()">
+                Clear All Filters
+            </button>
+        </div>
+    `;
+}
+
+/**
+ * Helper to escape HTML entities
+ */
+function escapeHTML(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+}
+
+/**
+ * Reset all filters to defaults
+ */
+function resetFilters() {
+    currentFilters = {
+        testament: 'all',
+        grouping: 'all',
+        book: 'all',
+        status: 'all',
+        search: '',
+        userFilter: 'all'
+    };
+    
+    // Reset UI
+    document.querySelectorAll('.segment').forEach(s => s.classList.remove('active'));
+    document.querySelector('#testamentFilter .segment[data-value="all"]')?.classList.add('active');
+    document.querySelector('#userFilter .segment[data-value="all"]')?.classList.add('active');
+    document.getElementById('searchInput').value = '';
+    
+    applyFilters();
+}
+
 function renderStories() {
     const grid = document.getElementById('storiesGrid');
     if (!grid) return;
@@ -1198,11 +1305,7 @@ function renderStories() {
     console.log('[GRACE] renderStories called, filteredStories:', filteredStories.length);
     
     if (filteredStories.length === 0) {
-        grid.innerHTML = `
-            <div class="empty-state">
-                <p>No stories found matching your filters.</p>
-            </div>
-        `;
+        grid.innerHTML = getEmptyStateHTML();
         hideBreadcrumb();
         return;
     }
@@ -1639,6 +1742,9 @@ async function initStoryPage(storyId) {
     // Setup read button click handler
     setupReadButton();
     
+    // Setup share button
+    setupShareButton();
+    
     // Setup read tracking (auto-mark on scroll)
     setupReadTracking();
 }
@@ -1770,7 +1876,10 @@ function renderStory(story) {
     renderImages(story);
     
     // Update page title
-    document.title = `${story.title || 'Story'} | The GRACE Bible`;
+    document.title = `${story.title || 'Story'} | The Graham Bible`;
+    
+    // Update Open Graph meta tags for sharing
+    updateOpenGraphTags(story);
 }
 
 async function renderImages(story) {
@@ -2541,6 +2650,67 @@ function showError() {
     }
 }
 
+/**
+ * Update Open Graph meta tags for social sharing
+ * @param {Object} story - Story object or null for home page
+ */
+function updateOpenGraphTags(story) {
+    // Helper to update or create meta tag
+    const setMetaTag = (property, content) => {
+        let meta = document.querySelector(`meta[property="${property}"]`);
+        if (!meta) {
+            meta = document.createElement('meta');
+            meta.setAttribute('property', property);
+            document.head.appendChild(meta);
+        }
+        meta.setAttribute('content', content);
+    };
+    
+    // Helper for twitter meta tags
+    const setTwitterTag = (name, content) => {
+        let meta = document.querySelector(`meta[name="${name}"]`);
+        if (!meta) {
+            meta = document.createElement('meta');
+            meta.setAttribute('name', name);
+            document.head.appendChild(meta);
+        }
+        meta.setAttribute('content', content);
+    };
+    
+    if (story) {
+        // Story page meta tags
+        const title = story.title || 'Bible Story';
+        const description = story.summary 
+            ? story.summary.substring(0, 200) + (story.summary.length > 200 ? '...' : '')
+            : `${story.title} - ${story.book} ${story.start_chapter}:${story.start_verse}`;
+        const url = `https://www.grahambible.com/#/story/${story.spread_code}`;
+        const imageUrl = story.selected_image_url || story.image_url_1 || 'https://www.grahambible.com/icons/icon-512.png';
+        
+        // Open Graph
+        setMetaTag('og:title', `${title} | The Graham Bible`);
+        setMetaTag('og:description', description);
+        setMetaTag('og:url', url);
+        setMetaTag('og:image', imageUrl);
+        setMetaTag('og:type', 'article');
+        
+        // Twitter Card
+        setTwitterTag('twitter:title', `${title} | The Graham Bible`);
+        setTwitterTag('twitter:description', description);
+        setTwitterTag('twitter:image', imageUrl);
+    } else {
+        // Home page meta tags (reset to defaults)
+        setMetaTag('og:title', 'The Graham Bible');
+        setMetaTag('og:description', 'An illustrated devotional Bible featuring 500 stories from Genesis to Revelation, each with AI-generated sacred artwork and faithful narrative retellings.');
+        setMetaTag('og:url', 'https://www.grahambible.com');
+        setMetaTag('og:image', 'https://www.grahambible.com/icons/icon-512.png');
+        setMetaTag('og:type', 'website');
+        
+        setTwitterTag('twitter:title', 'The Graham Bible');
+        setTwitterTag('twitter:description', 'An illustrated devotional Bible arranged story by story');
+        setTwitterTag('twitter:image', 'https://www.grahambible.com/icons/icon-512.png');
+    }
+}
+
 function showToast(message, isError = false) {
     const toast = document.getElementById('toast');
     const toastMessage = document.getElementById('toastMessage');
@@ -2836,6 +3006,57 @@ function setupReadButton() {
     
     // Initial state - show/hide based on auth
     updateReadButton();
+}
+
+/**
+ * Setup share button functionality
+ * Uses Web Share API on mobile, copy-to-clipboard on desktop
+ */
+function setupShareButton() {
+    const shareBtn = document.getElementById('shareBtn');
+    if (!shareBtn) return;
+    
+    shareBtn.addEventListener('click', async () => {
+        if (!currentStory) return;
+        
+        const shareData = {
+            title: currentStory.title,
+            text: `${currentStory.title} - ${currentStory.book} ${currentStory.start_chapter}:${currentStory.start_verse}`,
+            url: `https://www.grahambible.com/#/story/${currentStory.spread_code}`
+        };
+        
+        // Try Web Share API first (mobile-friendly)
+        if (navigator.share && navigator.canShare && navigator.canShare(shareData)) {
+            try {
+                await navigator.share(shareData);
+                hapticFeedback('light');
+            } catch (err) {
+                // User cancelled or error - that's fine
+                if (err.name !== 'AbortError') {
+                    console.warn('[Share] Web Share failed:', err);
+                    fallbackCopyToClipboard(shareData.url);
+                }
+            }
+        } else {
+            // Fallback: copy URL to clipboard
+            fallbackCopyToClipboard(shareData.url);
+        }
+    });
+}
+
+/**
+ * Fallback share method - copy URL to clipboard
+ */
+async function fallbackCopyToClipboard(url) {
+    try {
+        await navigator.clipboard.writeText(url);
+        showToast('Link copied to clipboard!');
+        hapticFeedback('light');
+    } catch (err) {
+        // Final fallback: prompt user to copy manually
+        console.error('[Share] Clipboard copy failed:', err);
+        prompt('Copy this link to share:', url);
+    }
 }
 
 /**

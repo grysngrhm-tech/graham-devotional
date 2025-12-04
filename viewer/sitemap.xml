@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <!-- Main page - The Graham Bible home -->
+  <url>
+    <loc>https://www.grahambible.com/</loc>
+    <lastmod>2024-12-04</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>1.0</priority>
+  </url>
+  
+  <!--
+    Note: This site uses hash-based client-side routing (#/story/GEN-001).
+    Search engines typically don't index hash fragments as separate URLs.
+    The main page serves as the entry point where all 500 stories are discoverable.
+    
+    For better SEO in the future, consider:
+    1. Server-side rendering (SSR) or static site generation (SSG)
+    2. Path-based routing (/story/GEN-001 instead of #/story/GEN-001)
+    3. Prerendering popular stories as static HTML
+  -->
+</urlset>
+

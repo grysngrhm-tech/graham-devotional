@@ -1,0 +1,9 @@
+# robots.txt for The Graham Bible
+# https://www.grahambible.com
+
+User-agent: *
+Allow: /
+
+# Sitemap location
+Sitemap: https://www.grahambible.com/sitemap.xml
+
