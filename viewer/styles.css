@@ -2110,6 +2110,13 @@ body.is-offline {
     gap: var(--spacing-xs);
 }
 
+.story-header-row .story-title {
+    flex: 1;
+    min-width: 0;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+}
+
 .story-header-actions {
     display: flex;
     align-items: center;
@@ -2117,6 +2124,7 @@ body.is-offline {
     gap: 6px;
     order: -1; /* Move above title */
     margin-bottom: 4px;
+    flex-shrink: 0;
 }
 
 .verse-range-row {
@@ -2797,11 +2805,39 @@ body.is-offline {
     
     .header-stats {
         flex-shrink: 0;
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        flex-wrap: nowrap;
+    }
+    
+    /* Hide admin stats on mobile, keep auth controls */
+    .header-stats .admin-only {
+        display: none;
+    }
+    
+    .auth-controls {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        gap: 4px;
     }
     
     .filter-row {
         flex-direction: column;
         align-items: stretch;
+    }
+    
+    /* Keep search and testament rows horizontal on mobile */
+    .filter-row.filter-search-row {
+        flex-direction: row;
+        align-items: center;
+        gap: var(--spacing-sm);
+    }
+    
+    .filter-row.filter-testament-row {
+        flex-direction: row;
+        align-items: center;
     }
     
     .segment-control {
