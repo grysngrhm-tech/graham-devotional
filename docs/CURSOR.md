@@ -1,6 +1,6 @@
 # Cursor / AI Development Guide
 
-> How to work with The GRACE Bible codebase using Cursor AI and MCP integrations.
+> How to work with The Graham Bible codebase using Cursor AI and MCP integrations.
 
 ---
 
@@ -43,8 +43,10 @@ The viewer connects to Supabase using public credentials:
 
 ```javascript
 // These are in viewer/config.js (safe to commit)
-SUPABASE_URL = 'https://zekbemqgvupzmukpntog.supabase.co'
-SUPABASE_ANON_KEY = 'eyJ...' // Public anon key
+window.SUPABASE_CONFIG = {
+    url: 'https://zekbemqgvupzmukpntog.supabase.co',
+    anonKey: 'eyJ...' // Public anon key
+};
 ```
 
 **Direct Database Access:**
@@ -56,7 +58,7 @@ The only n8n integration from the viewer is the image regeneration webhook:
 
 ```javascript
 // In viewer/config.js
-N8N_WEBHOOK_URL = 'https://grysngrhm.app.n8n.cloud/webhook/regenerate-image'
+window.N8N_WEBHOOK_URL = 'https://grysngrhm.app.n8n.cloud/webhook/regenerate-image'
 ```
 
 **Workflow IDs:**
@@ -105,27 +107,79 @@ kjv_passage_ref     TEXT             -- 'Genesis 1:1-2:3'
 kjv_key_verse_ref   TEXT             -- 'Genesis 1:1'
 kjv_key_verse_text  TEXT             -- KJV quote
 paraphrase_text     TEXT             -- 440-520 word summary
-image_url           TEXT             -- Primary selected image
+image_url           TEXT             -- Primary selected image (global default)
 image_url_1/2/3/4   TEXT             -- All 4 generated options
 status_image        TEXT             -- 'pending', 'done', 'error'
 start_chapter       INT              -- For sorting
 start_verse         INT              -- For sorting
 ```
 
-### Regeneration Table: `regeneration_requests`
+### User Tables
 
 ```sql
-id              UUID PRIMARY KEY
-spread_code     TEXT NOT NULL
-slot            INTEGER (1-4)
-option_urls     TEXT[]           -- Array of 4 new image URLs
-status          TEXT             -- 'processing', 'ready', 'completed', 'failed'
-created_at      TIMESTAMPTZ
+-- User profile with admin flag
+user_profiles (
+    id UUID PRIMARY KEY,  -- References auth.users
+    email TEXT,
+    is_admin BOOLEAN DEFAULT false,
+    created_at TIMESTAMPTZ
+)
+
+-- User favorites (stories user has hearted)
+user_favorites (
+    id UUID PRIMARY KEY,
+    user_id UUID REFERENCES auth.users,
+    spread_code TEXT,
+    created_at TIMESTAMPTZ,
+    UNIQUE(user_id, spread_code)
+)
+
+-- User read tracking
+user_read_stories (
+    id UUID PRIMARY KEY,
+    user_id UUID REFERENCES auth.users,
+    spread_code TEXT,
+    read_at TIMESTAMPTZ,
+    UNIQUE(user_id, spread_code)
+)
+
+-- User personal image selections
+user_primary_images (
+    id UUID PRIMARY KEY,
+    user_id UUID REFERENCES auth.users,
+    spread_code TEXT,
+    image_slot INTEGER (1-4),
+    UNIQUE(user_id, spread_code)
+)
+```
+
+### Regeneration Table
+
+```sql
+regeneration_requests (
+    id UUID PRIMARY KEY,
+    spread_code TEXT,
+    slot INTEGER (1-4),
+    option_urls TEXT[],           -- Array of 4 new image URLs
+    status TEXT,                  -- 'processing', 'ready', 'completed', 'failed'
+    created_at TIMESTAMPTZ
+)
 ```
 
 ---
 
 ## Project Architecture
+
+### File Overview
+
+| File | Purpose | Key Functions |
+|------|---------|---------------|
+| `app.js` | Main app logic | Stories, filters, rendering |
+| `auth.js` | Authentication | Magic links, sessions, roles |
+| `settings.js` | User preferences | Theme, font size, Bible version |
+| `config.js` | Configuration | Supabase URL/key, n8n webhook |
+| `admin.html` | Admin dashboard | Stats, user data, modals |
+| `sw.js` | Service worker | Caching, offline support |
 
 ### Viewer Flow
 
@@ -136,63 +190,139 @@ Service Worker checks cache
     ↓
 HTML loads (network-first)
     ↓
+Scripts load:
+    1. config.js (Supabase config)
+    2. settings.js (user preferences)
+    3. auth.js (authentication)
+    4. app.js (main logic)
+    ↓
+auth.js initializes:
+    - Check existing session
+    - Load user profile (including is_admin)
+    - Set up auth state change listener
+    ↓
 app.js initializes:
-    - Theme (from localStorage or system)
-    - Service worker registration
-    - Install prompt setup
-    - Page-specific init (index or spread)
+    - Apply theme from settings
+    - Register service worker
+    - Page-specific init (index/spread/admin)
     ↓
-Supabase query for data
+Supabase queries for data
     ↓
-Render UI
+Render UI based on auth state
 ```
 
 ### Key Functions in app.js
 
 ```javascript
 // Initialization
-initTheme()                    // Dark/light mode
+initTheme()                    // Dark/light mode from settings
 registerServiceWorker()        // PWA service worker
-setupInstallPrompt()           // iOS/Android install banner
+initIndexPage()                // Homepage initialization
+initStoryPage()                // Story page initialization
 
-// Index Page
-initIndexPage()                // Main entry for homepage
-loadStories()                  // Fetch from Supabase
+// Data Loading
+loadStories()                  // Fetch all spreads
+loadStory(spreadCode)          // Fetch single spread
+loadUserData()                 // Fetch favorites, read, images
+
+// Rendering
 renderStories()                // Generate cards + section headers
-setupScrollRevealBreadcrumb()  // Unified header behavior
-setupFilters()                 // Testament, book, status filters
+renderStoryCard(story)         // Single card HTML
+renderStory(spread)            // Story page content
+renderImages(spread)           // Image grid with selection
 
-// Spread Page
-initStoryPage()                // Main entry for story view
-loadStory()                    // Fetch single spread
-renderStory()                  // Display content
-setupImageSelection()          // Primary image selection
-setupRegenerationButtons()     // Regenerate image feature
-setupAudioControls()           // Text-to-speech
+// User Features
+toggleFavorite(spreadCode)     // Add/remove favorite
+markAsRead(spreadCode)         // Mark story as read
+selectPersonalPrimary(slot)    // Set personal image choice
+
+// Admin Features
+triggerRegeneration(slot)      // Start image regeneration
+setGlobalDefault(slot)         // Set global primary image
 
 // PWA
 showInstallBanner()            // Platform-specific install UI
 showUpdateNotification()       // New version toast
 ```
 
+### Key Functions in auth.js
+
+```javascript
+window.GraceAuth = {
+    // Initialization
+    initAuth()                   // Initialize auth state
+    
+    // Authentication
+    signInWithMagicLink(email)   // Send magic link email
+    signOut()                    // Log out user
+    checkSession()               // Check for existing session
+    
+    // State
+    isAuthenticated()            // Returns boolean
+    isAdmin()                    // Returns boolean
+    getCurrentUser()             // Returns user object or null
+    getUserProfile()             // Returns profile with is_admin
+    
+    // Events
+    onAuthStateChange(callback)  // Subscribe to auth changes
+    
+    // UI
+    updateAuthUI()               // Update header buttons
+    setupAuthModal()             // Setup sign-in modal
+    setupSettingsModal()         // Setup settings modal
+    
+    // Helpers
+    isPWA()                      // Check if running as PWA
+    isMobile()                   // Check if mobile device
+};
+```
+
+### Key Functions in settings.js
+
+```javascript
+window.GraceSettings = {
+    // Load/Save
+    loadSettings()               // Load from localStorage
+    saveSettings()               // Save to localStorage
+    
+    // Apply
+    applySettings()              // Apply to DOM
+    applyTheme(darkMode)         // Set dark/light mode
+    applyFontSize(size)          // Set font scale
+    
+    // Getters
+    getSettings()                // Get current settings object
+    getBibleVersion()            // Get preferred Bible version
+    
+    // UI
+    setupSettingsModal()         // Bind settings modal events
+    populateUserInfo()           // Show email in settings
+};
+```
+
 ### CSS Organization
 
 ```css
-/* styles.css structure (~2800 lines) */
+/* styles.css structure (~4000 lines) */
 
 /* Variables & Resets */        Lines 1-100
 /* Dark Mode Variables */       Lines 66-95
-/* Layout & Typography */       Lines 100-200
-/* Header & Breadcrumb */       Lines 200-350
-/* Intro Section */             Lines 350-480
-/* Filters */                   Lines 480-750
-/* Section Headers */           Lines 750-1000
-/* Story Cards Grid */          Lines 1000-1200
-/* Story Page Layout */         Lines 1200-1700
-/* Image Selection UI */        Lines 1700-2100
-/* Regeneration Modal */        Lines 2100-2400
-/* Mobile Responsive */         Lines 2400-2700
-/* PWA Install Banner */        Lines 2700-2800
+/* Font Size Variables */       Lines 96-130
+/* Layout & Typography */       Lines 130-250
+/* Header & Breadcrumb */       Lines 250-450
+/* Auth Buttons & Modals */     Lines 450-700
+/* Settings Modal */            Lines 700-900
+/* Filters */                   Lines 900-1200
+/* Section Headers */           Lines 1200-1400
+/* Story Cards Grid */          Lines 1400-1700
+/* User States (favorites) */   Lines 1700-1850
+/* Story Page Layout */         Lines 1850-2300
+/* Image Selection UI */        Lines 2300-2700
+/* Regeneration Modal */        Lines 2700-3000
+/* Audio Controls */            Lines 3000-3200
+/* Mobile Responsive */         Lines 3200-3700
+/* PWA Install Banner */        Lines 3700-3850
+/* Admin Styles */              Lines 3850-4000
 ```
 
 ---
@@ -202,27 +332,116 @@ showUpdateNotification()       // New version toast
 ### Adding a New Feature
 
 1. Identify which files need changes
-2. Update `app.js` with new logic
+2. Update JavaScript with new logic
 3. Update `styles.css` with styling
 4. Update HTML if new elements needed
-5. Bump cache version (CSS/JS query strings + SW cache name)
+5. Bump cache version:
+   - CSS/JS query strings in HTML
+   - SW cache name in `sw.js`
 6. Test locally
 7. Push to GitHub (auto-deploys)
+
+### Working with Authentication
+
+```javascript
+// Check if user is logged in
+if (GraceAuth.isAuthenticated()) {
+    // User is logged in
+    const user = GraceAuth.getCurrentUser();
+    console.log('User:', user.email);
+}
+
+// Check if user is admin
+if (GraceAuth.isAdmin()) {
+    // Show admin-only features
+}
+
+// React to auth changes
+GraceAuth.onAuthStateChange((event, session) => {
+    if (event === 'SIGNED_IN') {
+        // User just logged in
+    } else if (event === 'SIGNED_OUT') {
+        // User just logged out
+    }
+});
+```
+
+### Working with User Data
+
+```javascript
+// Load user's favorites and read stories
+async function loadUserData() {
+    const userId = GraceAuth.getCurrentUser()?.id;
+    if (!userId) return;
+    
+    // Favorites
+    const { data: favorites } = await supabase
+        .from('user_favorites')
+        .select('spread_code')
+        .eq('user_id', userId);
+    
+    // Read stories
+    const { data: reads } = await supabase
+        .from('user_read_stories')
+        .select('spread_code')
+        .eq('user_id', userId);
+    
+    // Personal image selections
+    const { data: images } = await supabase
+        .from('user_primary_images')
+        .select('spread_code, image_slot')
+        .eq('user_id', userId);
+}
+```
+
+### Admin-Only UI
+
+```html
+<!-- Elements only visible to admin -->
+<div class="admin-only">
+    <!-- This content hidden by default, shown when body has is-admin class -->
+</div>
+```
+
+```css
+/* CSS for admin visibility */
+.admin-only {
+    display: none;
+}
+
+body.is-admin .admin-only {
+    display: flex; /* or block, etc. */
+}
+```
+
+```javascript
+// In auth.js, updateAdminUI adds/removes body class
+function updateAdminUI() {
+    if (isAdmin()) {
+        document.body.classList.add('is-admin');
+    } else {
+        document.body.classList.remove('is-admin');
+    }
+}
+```
 
 ### Debugging
 
 **Browser Console Logs:**
 ```javascript
-[GRACE]         // General viewer logs
-[GRACE-MOBILE]  // Mobile-specific logs
-[PWA]           // Service worker logs
-[SW]            // Service worker internal logs
+[Graham]         // General viewer logs
+[Graham-Auth]    // Authentication logs
+[Graham-Mobile]  // Mobile-specific logs
+[PWA]            // Service worker logs
+[SW]             // Service worker internal logs
+[Admin]          // Admin page logs
 ```
 
 **Chrome DevTools:**
 - Application > Manifest — Check PWA manifest
 - Application > Service Workers — Check registration
 - Application > Cache Storage — See cached files
+- Application > Local Storage — Check settings, auth
 - Network — Monitor API calls
 
 ### Cache Busting
@@ -231,13 +450,13 @@ When deploying changes:
 
 ```html
 <!-- In index.html and spread.html -->
-<link rel="stylesheet" href="styles.css?v=6">
-<script src="app.js?v=6"></script>
+<link rel="stylesheet" href="styles.css?v=17">
+<script src="app.js?v=17"></script>
 ```
 
 ```javascript
 // In sw.js
-const CACHE_NAME = 'grace-bible-v6';
+const CACHE_NAME = 'graham-bible-v2';
 ```
 
 ### Testing PWA
@@ -266,7 +485,7 @@ When asking Cursor to make changes, provide:
 1. **What you want**: Clear description of the feature
 2. **Where it goes**: Which files are involved
 3. **How it should look**: UI/UX expectations
-4. **Technical constraints**: PWA requirements, mobile support, etc.
+4. **Technical constraints**: Auth requirements, mobile support, etc.
 
 ### Example Prompts
 
@@ -278,19 +497,27 @@ Fall back to copy-to-clipboard on unsupported browsers."
 ```
 
 ```
-"The breadcrumb header isn't updating on mobile. Check the 
-scroll event listener and add debug logging to identify 
+"The favorites filter isn't working on mobile. Check the 
+filter event listeners and add debug logging to identify 
 where it's failing. The desktop version works correctly."
+```
+
+```
+"Add a new admin feature: bulk image regeneration. In the admin 
+panel, add a button that regenerates images for all stories with 
+status_image = 'pending'. Use the existing regeneration webhook 
+and add a progress indicator."
 ```
 
 ### Documentation Updates
 
 After making significant changes:
 
-1. Update `docs/VIEWER.md` with new features
-2. Update `README.md` if architecture changed
-3. Add to version history table
-4. Commit documentation with code changes
+1. Update `docs/VIEWER.md` with new user features
+2. Update `docs/SYSTEM.md` with new database tables or workflows
+3. Update `docs/CURSOR.md` with new development patterns
+4. Add to version history tables
+5. Commit documentation with code changes
 
 ---
 
@@ -314,7 +541,17 @@ node generate-icons.js
 ### Check for Lint Errors
 Use Cursor's built-in linting or:
 ```bash
-npx eslint app.js
+npx eslint app.js auth.js settings.js
+```
+
+### Git Operations
+```bash
+# Stage and commit
+git add -A
+git commit -m "Description of changes"
+
+# Push to deploy
+git push origin main
 ```
 
 ---
@@ -325,6 +562,7 @@ npx eslint app.js
 - Check GitHub Actions for Pages deployment status
 - Hard refresh (Ctrl+Shift+R) to bypass cache
 - Check service worker version in DevTools
+- Verify cache name was updated in sw.js
 
 ### If Features Regress
 - Check git history for when feature worked
@@ -337,26 +575,46 @@ npx eslint app.js
 - Reference documentation files explicitly
 - Break complex tasks into smaller steps
 
+### If Auth Not Working
+- Check Supabase dashboard for auth settings
+- Verify Site URL and Redirect URLs match exactly
+- Check browser console for auth-related errors
+- Clear localStorage and try again
+
 ---
 
 ## Quick Reference
 
 ### Key Files
-- `viewer/app.js` — All JavaScript logic
+- `viewer/app.js` — Main application logic
+- `viewer/auth.js` — Authentication logic
+- `viewer/settings.js` — User preferences
 - `viewer/styles.css` — All styling
 - `viewer/config.js` — Supabase/n8n config
+- `viewer/admin.html` — Admin dashboard
 - `viewer/sw.js` — Service worker
 
 ### Key IDs (HTML)
 - `#mainHeader` — Sticky header
 - `#headerBreadcrumb` — Collapsible breadcrumb row
 - `#storiesGrid` — Card grid container
-- `#themeToggle` — Dark mode button
+- `#authControls` — Sign in/settings buttons
+- `#authModal` — Sign-in modal
+- `#settingsModal` — Settings modal
 
 ### Key Classes (CSS)
 - `.compact-header` — Sticky header
 - `.header-breadcrumb` — Breadcrumb row
 - `.section-header` — In-grid section dividers
 - `.story-card` — Grid cards
+- `.favorited` — Golden glow on favorited cards
+- `.admin-only` — Hidden except for admins
+- `.auth-modal` — Modal styling
 - `.install-banner` — PWA install prompt
 
+### localStorage Keys
+- `graham-settings` — User preferences (theme, font, bible version)
+- `graham-install-dismissed` — PWA banner dismissal timestamp
+
+### sessionStorage Keys
+- `grace-user-data-changed` — Flag to refresh user data on page load

@@ -1,6 +1,6 @@
-# The GRACE Bible
+# The Graham Bible
 
-**Graham Reimagined Art & Canon Experience** — A modern-retold illustrated devotional featuring 500 Bible stories with AI-generated sacred artwork.
+**An illustrated Bible arranged story by story** — A modern-retold devotional featuring 500 Bible stories with AI-generated sacred artwork.
 
 ## Live Demo
 
@@ -41,7 +41,28 @@ The `viewer/` directory contains a Progressive Web App deployed via GitHub Pages
 - **Story View**: Two-page book spread layout with image selection
 - **Chronological Order**: Stories sorted Genesis → Revelation
 - **Image Curation**: Select primary image from 4 AI-generated options
-- **Image Regeneration**: Generate new options with countdown timer UI
+- **Image Regeneration**: Generate new options with countdown timer UI (Admin only)
+
+### User Accounts
+
+The app supports user accounts via Supabase Auth with **magic link email authentication**:
+
+| Role | Capabilities |
+|------|-------------|
+| **Guest** | View all stories, browse images |
+| **User** | All guest features + favorites, read tracking, personal image selections |
+| **Admin** | All user features + image regeneration, global default images, admin dashboard |
+
+### User Features (Logged In)
+- **Favorites**: Heart button to save stories, filter by favorites on home page
+- **Read Tracking**: Automatic tracking when scrolling to bottom of story
+- **Personal Image Selection**: Choose your preferred primary image per story
+- **Settings**: Dark mode, font size, Bible version for links
+
+### Admin Features
+- **Image Regeneration**: Generate new AI images for any story
+- **Global Primary Images**: Set default images for all users
+- **Admin Dashboard**: User statistics, top favorites, most read stories, image popularity
 
 ### Progressive Web App (PWA)
 - **Installable**: Add to home screen on iOS and Android
@@ -50,7 +71,7 @@ The `viewer/` directory contains a Progressive Web App deployed via GitHub Pages
 - **Update Notifications**: Toast when new version available
 
 ### UI Features
-- **Dark Mode**: Rich dark theme with gold accents
+- **Dark Mode**: Rich dark theme with gold accents (default)
 - **Unified Breadcrumb**: Scroll-reveal header showing current section
 - **Audio Narration**: Text-to-speech using Web Speech API
 - **Surprise Me**: Random story selection
@@ -59,10 +80,11 @@ The `viewer/` directory contains a Progressive Web App deployed via GitHub Pages
 ### Filter System
 | Category | Options |
 |----------|---------|
+| User Filters | All / Favorites / Unread / Read |
 | Testament | All / Old Testament / New Testament |
 | Book Groupings | Torah, History, Poetry, Prophets, Gospels, Acts, Epistles, Revelation |
 | Individual Books | All 66 books (cascading based on testament) |
-| Status | All / Complete / Pending |
+| Status (Admin) | All / Complete / Pending |
 
 ---
 
@@ -74,9 +96,10 @@ The `viewer/` directory contains a Progressive Web App deployed via GitHub Pages
 |-----------|---------|------------|
 | **Outline Builder** | Import spreads + fetch KJV/WEB scripture | n8n workflow |
 | **Processing Pipeline** | Generate summaries + images | n8n + GPT-4 + Flux |
-| **Database** | Store all spread data | Supabase (PostgreSQL) |
+| **Database** | Store all spread data + user data | Supabase (PostgreSQL) |
+| **Authentication** | User accounts with magic links | Supabase Auth |
 | **Storage** | Host generated images | Supabase Storage |
-| **Web Viewer** | Display and curate spreads | Static HTML/CSS/JS |
+| **Web Viewer** | Display, curate, and personalize | Static HTML/CSS/JS |
 | **Hosting** | Serve web viewer | GitHub Pages |
 
 ### Data Flow
@@ -86,7 +109,8 @@ The `viewer/` directory contains a Progressive Web App deployed via GitHub Pages
 3. Processing Pipeline generates summaries with GPT-4
 4. Processing Pipeline generates 4 images per spread with Flux
 5. Web viewer displays for curation
-6. User selects primary images and regenerates as needed
+6. Admin selects global primary images
+7. Users can select personal primary images
 ```
 
 ### Workflow IDs (n8n)
@@ -104,9 +128,12 @@ graham-devotional/
 ├── viewer/                    # Static web viewer (PWA)
 │   ├── index.html            # Homepage - grid of all spreads
 │   ├── spread.html           # Individual spread view
+│   ├── admin.html            # Admin dashboard (admin only)
 │   ├── offline.html          # Offline fallback page
-│   ├── styles.css            # All styling (2700+ lines)
-│   ├── app.js                # Main application logic (2000+ lines)
+│   ├── styles.css            # All styling (4000+ lines)
+│   ├── app.js                # Main application logic (3200+ lines)
+│   ├── auth.js               # Authentication logic (800+ lines)
+│   ├── settings.js           # User preferences logic (~150 lines)
 │   ├── config.js             # Supabase & n8n configuration
 │   ├── sw.js                 # Service worker for PWA
 │   ├── manifest.json         # PWA manifest
@@ -117,6 +144,9 @@ graham-devotional/
 │   └── CURSOR.md             # AI/Cursor development guide
 ├── supabase/
 │   └── migrations/           # Database migration SQL files
+│       ├── 001-006           # Core spread tables
+│       ├── 007_user_accounts.sql  # User auth tables
+│       └── 008_set_admin.sql # Admin role assignment
 ├── scripts/
 │   └── backfill-testament-book.sql
 └── README.md                 # This file
@@ -129,7 +159,7 @@ graham-devotional/
 | Document | Purpose |
 |----------|---------|
 | [docs/SYSTEM.md](docs/SYSTEM.md) | Technical reference — pipelines, schema, troubleshooting |
-| [docs/VIEWER.md](docs/VIEWER.md) | Web viewer features — UI, filtering, PWA |
+| [docs/VIEWER.md](docs/VIEWER.md) | Web viewer features — UI, filtering, PWA, auth |
 | [docs/CURSOR.md](docs/CURSOR.md) | AI development guide — MCPs, secrets, architecture |
 
 ---
@@ -174,6 +204,30 @@ Push to `main` branch — GitHub Pages auto-deploys from `viewer/` directory.
 - `OPENAI_API_KEY` — GPT-4 credits
 
 All sensitive keys are stored in n8n's credential manager, not in this repository.
+
+---
+
+## User Account System
+
+### Authentication Flow
+1. User clicks "Sign In" button
+2. Modal opens with email input
+3. User enters email, receives magic link
+4. User clicks link, automatically logged in
+5. PWA users: Click link in browser, then "Check Login Status" in app
+
+### User Data Tables
+| Table | Purpose |
+|-------|---------|
+| `user_profiles` | User metadata + `is_admin` flag |
+| `user_favorites` | Stories favorited by each user |
+| `user_read_stories` | Stories read by each user |
+| `user_primary_images` | Personal image selections per story |
+
+### Row Level Security (RLS)
+All user tables have RLS policies ensuring users can only:
+- Read/write their own data
+- Not access other users' data
 
 ---
 

@@ -1,12 +1,12 @@
 # Web Viewer Documentation
 
-> Complete documentation for The GRACE Bible web viewer application.
+> Complete documentation for The Graham Bible web viewer application.
 
 ---
 
 ## Overview
 
-The web viewer is a **Progressive Web App (PWA)** that displays devotional spreads and provides curation tools. It's deployed via GitHub Pages and connects directly to Supabase for data.
+The web viewer is a **Progressive Web App (PWA)** that displays devotional spreads, supports user accounts with favorites and read tracking, and provides curation tools for admins. It's deployed via GitHub Pages and connects directly to Supabase for data and authentication.
 
 **Live URL:** [grysngrhm-tech.github.io/graham-devotional](https://grysngrhm-tech.github.io/graham-devotional/viewer/index.html)
 
@@ -16,13 +16,16 @@ The web viewer is a **Progressive Web App (PWA)** that displays devotional sprea
 
 | File | Purpose | Lines |
 |------|---------|-------|
-| `index.html` | Homepage - grid of all spreads | ~170 |
-| `spread.html` | Individual spread view | ~240 |
-| `offline.html` | Offline fallback page | ~100 |
-| `styles.css` | All CSS styling | ~2800 |
-| `app.js` | Main application logic | ~2000 |
-| `config.js` | Supabase & n8n configuration | ~17 |
-| `sw.js` | Service worker for PWA | ~80 |
+| `index.html` | Homepage - grid of all spreads | ~240 |
+| `spread.html` | Individual spread view | ~340 |
+| `admin.html` | Admin dashboard | ~1100 |
+| `offline.html` | Offline fallback page | ~150 |
+| `styles.css` | All CSS styling | ~4000 |
+| `app.js` | Main application logic | ~3200 |
+| `auth.js` | Authentication logic | ~820 |
+| `settings.js` | User preferences | ~150 |
+| `config.js` | Supabase & n8n configuration | ~20 |
+| `sw.js` | Service worker for PWA | ~100 |
 | `manifest.json` | PWA manifest | ~60 |
 | `icons/` | PWA icons (7 files) | — |
 
@@ -34,14 +37,216 @@ The web viewer is a **Progressive Web App (PWA)** that displays devotional sprea
 
 ```javascript
 // Supabase Configuration (public keys - safe to commit)
-const SUPABASE_URL = 'https://zekbemqgvupzmukpntog.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJ...'; // Anon key (protected by RLS)
+window.SUPABASE_CONFIG = {
+    url: 'https://zekbemqgvupzmukpntog.supabase.co',
+    anonKey: 'eyJ...' // Anon key (protected by RLS)
+};
 
 // n8n Webhook Configuration
-const N8N_WEBHOOK_URL = 'https://grysngrhm.app.n8n.cloud/webhook/regenerate-image';
+window.N8N_WEBHOOK_URL = 'https://grysngrhm.app.n8n.cloud/webhook/regenerate-image';
 ```
 
 **Security Note:** The anon key is designed to be public. It only allows operations permitted by Row Level Security (RLS) policies. The service role key (full access) is stored in n8n, never in this repo.
+
+---
+
+## User Authentication
+
+### Magic Link Flow
+
+The app uses Supabase Auth with email magic links (passwordless authentication):
+
+1. User clicks "Sign In" button in header
+2. Modal opens with email input
+3. User enters email and clicks "Send Magic Link"
+4. Email with login link sent to user
+5. User clicks link → redirected to app and logged in
+6. Session persisted in browser
+
+### PWA Login Flow
+
+PWA users face a challenge: magic links open in the browser, not the installed app.
+
+**Solution:**
+1. After sending magic link, a "Check Login Status" button appears
+2. User clicks link in email (opens browser)
+3. Browser logs in (session stored)
+4. User returns to PWA and taps "Check Login Status"
+5. PWA checks for existing session and logs in
+
+### Auth State Management
+
+```javascript
+// In auth.js
+window.GraceAuth = {
+    initAuth(),              // Initialize auth state
+    signInWithMagicLink(),   // Send magic link
+    signOut(),               // Log out user
+    isAuthenticated(),       // Check if logged in
+    isAdmin(),               // Check if admin role
+    getCurrentUser(),        // Get current user object
+    onAuthStateChange()      // Subscribe to auth changes
+};
+```
+
+### User Roles
+
+| Role | Detection | Capabilities |
+|------|-----------|--------------|
+| **Guest** | Not authenticated | View stories, browse images |
+| **User** | Authenticated, `is_admin = false` | Favorites, read tracking, personal images |
+| **Admin** | Authenticated, `is_admin = true` | All user features + regeneration, admin dashboard |
+
+### Admin Assignment
+
+To make a user an admin, run in Supabase SQL Editor:
+
+```sql
+UPDATE user_profiles 
+SET is_admin = true 
+WHERE email = 'admin@example.com';
+```
+
+---
+
+## User Features
+
+### Favorites
+
+Users can mark stories as favorites:
+
+**Story Page:**
+- Heart icon button below story title
+- Click to toggle favorite status
+- Filled red heart = favorited
+- Outlined heart = not favorited
+- Animation on click for feedback
+
+**Home Page:**
+- Favorited stories have golden glow border
+- Filter toggle: "All / Favorites / Unread / Read"
+- Favorites filter shows only favorited stories
+
+### Read Tracking
+
+Stories are automatically marked as "read":
+
+**Trigger:** User scrolls to (or near) the bottom of the story page content.
+
+**Story Page:**
+- Checkmark icon appears on card when read
+- Non-intrusive visual indicator
+
+**Home Page:**
+- Read stories show checkmark on card
+- Filter toggle for "Unread" or "Read" stories
+- Filters combine: can show "Favorites that are Unread"
+
+### Personal Image Selection
+
+Users can choose their preferred primary image per story:
+
+**Behavior:**
+- Logged-out users: See admin-selected default image
+- Logged-in users without selection: See 4-image grid
+- Logged-in users with selection: See their selected primary
+
+**Selection Process:**
+1. View story page
+2. Click any of the 4 images
+3. Click "Select as Primary"
+4. Image becomes your personal primary
+5. Persists across sessions
+
+### Settings Modal
+
+Accessed via gear icon in header (when logged in):
+
+| Setting | Options | Default |
+|---------|---------|---------|
+| Dark Mode | On/Off | On |
+| Font Size | Small/Medium/Large | Medium |
+| Bible Version | NIV/ESV/KJV/NKJV/NLT/NASB/WEB | NIV |
+
+**Settings Persistence:**
+- Stored in `localStorage` as `graham-settings`
+- Applied immediately on page load
+- Synced across tabs
+
+**Admin Link:**
+- Admin users see "Admin Panel" link in settings
+- Gold glow effect on settings icon indicates admin status
+
+---
+
+## Admin Features
+
+### Admin Dashboard (`admin.html`)
+
+**Access:** Only authenticated admins (checked via `is_admin` flag)
+
+**Dashboard Overview Cards:**
+| Card | Data | Clickable? |
+|------|------|------------|
+| Total Stories | Count of all spreads | No |
+| Complete Stories | Spreads with status_image = 'done' | No |
+| Registered Users | Total user_profiles count | Yes → User stats modal |
+| Total Favorites | Sum of all favorites | Yes → Top favorites modal |
+| Stories Read | Sum of all read records | Yes → Top reads modal |
+| Image Selections | Sum of personal primaries | Yes → Top images modal |
+
+**Modal Details:**
+- **User Stats:** Total users, admin count, new this week
+- **Top Favorites:** Top 10 most favorited stories
+- **Top Reads:** Top 10 most read stories
+- **Top Images:** Top 8 selected images with thumbnails
+
+**Quick Actions:**
+- View Site (return to homepage)
+- Refresh Stats
+- Open Supabase Dashboard
+- Open GitHub Repo
+
+**Recent Users Table:**
+- Email, role, favorites count, read count, join date
+- Last 10 users
+
+**Popular Images Grid:**
+- Top 6 most selected images with selection counts
+- Visual popularity bars
+
+### Image Regeneration (Admin Only)
+
+Admins can regenerate images for any story:
+
+1. Visit any story page
+2. Click regenerate icon (↻) on any image
+3. Modal opens with countdown timer (~90 seconds)
+4. n8n workflow generates 4 new options
+5. Select preferred image
+6. Option to set as global default
+
+**Technical Flow:**
+```
+Admin clicks regenerate
+    ↓
+POST to n8n webhook: { spread_code, slot }
+    ↓
+n8n creates regeneration_requests entry
+    ↓
+Web app polls table every 2 seconds
+    ↓
+When status = 'ready', show 4 new options
+    ↓
+Admin selection updates spread's image_url_X
+```
+
+### Global Default Images
+
+When admin selects a primary image:
+- Updates `image_url` column (global default)
+- All users without personal selection see this image
+- Users with personal selections unaffected
 
 ---
 
@@ -108,82 +313,67 @@ Supabase API:
 
 ## Homepage Features
 
+### Header
+
+**Structure:**
+```
+The Graham Bible — An illustrated Bible arranged story by story
+[Admin Status Buttons (admin only)] [Sign In / Settings Button]
+```
+
+- Tagline hidden on mobile (< 900px)
+- Sign In button for guests
+- Settings gear icon for logged-in users
+- Gold glow on settings icon for admins
+
+### Filter System
+
+**User Filters (logged in only):**
+- All / Favorites / Unread / Read
+- Segment control style
+- Shown above testament filter
+
+**Testament Filter:**
+- All / Old Testament / New Testament
+- Segment control style
+
+**Book Groupings:**
+- Torah, History, Poetry, Prophets (OT)
+- Gospels, Acts, Epistles, Revelation (NT)
+- Cascades based on testament
+
+**Individual Books:**
+- All 66 books
+- Cascades based on grouping
+
+**Status Filter (admin only):**
+- Total / Complete / Pending
+- Shows counts in buttons
+
+**Search:**
+- Searches: title, passage reference, spread code
+- Real-time filtering
+- Keyboard shortcut: ⌘K (Mac) / Ctrl+K (Windows)
+- Shortcut hint hidden on mobile
+
 ### Grid Display
 
-- Shows all spreads as cards with thumbnails
 - Cards show: image, title, book, passage reference
-- Pending spreads show placeholder
-- Complete badge on finished spreads
+- Favorited cards: golden glow border
+- Read cards: checkmark indicator
+- Pending spreads: placeholder image
+- Complete badge (admin only)
 - Click any card to view full spread
 
 ### Unified Breadcrumb Header
 
-A scroll-reveal breadcrumb that shows current section context:
-
-```
-The GRACE Bible
-───────────────
-Old Testament › Torah › Genesis     (appears on scroll)
-```
+Scroll-reveal breadcrumb showing current section:
 
 **Behavior:**
 1. Breadcrumb hidden at page top
 2. Slides in when user scrolls past first section header
-3. Updates dynamically as user scrolls through sections
+3. Updates dynamically as user scrolls
 4. Shows: Testament › Book Grouping › Book
-
-**Technical Implementation:**
-- Breadcrumb row is inside the main sticky header
-- JavaScript scroll listener detects when in-grid headers pass header bottom
-- CSS transition for smooth slide-in (`max-height` + `opacity`)
-- Uses `requestAnimationFrame` for performance
-
-### Filter System
-
-#### Testament Filter (Segment Control)
-- **All** — Show all spreads
-- **Old Testament** — Only OT books
-- **New Testament** — Only NT books
-
-#### Book Filter (Dropdown)
-Cascading dropdown that updates based on testament selection:
-
-When "All" selected:
-- Book Groupings (Torah, History, etc.)
-- All 66 books
-
-When "Old Testament" selected:
-- OT Groupings only (Torah, History, Poetry, Prophets)
-- OT books only (Genesis - Malachi)
-
-When "New Testament" selected:
-- NT Groupings only (Gospels, Acts, Epistles, Revelation)
-- NT books only (Matthew - Revelation)
-
-#### Status Filter (Pills)
-- **All** — Show all spreads
-- **Complete** — Only `status_image = 'done'`
-- **Pending** — Only `status_image != 'done'`
-
-#### Search
-- Searches: title, passage reference, spread code
-- Case-insensitive
-- Real-time filtering as you type
-- Keyboard shortcut: ⌘K (Mac) / Ctrl+K (Windows)
-
-### Special Features
-
-#### Surprise Me Button
-Random story selection:
-- Golden shuffle button in filter row
-- Navigates to random spread
-- Weighted toward incomplete spreads (optional)
-
-#### Dark Mode Toggle
-- Sun/moon icon in header
-- Persists preference in localStorage
-- Respects system preference by default
-- Rich dark theme with gold accents
 
 ### Chronological Sorting
 
@@ -198,69 +388,32 @@ Spreads displayed in Biblical order:
 
 ### Two-Page Layout
 
-Desktop mimics book spread format:
+**Desktop:** Mimics book spread format
 - **Left Page**: Full-size image (fixed, doesn't scroll)
 - **Right Page**: Content (scrollable)
-  - Title
+  - Title + favorite button
   - Passage reference (links to Bible Gateway)
   - Key verse (KJV, italic styling)
   - Paraphrase text (440-520 words)
 
-Mobile stacks vertically:
+**Mobile:** Stacks vertically
 - Image at top (full width, no crop)
 - Content below
 - Floating navigation buttons at bottom
 
 ### Image Selection
 
-4 AI-generated options per spread:
+**4 AI-generated options per spread:**
 
-**Grid View:**
+**Grid View (default for logged-in users without selection):**
 - 2×2 thumbnail grid
 - Currently selected has checkmark badge
 - Click any image to view full-size
 - Hover reveals "Select as Primary" button
 
-**Collapsed View:**
+**Collapsed View (after selection):**
 - Shows only primary image
 - "Change Image Selection" button to expand
-
-### Select as Primary
-
-1. Click image thumbnail
-2. Click "Select as Primary" (or checkmark)
-3. Updates `image_url` column in Supabase
-4. Visual feedback confirms selection
-
-### Image Regeneration
-
-Each image slot has regenerate button (↻ icon):
-
-1. Click regenerate icon
-2. Modal opens with countdown timer (~90 seconds)
-3. Progress ring shows stages:
-   - "Analyzing passage..." (0-15s)
-   - "Generating prompts..." (15-30s)
-   - "Creating images..." (30-80s)
-   - "Finalizing..." (80-90s)
-4. When complete, 4 new options appear
-5. Select preferred image
-6. Modal closes, spread updated
-
-**Technical Flow:**
-```
-User clicks regenerate
-    ↓
-POST to n8n webhook: { spread_code, slot }
-    ↓
-n8n creates regeneration_requests entry
-    ↓
-Web app polls table every 2 seconds
-    ↓
-When status = 'ready', show 4 new options
-    ↓
-User selection updates spread's image_url_X
-```
 
 ### Audio Narration
 
@@ -311,9 +464,9 @@ Text-to-speech using Web Speech API:
 
 - CSS variables for all colors
 - `[data-theme="dark"]` selector for overrides
-- Persisted in `localStorage` as `grace-theme`
-- System preference detection via `prefers-color-scheme`
-- IIFE in `<head>` prevents flash of wrong theme
+- Persisted in `localStorage` via `graham-settings`
+- Dark mode is default
+- Can be toggled in Settings modal
 
 ---
 
@@ -324,6 +477,7 @@ Text-to-speech using Web Speech API:
 - Stacked header (title above stats)
 - Full-width filters
 - Floating navigation buttons
+- Hidden tagline and keyboard shortcuts
 
 ### Image Handling
 - `object-fit: contain` (no cropping)
@@ -361,26 +515,72 @@ const { data } = await supabase
     .single();
 ```
 
-**Update Primary Image:**
+**Load User Favorites:**
 ```javascript
-await supabase
-    .from('grahams_devotional_spreads')
-    .update({ image_url: selectedUrl })
+const { data } = await supabase
+    .from('user_favorites')
+    .select('spread_code')
+    .eq('user_id', userId);
+```
+
+**Toggle Favorite:**
+```javascript
+// Add
+await supabase.from('user_favorites').insert({ user_id, spread_code });
+
+// Remove
+await supabase.from('user_favorites').delete()
+    .eq('user_id', userId)
     .eq('spread_code', spreadCode);
 ```
 
-**Poll Regeneration Status:**
+**Mark as Read:**
 ```javascript
+await supabase.from('user_read_stories').upsert({
+    user_id: userId,
+    spread_code: spreadCode,
+    read_at: new Date().toISOString()
+});
+```
+
+**Get/Set Personal Primary Image:**
+```javascript
+// Get
 const { data } = await supabase
-    .from('regeneration_requests')
-    .select('*')
-    .eq('id', requestId)
+    .from('user_primary_images')
+    .select('image_slot')
+    .eq('user_id', userId)
+    .eq('spread_code', spreadCode)
     .single();
+
+// Set
+await supabase.from('user_primary_images').upsert({
+    user_id: userId,
+    spread_code: spreadCode,
+    image_slot: slot
+});
 ```
 
 ---
 
 ## Troubleshooting
+
+### Authentication Issues
+
+**Magic link not working:**
+- Check Supabase Auth settings: Site URL and Redirect URLs
+- Ensure redirect URL matches exactly (no trailing spaces)
+- PWA users: Use "Check Login Status" button after clicking link
+
+**Admin features not showing:**
+- Verify `is_admin = true` in `user_profiles` table
+- Check browser console for auth state logs
+- Try logging out and back in
+
+**Session not persisting:**
+- Check localStorage is not blocked
+- Verify cookies are enabled
+- PWA: Session shared with browser
 
 ### Images not loading
 - Check Supabase storage bucket is public
@@ -406,13 +606,14 @@ const { data } = await supabase
 
 ### Dark mode not persisting
 - Check localStorage is not blocked
+- Settings stored in `graham-settings` key
 - Clear cache and try again
-- Verify `data-theme` attribute on `<html>`
 
-### Breadcrumb not appearing
-- Scroll down past first section header
-- Check console for `[GRACE]` logs
-- Verify section headers have `data-*` attributes
+### Favorites/Read not syncing
+- Check user is logged in
+- Verify RLS policies allow insert/update
+- Check browser console for API errors
+- Data syncs via sessionStorage flag between pages
 
 ---
 
@@ -433,13 +634,13 @@ Open: `http://localhost:8000`
 
 When making changes, update version query strings:
 ```html
-<link rel="stylesheet" href="styles.css?v=5">
-<script src="app.js?v=5"></script>
+<link rel="stylesheet" href="styles.css?v=16">
+<script src="app.js?v=16"></script>
 ```
 
 Also update service worker cache name:
 ```javascript
-const CACHE_NAME = 'grace-bible-v5';
+const CACHE_NAME = 'graham-bible-v1';
 ```
 
 ### Deployment
@@ -454,13 +655,17 @@ Site available at: `https://grysngrhm-tech.github.io/graham-devotional/viewer/`
 
 | Date | Version | Changes |
 |------|---------|---------|
-| 2025-12-03 | v5.0 | PWA install prompt with iOS/Android support |
-| 2025-12-03 | v4.0 | Complete PWA implementation (icons, offline, updates) |
-| 2025-12-03 | v3.0 | Mobile breadcrumb fixes, dark mode story view |
-| 2025-12-02 | v2.0 | Unified scroll-reveal breadcrumb header |
-| 2025-12-02 | v1.5 | Dark mode, audio narration, surprise button |
-| 2025-12-02 | v1.4 | Mobile improvements, floating navigation |
-| 2025-12-02 | v1.3 | Cascading filters, iOS sticky fix |
-| 2025-12-02 | v1.2 | Section headers (Testament, Grouping, Book) |
-| 2025-12-01 | v1.1 | Image regeneration with countdown UI |
+| 2025-12-04 | v8.0 | Rebrand to "The Graham Bible", admin tile modals |
+| 2025-12-04 | v7.5 | Fix PWA login button, tagline in header |
+| 2025-12-04 | v7.4 | Admin-only status indicators, mobile PWA detection |
+| 2025-12-04 | v7.3 | Admin panel with statistics dashboard |
+| 2025-12-04 | v7.2 | Gold glow for admin, admin link in settings |
+| 2025-12-04 | v7.1 | PWA login flow with "Check Login Status" |
+| 2025-12-04 | v7.0 | User accounts, favorites, read tracking, settings modal |
+| 2025-12-03 | v6.0 | PWA install prompt with iOS/Android detection |
+| 2025-12-03 | v5.5 | Complete PWA: icons, manifest, service worker, offline page |
+| 2025-12-02 | v5.0 | Dark mode, audio narration, surprise button |
+| 2025-12-02 | v4.0 | Unified scroll-reveal breadcrumb header |
+| 2025-12-01 | v3.0 | Image regeneration feature with countdown UI |
+| 2025-12-01 | v2.0 | Book grouping filters (Torah, Gospels, etc.) |
 | 2025-12-01 | v1.0 | Initial viewer with filters and curation |

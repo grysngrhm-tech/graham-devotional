@@ -1,13 +1,13 @@
-# The Grahams' Devotional - System Reference
+# The Graham Bible - System Reference
 
-> Technical documentation for the automated devotional production pipeline.
+> Technical documentation for the automated devotional production pipeline and user systems.
 
 ---
 
 ## Quick Start
 
 1. **Upload `data/all-spreads.json`** to Supabase Storage bucket `devotional-data`
-2. **Run database migration** to create tables and indexes
+2. **Run database migrations** to create tables and indexes
 3. **Run Outline Builder** with batch number (0-49) to import 10 spreads at a time
 4. **Run Processing Pipeline** to generate summaries and images for that batch
 5. **Check results**, tweak prompts if needed, then repeat for next batch
@@ -40,6 +40,15 @@
 │  Branch 2: Get pending image → Abstract → 4 Prompts → Flux     │
 │       → Upload 4 images → Update URLs                          │
 └─────────────────────────────────────────────────────────────────┘
+                              ↓
+┌─────────────────────────────────────────────────────────────────┐
+│                      WEB VIEWER + AUTH                          │
+│            (User Accounts + Personalization)                    │
+├─────────────────────────────────────────────────────────────────┤
+│  Supabase Auth (Magic Links) → User Profiles                   │
+│       → Favorites, Read Tracking, Personal Image Selections    │
+│       → Admin Dashboard for content curation                   │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
 **Key Principles:**
@@ -47,6 +56,7 @@
 - Key verse is identified by AI during summary generation (not pre-defined)
 - WEB (World English Bible) provides modern context for AI understanding
 - All quotations in output are from KJV only
+- User data isolated by Row Level Security (RLS)
 
 ---
 
@@ -154,17 +164,17 @@ If no work found in both branches → STOP (queue empty)
 **Triggers:**
 - **"Start Batch Processing"** (Manual): Click to start continuous processing
 - **"Every 15 Minutes"** (Scheduled): Backup trigger to restart if workflow stopped
-- **"Regenerate Image"** (Webhook): For UI-triggered regeneration
+- **"Regenerate Image"** (Webhook): For UI-triggered regeneration (admin only)
 
 ---
 
 ## In-App Image Regeneration
 
-The web viewer includes an in-app regeneration feature that allows curators to regenerate individual image slots directly from the UI.
+The web viewer includes an in-app regeneration feature that allows **admin users** to regenerate individual image slots directly from the UI.
 
 **Flow:**
 ```
-User clicks regenerate button on image slot
+Admin clicks regenerate button on image slot
     ↓
 Web app sends POST to n8n webhook (/webhook/regenerate-image)
     → Payload: { spread_code, slot }
@@ -181,7 +191,7 @@ Web app polls regeneration_requests table for status
     → When status = 'ready', display 4 new options in modal
     → Countdown timer shows ~90 second estimate
     ↓
-User selects preferred image
+Admin selects preferred image
     → Web app updates grahams_devotional_spreads.image_url_X with new URL
     → Web app updates regeneration_requests (status: 'selected')
 ```
@@ -189,6 +199,7 @@ User selects preferred image
 **Configuration:**
 - n8n webhook URL configured in `viewer/config.js` as `N8N_WEBHOOK_URL`
 - RLS must allow web app to read/write `regeneration_requests` table
+- Only users with `is_admin = true` can trigger regeneration
 
 ---
 
@@ -223,7 +234,7 @@ CREATE TABLE public.grahams_devotional_spreads (
     mood_category           TEXT,        -- awe|peace|struggle|triumph|sorrow|mystery|joy|warning
     image_abstract          TEXT,        -- Scene analysis from GPT-4
     image_prompt            TEXT,        -- Primary image prompt (first of 4)
-    image_url               TEXT,        -- Primary/selected image URL
+    image_url               TEXT,        -- Primary/selected image URL (global default)
     image_url_1             TEXT,        -- First artistic variation URL
     image_url_2             TEXT,        -- Second artistic variation URL
     image_url_3             TEXT,        -- Third artistic variation URL
@@ -259,6 +270,98 @@ CREATE TABLE regeneration_requests (
 );
 ```
 
+### Table: `user_profiles`
+
+```sql
+CREATE TABLE user_profiles (
+  id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  email TEXT,
+  is_admin BOOLEAN DEFAULT false,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Trigger to auto-create profile on signup
+CREATE OR REPLACE FUNCTION handle_new_user()
+RETURNS TRIGGER AS $$
+BEGIN
+  INSERT INTO public.user_profiles (id, email)
+  VALUES (NEW.id, NEW.email);
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE FUNCTION handle_new_user();
+```
+
+### Table: `user_favorites`
+
+```sql
+CREATE TABLE user_favorites (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+  spread_code TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(user_id, spread_code)
+);
+```
+
+### Table: `user_read_stories`
+
+```sql
+CREATE TABLE user_read_stories (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+  spread_code TEXT NOT NULL,
+  read_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(user_id, spread_code)
+);
+```
+
+### Table: `user_primary_images`
+
+```sql
+CREATE TABLE user_primary_images (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+  spread_code TEXT NOT NULL,
+  image_slot INTEGER NOT NULL CHECK (image_slot BETWEEN 1 AND 4),
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(user_id, spread_code)
+);
+```
+
+### Row Level Security (RLS) Policies
+
+All user tables have RLS enabled with these policies:
+
+```sql
+-- user_profiles: Users can read/update their own profile
+ALTER TABLE user_profiles ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can read own profile" ON user_profiles
+  FOR SELECT USING (auth.uid() = id);
+CREATE POLICY "Users can update own profile" ON user_profiles
+  FOR UPDATE USING (auth.uid() = id);
+
+-- user_favorites: Users can CRUD their own favorites
+ALTER TABLE user_favorites ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can manage own favorites" ON user_favorites
+  FOR ALL USING (auth.uid() = user_id);
+
+-- user_read_stories: Users can CRUD their own read records
+ALTER TABLE user_read_stories ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can manage own read stories" ON user_read_stories
+  FOR ALL USING (auth.uid() = user_id);
+
+-- user_primary_images: Users can CRUD their own image selections
+ALTER TABLE user_primary_images ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can manage own image selections" ON user_primary_images
+  FOR ALL USING (auth.uid() = user_id);
+```
+
 ### Storage Buckets
 
 | Bucket | Purpose | Access |
@@ -266,6 +369,38 @@ CREATE TABLE regeneration_requests (
 | `devotional-artwork` | Generated images | Public |
 | `devotional-data` | Source JSON outlines | Public |
 | `devotional-images` | Alternative image storage | Public |
+
+---
+
+## Authentication System
+
+### Supabase Auth Configuration
+
+**Site URL:** `https://grysngrhm-tech.github.io/graham-devotional/`
+
+**Redirect URLs (must include):**
+- `https://grysngrhm-tech.github.io/graham-devotional/`
+- `https://grysngrhm-tech.github.io/graham-devotional/viewer/`
+- `https://grysngrhm-tech.github.io/graham-devotional/viewer/index.html`
+- `https://grysngrhm-tech.github.io/graham-devotional/viewer/spread.html`
+
+**Email Templates:**
+- Magic Link template should use `{{ .SiteURL }}` for redirect
+
+### Making a User Admin
+
+Run in Supabase SQL Editor:
+
+```sql
+-- Check if user exists and their current status
+SELECT id, email, is_admin FROM user_profiles 
+WHERE email = 'admin@example.com';
+
+-- Set admin flag
+UPDATE user_profiles 
+SET is_admin = true 
+WHERE email = 'admin@example.com';
+```
 
 ---
 
@@ -354,7 +489,7 @@ Example: genesis+1:1-2:3?translation=web
 ### Replicate Rate Limit ("less than $5.0 in credit")
 - Add more funds to Replicate account (>$20 recommended for 600 req/min)
 - Current batch interval: 1 second between requests
-- If persisting, verify correct API token is configured (check for multiple accounts)
+- If persisting, verify correct API token is configured
 
 ### Image generation timeout
 - Flux Schnell usually responds in 10-30 seconds
@@ -370,6 +505,16 @@ Example: genesis+1:1-2:3?translation=web
 - Viewer sorts by Biblical book order, then chapter, then verse
 - Ensure `book`, `start_chapter`, `start_verse` columns are populated
 - Run backfill SQL if columns are empty
+
+### User can't log in
+- Check Supabase Auth settings (Site URL, Redirect URLs)
+- Verify no trailing spaces in URLs
+- PWA users: Must use "Check Login Status" button
+
+### Admin features not appearing
+- Verify `is_admin = true` in `user_profiles` table
+- Check browser console for auth state logs
+- Gold glow on settings icon indicates admin status
 
 ---
 
@@ -420,33 +565,44 @@ SET status_scripture = 'pending', error_message = NULL
 WHERE status_scripture = 'error';
 ```
 
-### Reset image generation for specific spread
+### User statistics
 ```sql
-UPDATE grahams_devotional_spreads
-SET status_image = 'pending',
-    image_url = NULL,
-    image_url_1 = NULL,
-    image_url_2 = NULL,
-    image_url_3 = NULL,
-    image_url_4 = NULL
-WHERE spread_code = 'GEN-001';
+-- Total users
+SELECT COUNT(*) FROM user_profiles;
+
+-- Admin count
+SELECT COUNT(*) FROM user_profiles WHERE is_admin = true;
+
+-- Users with most favorites
+SELECT p.email, COUNT(f.id) as favorites
+FROM user_profiles p
+LEFT JOIN user_favorites f ON p.id = f.user_id
+GROUP BY p.id, p.email
+ORDER BY favorites DESC
+LIMIT 10;
+
+-- Most favorited stories
+SELECT f.spread_code, s.title, COUNT(*) as count
+FROM user_favorites f
+JOIN grahams_devotional_spreads s ON f.spread_code = s.spread_code
+GROUP BY f.spread_code, s.title
+ORDER BY count DESC
+LIMIT 10;
+
+-- Most read stories
+SELECT r.spread_code, s.title, COUNT(*) as count
+FROM user_read_stories r
+JOIN grahams_devotional_spreads s ON r.spread_code = s.spread_code
+GROUP BY r.spread_code, s.title
+ORDER BY count DESC
+LIMIT 10;
 ```
 
-### Backfill testament/book from spread_code
+### Set user as admin
 ```sql
--- See scripts/backfill-testament-book.sql for full script
-UPDATE grahams_devotional_spreads SET
-  testament = CASE 
-    WHEN spread_code LIKE 'GEN-%' THEN 'OT'
-    WHEN spread_code LIKE 'MAT-%' THEN 'NT'
-    -- ... etc
-  END,
-  book = CASE 
-    WHEN spread_code LIKE 'GEN-%' THEN 'Genesis'
-    WHEN spread_code LIKE 'MAT-%' THEN 'Matthew'
-    -- ... etc
-  END
-WHERE testament IS NULL OR book IS NULL;
+UPDATE user_profiles 
+SET is_admin = true 
+WHERE email = 'admin@example.com';
 ```
 
 ---
@@ -455,16 +611,16 @@ WHERE testament IS NULL OR book IS NULL;
 
 | Date | Version | Changes |
 |------|---------|---------|
-| 2025-12-03 | v7.0 | PWA install prompt with iOS/Android detection |
-| 2025-12-03 | v6.8 | Complete PWA: icons, manifest, service worker, offline page |
-| 2025-12-03 | v6.7 | Mobile breadcrumb fixes, touchmove support |
-| 2025-12-03 | v6.6 | Dark mode fixes for story view |
-| 2025-12-02 | v6.5 | Unified scroll-reveal breadcrumb header |
-| 2025-12-02 | v6.4 | Dark mode, audio narration, surprise button |
-| 2025-12-02 | v6.3 | Added Biblical chronological sorting to viewer |
-| 2025-12-02 | v6.2 | Fixed parallel text/image processing paths |
-| 2025-12-02 | v6.1 | Fixed Replicate authentication header format |
+| 2025-12-04 | v8.0 | Rebrand to "The Graham Bible", admin tile modals |
+| 2025-12-04 | v7.0 | User accounts, favorites, read tracking, admin dashboard |
+| 2025-12-03 | v6.8 | PWA install prompt with iOS/Android detection |
+| 2025-12-03 | v6.7 | Complete PWA: icons, manifest, service worker, offline page |
+| 2025-12-03 | v6.6 | Mobile breadcrumb fixes, touchmove support |
+| 2025-12-02 | v6.5 | Dark mode fixes for story view |
+| 2025-12-02 | v6.4 | Unified scroll-reveal breadcrumb header |
+| 2025-12-02 | v6.3 | Dark mode, audio narration, surprise button |
+| 2025-12-02 | v6.2 | Added Biblical chronological sorting to viewer |
+| 2025-12-02 | v6.1 | Fixed parallel text/image processing paths |
 | 2025-12-01 | v6.0 | Added image regeneration feature with countdown UI |
 | 2025-12-01 | v5.5 | Implemented book grouping filters (Torah, Gospels, etc.) |
 | 2025-12-01 | v5.4 | Fixed filter functionality using direct Supabase columns |
-| 2025-12-01 | v5.3 | Added "Prepare Prompt Data" node for robust batch/regen handling |
