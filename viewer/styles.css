@@ -1299,13 +1299,16 @@ body {
     top: 0;
     left: 0;
     right: 0;
-    min-height: calc(var(--nav-height) + env(safe-area-inset-top));
+    height: calc(var(--nav-height) + env(safe-area-inset-top));
     padding-top: env(safe-area-inset-top); /* iPhone notch */
     background: rgba(0, 0, 0, 0.9);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
     display: flex;
-    flex-direction: column;
+    align-items: center;
+    justify-content: space-between;
+    padding-left: var(--spacing-xl);
+    padding-right: var(--spacing-xl);
     z-index: 100;
 }
 
@@ -3243,227 +3246,186 @@ body {
     border-color: rgba(201, 162, 39, 0.5);
 }
 
-/* ============================================================================
-   Header Sign-In Expansion (iOS-style)
-   ============================================================================ */
-
-/* Sign-in row in header - slides down when activated */
-.header-row.header-signin {
-    max-height: 0;
+/* Auth Modal */
+.auth-modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.75);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10000;
     opacity: 0;
-    overflow: hidden;
-    padding: 0 var(--spacing-xl);
-    transition: max-height 0.3s cubic-bezier(0.32, 0.72, 0, 1), 
-                opacity 0.2s ease,
-                padding 0.3s ease;
-    background: rgba(255, 255, 255, 0.03);
-    border-top: 1px solid transparent;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 8px;
+    visibility: hidden;
+    transition: opacity 0.25s ease, visibility 0.25s ease;
+    padding: 20px;
 }
 
-.header-row.header-signin.visible {
-    max-height: 70px;
+.auth-modal.visible {
     opacity: 1;
-    padding: 12px var(--spacing-xl);
-    border-top-color: rgba(255, 255, 255, 0.08);
+    visibility: visible;
 }
 
-/* Sign-in form container */
-.signin-form {
-    display: flex;
-    align-items: center;
-    gap: 8px;
+.auth-modal-content {
+    background: var(--bg-secondary);
+    border-radius: 20px;
+    padding: 32px;
+    max-width: 400px;
     width: 100%;
-    max-width: 380px;
+    position: relative;
+    box-shadow: 
+        0 20px 60px rgba(0, 0, 0, 0.4),
+        0 0 0 1px rgba(255, 255, 255, 0.1);
+    transform: translateY(20px) scale(0.96);
+    transition: transform 0.3s cubic-bezier(0.32, 0.72, 0, 1);
 }
 
-/* Email input field */
-.signin-form input {
-    flex: 1;
-    min-width: 0;
-    padding: 10px 14px;
-    border-radius: 10px;
-    border: 1px solid rgba(255, 255, 255, 0.15);
-    background: rgba(255, 255, 255, 0.08);
-    color: #FFFFFF;
-    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif;
-    font-size: 0.875rem;
-    transition: all 0.2s ease;
-    outline: none;
+.auth-modal.visible .auth-modal-content {
+    transform: translateY(0) scale(1);
 }
 
-.signin-form input::placeholder {
-    color: rgba(255, 255, 255, 0.4);
-}
-
-.signin-form input:focus {
-    background: rgba(255, 255, 255, 0.12);
-    border-color: rgba(201, 162, 39, 0.5);
-    box-shadow: 0 0 0 3px rgba(201, 162, 39, 0.15);
-}
-
-.signin-form input:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-}
-
-/* Send link button */
-.signin-send {
-    padding: 10px 16px;
-    border-radius: 10px;
-    background: var(--color-gold);
-    color: #1A1A1A;
-    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif;
-    font-size: 0.8125rem;
-    font-weight: 600;
-    border: none;
-    cursor: pointer;
-    transition: all 0.15s ease;
-    white-space: nowrap;
-    flex-shrink: 0;
-}
-
-.signin-send:hover:not(:disabled) {
-    background: #D4AF37;
-    transform: translateY(-1px);
-}
-
-.signin-send:active:not(:disabled) {
-    transform: scale(0.97);
-}
-
-.signin-send:disabled {
-    opacity: 0.7;
-    cursor: not-allowed;
-}
-
-.signin-send.loading {
-    opacity: 0.8;
-}
-
-.signin-send.success {
-    background: #4CAF50;
-    color: #FFFFFF;
-}
-
-/* Cancel button */
-.signin-cancel {
+.auth-close {
+    position: absolute;
+    top: 16px;
+    right: 16px;
     width: 32px;
     height: 32px;
-    min-width: 32px;
-    border-radius: 50%;
     border: none;
-    background: rgba(255, 255, 255, 0.1);
-    color: rgba(255, 255, 255, 0.6);
-    font-size: 1.125rem;
+    background: rgba(128, 128, 128, 0.15);
+    border-radius: 50%;
+    font-size: 1.25rem;
+    color: var(--text-muted);
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
     transition: all 0.15s ease;
-    flex-shrink: 0;
 }
 
-.signin-cancel:hover {
-    background: rgba(255, 255, 255, 0.2);
-    color: #FFFFFF;
+.auth-close:hover {
+    background: rgba(128, 128, 128, 0.25);
+    color: var(--text-primary);
 }
 
-.signin-cancel:active {
-    transform: scale(0.92);
-}
-
-/* Status message */
-.signin-status {
-    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif;
-    font-size: 0.75rem;
-    margin: 0;
-    min-height: 1em;
+.auth-header {
     text-align: center;
-    transition: opacity 0.2s ease;
+    margin-bottom: 24px;
 }
 
-.signin-status:empty {
-    display: none;
+.auth-header h2 {
+    font-family: var(--font-title);
+    font-size: 1.5rem;
+    font-weight: 500;
+    color: var(--text-primary);
+    margin: 0 0 8px 0;
 }
 
-.signin-status.success {
+.auth-header p {
+    font-family: var(--font-body);
+    font-size: 0.9375rem;
+    color: var(--text-secondary);
+    margin: 0;
+}
+
+.auth-form {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.auth-form input {
+    width: 100%;
+    padding: 14px 16px;
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    background: var(--bg-card);
+    font-family: 'Inter', -apple-system, sans-serif;
+    font-size: 1rem;
+    color: var(--text-primary);
+    transition: all 0.2s ease;
+    box-sizing: border-box;
+}
+
+.auth-form input:focus {
+    outline: none;
+    border-color: var(--color-gold);
+    box-shadow: 0 0 0 3px rgba(201, 162, 39, 0.15);
+}
+
+.auth-form input::placeholder {
+    color: var(--text-muted);
+}
+
+.auth-submit {
+    width: 100%;
+    padding: 14px 20px;
+    border: none;
+    border-radius: 12px;
+    background: var(--color-gold);
+    color: #1A1A1A;
+    font-family: 'Inter', -apple-system, sans-serif;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.auth-submit:hover:not(:disabled) {
+    background: #D4AF37;
+    transform: translateY(-1px);
+}
+
+.auth-submit:active:not(:disabled) {
+    transform: translateY(0);
+}
+
+.auth-submit:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.auth-status {
+    text-align: center;
+    font-family: 'Inter', -apple-system, sans-serif;
+    font-size: 0.875rem;
+    min-height: 1.25em;
+    margin: 0;
+}
+
+.auth-status.success {
     color: #4CAF50;
 }
 
-.signin-status.error {
+.auth-status.error {
     color: #F44336;
 }
 
-/* Story page nav sign-in expansion */
-.nav-signin {
-    max-height: 0;
-    opacity: 0;
-    overflow: hidden;
-    padding: 0 var(--spacing-xl);
-    transition: max-height 0.3s cubic-bezier(0.32, 0.72, 0, 1), 
-                opacity 0.2s ease,
-                padding 0.3s ease;
-    background: rgba(255, 255, 255, 0.03);
-    border-top: 1px solid transparent;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 8px;
+.auth-footer {
+    text-align: center;
+    font-family: 'Inter', -apple-system, sans-serif;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin: 16px 0 0 0;
 }
 
-.nav-signin.visible {
-    max-height: 70px;
-    opacity: 1;
-    padding: 12px var(--spacing-xl);
-    border-top-color: rgba(255, 255, 255, 0.08);
-}
-
-.nav-primary {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    height: var(--nav-height);
-    padding-left: var(--spacing-xl);
-    padding-right: var(--spacing-xl);
-}
-
-/* Mobile adjustments for header sign-in */
+/* Mobile adjustments for auth modal */
 @media (max-width: 768px) {
-    .header-row.header-signin,
-    .nav-signin {
-        padding-left: var(--spacing-md);
-        padding-right: var(--spacing-md);
+    .auth-modal-content {
+        padding: 24px;
+        border-radius: 16px;
     }
     
-    .header-row.header-signin.visible,
-    .nav-signin.visible {
-        padding: 10px var(--spacing-md);
-        max-height: 60px;
+    .auth-header h2 {
+        font-size: 1.25rem;
     }
     
-    .signin-form {
-        max-width: 100%;
-    }
-    
-    .signin-form input {
-        padding: 8px 12px;
-        font-size: 0.8125rem;
-    }
-    
-    .signin-send {
-        padding: 8px 12px;
-        font-size: 0.75rem;
-    }
-    
-    .signin-cancel {
-        width: 28px;
-        height: 28px;
-        min-width: 28px;
-        font-size: 1rem;
+    .auth-form input,
+    .auth-submit {
+        padding: 12px 14px;
+        font-size: 0.9375rem;
     }
 }
 

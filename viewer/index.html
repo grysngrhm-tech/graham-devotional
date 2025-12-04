@@ -77,15 +77,6 @@
                 <span class="breadcrumb-count" id="breadcrumbCount"></span>
             </div>
             
-            <!-- Sign-in expansion row (hidden by default) -->
-            <div class="header-row header-signin" id="headerSignin">
-                <div class="signin-form">
-                    <input type="email" id="authEmail" placeholder="Enter your email" autocomplete="email">
-                    <button class="signin-send" id="sendMagicLink">Send Link</button>
-                    <button class="signin-cancel" id="signinCancel" title="Cancel">&times;</button>
-                </div>
-                <p class="signin-status" id="authStatus"></p>
-            </div>
         </header>
 
         <!-- Introduction Section -->
@@ -195,6 +186,23 @@
                 <span class="footer-copyright">A Family Devotional Project</span>
             </p>
         </footer>
+    </div>
+
+    <!-- Auth Modal -->
+    <div class="auth-modal" id="authModal">
+        <div class="auth-modal-content">
+            <button class="auth-close" id="authClose">&times;</button>
+            <div class="auth-header">
+                <h2>Sign In</h2>
+                <p>Enter your email to receive a magic link</p>
+            </div>
+            <div class="auth-form">
+                <input type="email" id="authEmail" placeholder="you@example.com" autocomplete="email">
+                <button class="auth-submit" id="sendMagicLink">Send Magic Link</button>
+            </div>
+            <p class="auth-status" id="authStatus"></p>
+            <p class="auth-footer">No password needed. We'll send you a secure link to sign in.</p>
+        </div>
     </div>
 
     <!-- Supabase JS Client -->
