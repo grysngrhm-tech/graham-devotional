@@ -3559,6 +3559,25 @@ body.is-admin .card-status.admin-only {
     cursor: not-allowed;
 }
 
+.auth-legal {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    text-align: center;
+    margin-top: 4px;
+    line-height: 1.4;
+}
+
+.auth-legal a {
+    color: var(--text-secondary);
+    text-decoration: underline;
+    text-decoration-color: rgba(255, 255, 255, 0.3);
+    transition: color 0.2s;
+}
+
+.auth-legal a:hover {
+    color: var(--color-gold);
+}
+
 .auth-status {
     text-align: center;
     font-family: 'Inter', -apple-system, sans-serif;
@@ -3956,6 +3975,31 @@ body.is-admin .card-status.admin-only {
 .settings-user-info span {
     color: var(--text-primary);
     font-weight: 500;
+}
+
+/* Settings Legal Links */
+.settings-legal-links {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 8px;
+    margin-top: 16px;
+    font-size: 0.75rem;
+}
+
+.settings-legal-links a {
+    color: var(--text-muted);
+    text-decoration: none;
+    transition: color 0.2s;
+}
+
+.settings-legal-links a:hover {
+    color: var(--color-gold);
+}
+
+.settings-legal-sep {
+    color: var(--text-muted);
+    opacity: 0.5;
 }
 
 /* Settings Sign Out Button */
