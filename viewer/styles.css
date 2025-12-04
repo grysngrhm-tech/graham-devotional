@@ -3507,12 +3507,30 @@ body.is-admin .card-status.admin-only {
     text-align: center;
     font-family: var(--font-body);
     font-size: 0.8125rem;
-    color: var(--color-accent);
+    color: var(--text-secondary);
     margin: var(--spacing-md) 0 0 0;
-    padding: var(--spacing-sm);
+    padding: var(--spacing-sm) var(--spacing-md);
     background: rgba(212, 175, 55, 0.1);
     border-radius: 8px;
-    line-height: 1.4;
+    line-height: 1.5;
+}
+
+.pwa-hint p {
+    margin: 0 0 var(--spacing-xs) 0;
+}
+
+.pwa-hint p:last-child {
+    margin-bottom: 0;
+}
+
+.pwa-hint strong {
+    color: var(--color-accent);
+}
+
+.pwa-hint-alt {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    font-style: italic;
 }
 
 .auth-check-status {

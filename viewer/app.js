@@ -530,6 +530,15 @@ async function initIndexPage() {
         
         // Listen for auth state changes
         window.GraceAuth.onAuthStateChange(handleAuthStateChange);
+        
+        // Explicitly update auth UI after init to ensure filter toggles are visible
+        // This handles cases where the page is navigated to (not loaded fresh)
+        if (window.GraceAuth.isAuthenticated()) {
+            const userFilter = document.getElementById('userFilter');
+            if (userFilter) {
+                userFilter.style.display = 'flex';
+            }
+        }
     }
     
     // Load stories (testament/book now come from Supabase directly)
