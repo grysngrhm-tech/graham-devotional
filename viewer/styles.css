@@ -3737,15 +3737,15 @@ body.is-offline {
     margin: 8px 0 16px 0;
 }
 
-/* Single input styled to look like 6 separate boxes */
+/* Single input styled for 8-digit code */
 .otp-input {
     width: 100%;
-    max-width: 280px;
+    max-width: 320px;
     padding: 16px 12px;
     font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
-    font-size: 1.75rem;
+    font-size: 1.5rem;
     font-weight: 600;
-    letter-spacing: 1.2em;
+    letter-spacing: 0.8em;
     text-align: center;
     background: var(--bg-card);
     border: 2px solid var(--border-color);
@@ -3886,9 +3886,9 @@ body.is-offline {
     }
     
     .otp-input {
-        font-size: 1.5rem;
+        font-size: 1.25rem;
         padding: 14px 10px;
-        letter-spacing: 1em;
+        letter-spacing: 0.6em;
     }
     
     .auth-actions {

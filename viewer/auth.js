@@ -240,8 +240,8 @@ async function verifyOTPCode(email, code) {
     // Clean the code - remove spaces and non-digits
     const cleanCode = code.replace(/\D/g, '');
     
-    if (cleanCode.length !== 6) {
-        return { success: false, error: 'Please enter a 6-digit code' };
+    if (cleanCode.length !== 8) {
+        return { success: false, error: 'Please enter the 8-digit code' };
     }
     
     try {
@@ -460,9 +460,20 @@ function showAuthModal() {
     const modal = document.getElementById('authModal');
     if (modal) {
         modal.classList.add('visible');
-        // Reset to email entry state
-        setAuthModalState('email');
         hideAuthError();
+        
+        // Check if there's a pending OTP session (user closed modal while waiting for code)
+        const savedEmail = sessionStorage.getItem('grace-auth-pending-email');
+        const savedState = sessionStorage.getItem('grace-auth-pending-state');
+        
+        if (savedEmail && savedState === 'code_sent') {
+            // Restore the code entry state
+            pendingEmail = savedEmail;
+            setAuthModalState('code_sent');
+        } else {
+            // Fresh start
+            setAuthModalState('email');
+        }
     }
 }
 
@@ -535,6 +546,8 @@ function setupAuthModal() {
     // Back button (returns to email entry from code view)
     if (backBtn) {
         backBtn.addEventListener('click', () => {
+            // Clear saved state - user wants to start over
+            clearPendingAuthState();
             setAuthModalState('email');
         });
     }
@@ -543,6 +556,7 @@ function setupAuthModal() {
     const backToEmailBtn = document.getElementById('authBackToEmail');
     if (backToEmailBtn) {
         backToEmailBtn.addEventListener('click', () => {
+            clearPendingAuthState();
             setAuthModalState('email');
         });
     }
@@ -581,15 +595,15 @@ function setupOTPInput() {
         // Only allow digits
         let value = e.target.value.replace(/\D/g, '');
         
-        // Limit to 6 digits
-        if (value.length > 6) {
-            value = value.substring(0, 6);
+        // Limit to 8 digits
+        if (value.length > 8) {
+            value = value.substring(0, 8);
         }
         
         otpInput.value = value;
         
-        // Auto-submit when 6 digits entered
-        if (value.length === 6) {
+        // Auto-submit when 8 digits entered
+        if (value.length === 8) {
             handleVerifyCode();
         }
     });
@@ -598,17 +612,17 @@ function setupOTPInput() {
     otpInput.addEventListener('paste', (e) => {
         e.preventDefault();
         const pastedText = (e.clipboardData || window.clipboardData).getData('text');
-        const digits = pastedText.replace(/\D/g, '').substring(0, 6);
+        const digits = pastedText.replace(/\D/g, '').substring(0, 8);
         otpInput.value = digits;
         
-        if (digits.length === 6) {
+        if (digits.length === 8) {
             handleVerifyCode();
         }
     });
     
     // Handle keydown for better UX
     otpInput.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter' && otpInput.value.length === 6) {
+        if (e.key === 'Enter' && otpInput.value.length === 8) {
             handleVerifyCode();
         }
     });
@@ -750,6 +764,9 @@ async function handleAuthContinue() {
         const result = await sendOTPCode(email);
         
         if (result.success) {
+            // Save state so user can return if modal closes
+            sessionStorage.setItem('grace-auth-pending-email', email);
+            sessionStorage.setItem('grace-auth-pending-state', 'code_sent');
             setAuthModalState('code_sent');
         } else {
             showAuthError(result.error || 'Error sending code');
@@ -785,8 +802,8 @@ async function handleVerifyCode() {
     
     const code = otpInput.value.trim();
     
-    if (code.length !== 6) {
-        showAuthError('Please enter the 6-digit code');
+    if (code.length !== 8) {
+        showAuthError('Please enter the 8-digit code');
         return;
     }
     
@@ -799,6 +816,10 @@ async function handleVerifyCode() {
     if (result.success) {
         // Success! Show brief feedback then close
         if (codeView) codeView.classList.add('success');
+        
+        // Clear saved auth state
+        sessionStorage.removeItem('grace-auth-pending-email');
+        sessionStorage.removeItem('grace-auth-pending-state');
         
         setTimeout(() => {
             hideAuthModal();
@@ -872,6 +893,15 @@ function hideAuthError() {
         errorEl.textContent = '';
         errorEl.style.display = 'none';
     }
+}
+
+/**
+ * Clear pending auth state from sessionStorage
+ */
+function clearPendingAuthState() {
+    sessionStorage.removeItem('grace-auth-pending-email');
+    sessionStorage.removeItem('grace-auth-pending-state');
+    pendingEmail = '';
 }
 
 
