@@ -548,7 +548,6 @@ async function initIndexPage() {
     setupFilters();
     setupUserFilters();
     setupKeyboardShortcuts();
-    setupAcronymExpansion();
     setupBreadcrumbClicks();
     applyFilters();
     updateStats();
@@ -919,40 +918,6 @@ function setupKeyboardShortcuts() {
                 applyFilters();
             }
         }
-    });
-}
-
-// Setup GRACE acronym expansion interaction
-function setupAcronymExpansion() {
-    const toggle = document.getElementById('graceToggle');
-    if (!toggle) return;
-    
-    let isExpanded = false;
-    let hoverTimeout = null;
-    
-    // Desktop: hover to expand with slight delay for stability
-    toggle.addEventListener('mouseenter', () => {
-        clearTimeout(hoverTimeout);
-        hoverTimeout = setTimeout(() => {
-            toggle.classList.add('expanded');
-            isExpanded = true;
-        }, 100);
-    });
-    
-    toggle.addEventListener('mouseleave', () => {
-        clearTimeout(hoverTimeout);
-        hoverTimeout = setTimeout(() => {
-            toggle.classList.remove('expanded');
-            isExpanded = false;
-        }, 200);
-    });
-    
-    // Mobile: tap to toggle
-    toggle.addEventListener('click', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        isExpanded = !isExpanded;
-        toggle.classList.toggle('expanded', isExpanded);
     });
 }
 

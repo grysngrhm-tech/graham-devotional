@@ -304,7 +304,35 @@ body {
 .header-left {
     display: flex;
     align-items: center;
-    gap: var(--spacing-md);
+    gap: var(--spacing-sm);
+    flex: 1;
+    min-width: 0; /* Allow text to truncate */
+}
+
+.header-divider {
+    color: var(--text-muted);
+    font-weight: 300;
+    opacity: 0.5;
+    flex-shrink: 0;
+}
+
+.header-tagline {
+    font-family: var(--font-body);
+    font-size: 0.875rem;
+    font-style: italic;
+    color: var(--text-secondary);
+    margin: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Hide tagline on smaller screens */
+@media (max-width: 900px) {
+    .header-tagline,
+    .header-divider {
+        display: none;
+    }
 }
 
 .brand-title {

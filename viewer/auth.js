@@ -496,15 +496,15 @@ async function handleSendMagicLink() {
             sendBtn.textContent = 'Link Sent!';
         }
         
-        // Show PWA hint and check login button only on mobile (for PWA users)
+        // Show PWA hint and check login button for PWA users (always) or mobile web users
         // PWA users can't use magic links directly since they open in browser
-        if (isMobile()) {
-            if (isPWA() && pwaHint) {
-                pwaHint.style.display = 'block';
-            }
-            if (checkStatusBtn) {
-                checkStatusBtn.style.display = 'block';
-            }
+        if (isPWA()) {
+            // Always show for PWA users regardless of viewport size
+            if (pwaHint) pwaHint.style.display = 'block';
+            if (checkStatusBtn) checkStatusBtn.style.display = 'block';
+        } else if (isMobile()) {
+            // Show check button on mobile web too (helpful for mobile browsers)
+            if (checkStatusBtn) checkStatusBtn.style.display = 'block';
         }
     } else {
         status.textContent = result.error || 'Error sending link';

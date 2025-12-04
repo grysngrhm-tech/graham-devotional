@@ -1,7 +1,7 @@
 {
-  "name": "The GRACE Bible",
-  "short_name": "GRACE Bible",
-  "description": "The Graham Reimagined Art & Canon Experience Bible - 500 illustrated Biblical stories",
+  "name": "The Graham Bible",
+  "short_name": "Graham Bible",
+  "description": "The Graham Bible - 500 illustrated Biblical stories arranged story by story",
   "id": "/viewer/",
   "start_url": "./index.html",
   "scope": "./",

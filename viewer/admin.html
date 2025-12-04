@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin Panel - The GRACE Bible</title>
+    <title>Admin Panel - The Graham Bible</title>
     
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -101,6 +101,25 @@
         .stat-card:hover {
             transform: translateY(-2px);
             box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+        }
+        
+        .stat-card.clickable {
+            cursor: pointer;
+        }
+        
+        .stat-card.clickable::after {
+            content: 'Click for details';
+            display: block;
+            font-family: var(--font-body);
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            margin-top: var(--spacing-xs);
+            opacity: 0;
+            transition: opacity 0.2s ease;
+        }
+        
+        .stat-card.clickable:hover::after {
+            opacity: 1;
         }
         
         .stat-card h3 {
@@ -415,6 +434,150 @@
             50% { opacity: 0.5; }
         }
         
+        /* Detail Modal */
+        .detail-modal {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(4px);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            padding: var(--spacing-md);
+        }
+        
+        .detail-modal.visible {
+            display: flex;
+        }
+        
+        .detail-modal-content {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            width: 100%;
+            max-width: 600px;
+            max-height: 80vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .detail-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: var(--spacing-md) var(--spacing-lg);
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        .detail-header h3 {
+            font-family: var(--font-heading);
+            font-size: 1.25rem;
+            color: var(--text-primary);
+            margin: 0;
+        }
+        
+        .detail-close {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            color: var(--text-secondary);
+            cursor: pointer;
+            padding: 0;
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            transition: all 0.2s ease;
+        }
+        
+        .detail-close:hover {
+            background: var(--bg-hover);
+            color: var(--text-primary);
+        }
+        
+        .detail-body {
+            padding: var(--spacing-lg);
+            overflow-y: auto;
+        }
+        
+        .detail-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+        
+        .detail-list li {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: var(--spacing-sm) 0;
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        .detail-list li:last-child {
+            border-bottom: none;
+        }
+        
+        .detail-list .item-title {
+            font-family: var(--font-body);
+            font-size: 0.9rem;
+            color: var(--text-primary);
+            flex: 1;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            margin-right: var(--spacing-md);
+        }
+        
+        .detail-list .item-value {
+            font-family: var(--font-body);
+            font-size: 0.875rem;
+            color: var(--color-accent);
+            font-weight: 600;
+        }
+        
+        .detail-list .item-meta {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+        }
+        
+        .detail-image-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+            gap: var(--spacing-sm);
+        }
+        
+        .detail-image-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: var(--spacing-xs);
+        }
+        
+        .detail-image-item img {
+            width: 100%;
+            aspect-ratio: 1;
+            object-fit: cover;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+        }
+        
+        .detail-image-item .count {
+            font-family: var(--font-body);
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+        }
+        
+        .detail-loading {
+            text-align: center;
+            color: var(--text-muted);
+            padding: var(--spacing-lg);
+        }
+        
         /* Responsive */
         @media (max-width: 768px) {
             .admin-header {
@@ -488,22 +651,22 @@
                         <div class="stat-value" id="statCompleteStories">—</div>
                         <div class="stat-subtitle">text & images done</div>
                     </div>
-                    <div class="stat-card accent">
+                    <div class="stat-card accent clickable" onclick="showDetailModal('users')">
                         <h3>Registered Users</h3>
                         <div class="stat-value" id="statTotalUsers">—</div>
                         <div class="stat-subtitle">with accounts</div>
                     </div>
-                    <div class="stat-card">
+                    <div class="stat-card clickable" onclick="showDetailModal('favorites')">
                         <h3>Total Favorites</h3>
                         <div class="stat-value" id="statTotalFavorites">—</div>
                         <div class="stat-subtitle">across all users</div>
                     </div>
-                    <div class="stat-card">
+                    <div class="stat-card clickable" onclick="showDetailModal('reads')">
                         <h3>Stories Read</h3>
                         <div class="stat-value" id="statStoriesRead">—</div>
                         <div class="stat-subtitle">total reads logged</div>
                     </div>
-                    <div class="stat-card">
+                    <div class="stat-card clickable" onclick="showDetailModal('images')">
                         <h3>Image Selections</h3>
                         <div class="stat-value" id="statImageSelections">—</div>
                         <div class="stat-subtitle">personal primaries set</div>
@@ -577,6 +740,19 @@
                     <div style="color: var(--text-muted); font-family: var(--font-body);">Loading popularity data...</div>
                 </div>
             </section>
+        </div>
+    </div>
+    
+    <!-- Detail Modal -->
+    <div class="detail-modal" id="detailModal">
+        <div class="detail-modal-content">
+            <div class="detail-header">
+                <h3 id="detailModalTitle">Details</h3>
+                <button class="detail-close" onclick="closeDetailModal()">&times;</button>
+            </div>
+            <div class="detail-body" id="detailModalBody">
+                <div class="detail-loading">Loading...</div>
+            </div>
         </div>
     </div>
     
@@ -870,6 +1046,256 @@
             await loadDashboardStats();
             await loadRecentUsers();
             await loadPopularImages();
+        }
+        
+        // ===============================
+        // DETAIL MODAL FUNCTIONS
+        // ===============================
+        
+        function showDetailModal(type) {
+            const modal = document.getElementById('detailModal');
+            const title = document.getElementById('detailModalTitle');
+            const body = document.getElementById('detailModalBody');
+            
+            body.innerHTML = '<div class="detail-loading">Loading...</div>';
+            modal.classList.add('visible');
+            
+            switch (type) {
+                case 'favorites':
+                    title.textContent = 'Top Favorited Stories';
+                    loadTopFavorites(body);
+                    break;
+                case 'reads':
+                    title.textContent = 'Most Read Stories';
+                    loadTopReads(body);
+                    break;
+                case 'users':
+                    title.textContent = 'User Statistics';
+                    loadUserStats(body);
+                    break;
+                case 'images':
+                    title.textContent = 'Top Selected Images';
+                    loadTopImages(body);
+                    break;
+                default:
+                    body.innerHTML = '<p>Unknown detail type</p>';
+            }
+        }
+        
+        function closeDetailModal() {
+            document.getElementById('detailModal').classList.remove('visible');
+        }
+        
+        // Close modal on backdrop click
+        document.getElementById('detailModal')?.addEventListener('click', (e) => {
+            if (e.target.id === 'detailModal') closeDetailModal();
+        });
+        
+        // Close modal on Escape
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') closeDetailModal();
+        });
+        
+        async function loadTopFavorites(container) {
+            try {
+                // Get favorite counts per story
+                const { data: favorites, error } = await supabase
+                    .from('user_favorites')
+                    .select('spread_code');
+                
+                if (error) throw error;
+                
+                // Count favorites per story
+                const countMap = {};
+                (favorites || []).forEach(f => {
+                    countMap[f.spread_code] = (countMap[f.spread_code] || 0) + 1;
+                });
+                
+                // Sort by count and get top 10
+                const top = Object.entries(countMap)
+                    .sort((a, b) => b[1] - a[1])
+                    .slice(0, 10);
+                
+                if (top.length === 0) {
+                    container.innerHTML = '<p style="color: var(--text-muted);">No favorites yet</p>';
+                    return;
+                }
+                
+                // Get story titles
+                const spreadCodes = top.map(([code]) => code);
+                const { data: stories } = await supabase
+                    .from('grahams_devotional_spreads')
+                    .select('spread_code, title')
+                    .in('spread_code', spreadCodes);
+                
+                const titleMap = {};
+                (stories || []).forEach(s => titleMap[s.spread_code] = s.title);
+                
+                container.innerHTML = `
+                    <ul class="detail-list">
+                        ${top.map(([code, count]) => `
+                            <li>
+                                <span class="item-title">${titleMap[code] || code}</span>
+                                <span class="item-value">${count} favorites</span>
+                            </li>
+                        `).join('')}
+                    </ul>
+                `;
+            } catch (err) {
+                console.error('[Admin] Error loading favorites detail:', err);
+                container.innerHTML = '<p style="color: var(--text-muted);">Error loading data</p>';
+            }
+        }
+        
+        async function loadTopReads(container) {
+            try {
+                // Get read counts per story
+                const { data: reads, error } = await supabase
+                    .from('user_read_stories')
+                    .select('spread_code');
+                
+                if (error) throw error;
+                
+                // Count reads per story
+                const countMap = {};
+                (reads || []).forEach(r => {
+                    countMap[r.spread_code] = (countMap[r.spread_code] || 0) + 1;
+                });
+                
+                // Sort by count and get top 10
+                const top = Object.entries(countMap)
+                    .sort((a, b) => b[1] - a[1])
+                    .slice(0, 10);
+                
+                if (top.length === 0) {
+                    container.innerHTML = '<p style="color: var(--text-muted);">No reads logged yet</p>';
+                    return;
+                }
+                
+                // Get story titles
+                const spreadCodes = top.map(([code]) => code);
+                const { data: stories } = await supabase
+                    .from('grahams_devotional_spreads')
+                    .select('spread_code, title')
+                    .in('spread_code', spreadCodes);
+                
+                const titleMap = {};
+                (stories || []).forEach(s => titleMap[s.spread_code] = s.title);
+                
+                container.innerHTML = `
+                    <ul class="detail-list">
+                        ${top.map(([code, count]) => `
+                            <li>
+                                <span class="item-title">${titleMap[code] || code}</span>
+                                <span class="item-value">${count} reads</span>
+                            </li>
+                        `).join('')}
+                    </ul>
+                `;
+            } catch (err) {
+                console.error('[Admin] Error loading reads detail:', err);
+                container.innerHTML = '<p style="color: var(--text-muted);">Error loading data</p>';
+            }
+        }
+        
+        async function loadUserStats(container) {
+            try {
+                // Get all users
+                const { data: users, error } = await supabase
+                    .from('user_profiles')
+                    .select('id, email, is_admin, created_at');
+                
+                if (error) throw error;
+                
+                const totalUsers = users?.length || 0;
+                const adminCount = users?.filter(u => u.is_admin).length || 0;
+                
+                // Get users from last 7 days
+                const weekAgo = new Date();
+                weekAgo.setDate(weekAgo.getDate() - 7);
+                const newThisWeek = users?.filter(u => new Date(u.created_at) > weekAgo).length || 0;
+                
+                container.innerHTML = `
+                    <ul class="detail-list">
+                        <li>
+                            <span class="item-title">Total Users</span>
+                            <span class="item-value">${totalUsers}</span>
+                        </li>
+                        <li>
+                            <span class="item-title">Admin Accounts</span>
+                            <span class="item-value">${adminCount}</span>
+                        </li>
+                        <li>
+                            <span class="item-title">New This Week</span>
+                            <span class="item-value">${newThisWeek}</span>
+                        </li>
+                        <li>
+                            <span class="item-title">Latest Signup</span>
+                            <span class="item-value">${users?.[users.length-1]?.email || 'N/A'}</span>
+                        </li>
+                    </ul>
+                `;
+            } catch (err) {
+                console.error('[Admin] Error loading user stats:', err);
+                container.innerHTML = '<p style="color: var(--text-muted);">Error loading data</p>';
+            }
+        }
+        
+        async function loadTopImages(container) {
+            try {
+                // Get image selection counts
+                const { data: selections, error } = await supabase
+                    .from('user_primary_images')
+                    .select('spread_code, image_slot');
+                
+                if (error) throw error;
+                
+                // Count selections per image
+                const countMap = {};
+                (selections || []).forEach(s => {
+                    const key = `${s.spread_code}_${s.image_slot}`;
+                    countMap[key] = (countMap[key] || 0) + 1;
+                });
+                
+                // Sort by count and get top 8
+                const top = Object.entries(countMap)
+                    .sort((a, b) => b[1] - a[1])
+                    .slice(0, 8);
+                
+                if (top.length === 0) {
+                    container.innerHTML = '<p style="color: var(--text-muted);">No image selections yet</p>';
+                    return;
+                }
+                
+                // Get story details for images
+                const spreadCodes = [...new Set(top.map(([key]) => key.split('_')[0]))];
+                const { data: stories } = await supabase
+                    .from('grahams_devotional_spreads')
+                    .select('spread_code, title, image_url_1, image_url_2, image_url_3, image_url_4')
+                    .in('spread_code', spreadCodes);
+                
+                const storyMap = {};
+                (stories || []).forEach(s => storyMap[s.spread_code] = s);
+                
+                container.innerHTML = `
+                    <div class="detail-image-grid">
+                        ${top.map(([key, count]) => {
+                            const [spreadCode, slot] = key.split('_');
+                            const story = storyMap[spreadCode];
+                            const imageUrl = story?.[`image_url_${slot}`] || '';
+                            return `
+                                <div class="detail-image-item">
+                                    ${imageUrl ? `<img src="${imageUrl}" alt="Slot ${slot}" loading="lazy">` : '<div style="width: 100%; aspect-ratio: 1; background: var(--bg-hover); border-radius: 8px;"></div>'}
+                                    <span class="count">${count} picks</span>
+                                </div>
+                            `;
+                        }).join('')}
+                    </div>
+                `;
+            } catch (err) {
+                console.error('[Admin] Error loading image stats:', err);
+                container.innerHTML = '<p style="color: var(--text-muted);">Error loading data</p>';
+            }
         }
         
         // Initialize when DOM is ready

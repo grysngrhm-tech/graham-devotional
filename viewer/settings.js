@@ -4,7 +4,7 @@
  */
 
 const GraceSettings = (function() {
-    const STORAGE_KEY = 'grace-settings';
+    const STORAGE_KEY = 'graham-settings';
     
     // Default settings
     const defaults = {
@@ -24,12 +24,6 @@ const GraceSettings = (function() {
             if (stored) {
                 const parsed = JSON.parse(stored);
                 currentSettings = { ...defaults, ...parsed };
-            } else {
-                // Migrate old theme setting if exists
-                const oldTheme = localStorage.getItem('grace-theme');
-                if (oldTheme) {
-                    currentSettings.darkMode = oldTheme === 'dark';
-                }
             }
         } catch (err) {
             console.warn('[Settings] Error loading settings:', err);
@@ -56,8 +50,8 @@ const GraceSettings = (function() {
         // Apply dark mode using data-theme attribute (matches existing CSS)
         const theme = currentSettings.darkMode ? 'dark' : 'light';
         document.documentElement.setAttribute('data-theme', theme);
-        // Also update legacy localStorage key for compatibility
-        localStorage.setItem('grace-theme', theme);
+        // Also update localStorage key for app.js compatibility
+        localStorage.setItem('graham-theme', theme);
         
         // Apply font size
         document.documentElement.style.setProperty('--font-size-scale', getFontScale(currentSettings.fontSize));
