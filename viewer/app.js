@@ -21,6 +21,7 @@ let currentStoryIndex = 0;
 // User data state (loaded when authenticated)
 let userFavorites = new Set();
 let userReadStories = new Set();
+let userLibrary = new Set();
 
 // Filter state
 let currentFilters = {
@@ -159,6 +160,29 @@ document.addEventListener('DOMContentLoaded', () => {
     // Get view containers
     homeView = document.getElementById('homeView');
     storyView = document.getElementById('storyView');
+    
+    // Initialize offline detection and listen for changes
+    if (window.GraceOffline) {
+        window.GraceOffline.onOfflineChange(async (offline) => {
+            // Update offline story codes for filtering
+            if (offline) {
+                window.offlineStoryCodes = await window.GraceOffline.getAllOfflineStoryCodes();
+            } else {
+                window.offlineStoryCodes = null;
+            }
+            // Re-apply filters to show/hide stories based on offline availability
+            if (currentView === 'home' && typeof applyFilters === 'function') {
+                applyFilters();
+            }
+        });
+        
+        // Load offline codes if currently offline
+        if (window.GraceOffline.isOffline()) {
+            window.GraceOffline.getAllOfflineStoryCodes().then(codes => {
+                window.offlineStoryCodes = codes;
+            });
+        }
+    }
     
     // Initialize the router
     if (window.GraceRouter) {
@@ -693,6 +717,7 @@ async function loadUserData(rerender = false) {
     if (!window.GraceAuth?.isAuthenticated()) {
         userFavorites = new Set();
         userReadStories = new Set();
+        userLibrary = new Set();
         return;
     }
     
@@ -705,9 +730,14 @@ async function loadUserData(rerender = false) {
         const readStories = await window.GraceAuth.getUserReadStories();
         userReadStories = new Set(readStories);
         
+        // Load library (offline saved stories)
+        const library = await window.GraceAuth.getUserLibrary();
+        userLibrary = new Set(library);
+        
         console.log('[GRACE] User data loaded:', {
             favorites: userFavorites.size,
-            read: userReadStories.size
+            read: userReadStories.size,
+            library: userLibrary.size
         });
         
         // Re-render stories if on home page and requested
@@ -730,6 +760,7 @@ async function handleAuthStateChange(state) {
     } else {
         userFavorites = new Set();
         userReadStories = new Set();
+        userLibrary = new Set();
         // Reset user filter
         currentFilters.userFilter = 'all';
         const userFilterBtns = document.querySelectorAll('#userFilter .segment');
@@ -1084,7 +1115,17 @@ function setupKeyboardShortcuts() {
 function applyFilters() {
     const { testament, book, grouping, status, search, userFilter } = currentFilters;
     
+    // Get offline available stories if offline
+    const isOffline = window.GraceOffline?.isOffline();
+    
     filteredStories = allStories.filter(story => {
+        // Offline filter: only show cached/library stories when offline
+        if (isOffline && window.offlineStoryCodes) {
+            if (!window.offlineStoryCodes.has(story.spread_code)) {
+                return false;
+            }
+        }
+        
         // Testament filter
         if (testament !== 'all' && story.testament !== testament) {
             return false;
@@ -1124,13 +1165,17 @@ function applyFilters() {
             }
         }
         
-        // User filters (favorites, read/unread) - only apply if authenticated
+        // User filters (favorites, library, read/unread) - only apply if authenticated
         if (userFilter !== 'all' && window.GraceAuth?.isAuthenticated()) {
             const spreadCode = story.spread_code;
             const isFavorited = userFavorites.has(spreadCode);
             const isRead = userReadStories.has(spreadCode);
+            const isInLibrary = userLibrary.has(spreadCode);
             
             if (userFilter === 'favorites' && !isFavorited) {
+                return false;
+            }
+            if (userFilter === 'library' && !isInLibrary) {
                 return false;
             }
             if (userFilter === 'unread' && isRead) {
@@ -1181,6 +1226,7 @@ function updateActiveFilters() {
     if (currentFilters.userFilter !== 'all' && window.GraceAuth?.isAuthenticated()) {
         const labels = {
             'favorites': '♥ Favorites',
+            'library': '↓ Offline Library',
             'unread': 'Unread',
             'read': 'Read'
         };
@@ -1254,6 +1300,19 @@ function getEmptyStateHTML() {
                 <p>Stories you favorite will appear here. Tap the heart icon on any story to save it!</p>
                 <button class="empty-action-btn" onclick="document.querySelector('#userFilter .segment[data-value=\\'all\\']').click()">
                     Browse All Stories
+                </button>
+            </div>
+        `;
+    }
+    
+    if (userFilter === 'library') {
+        return `
+            <div class="empty-state empty-state-library">
+                <div class="empty-icon">↓</div>
+                <h3>No Offline Stories Yet</h3>
+                <p>Save stories for offline reading by tapping the download icon on any story page. Perfect for flights or times without internet!</p>
+                <button class="empty-action-btn" onclick="document.querySelector('#userFilter .segment[data-value=\\'all\\']').click()">
+                    Browse Stories
                 </button>
             </div>
         `;
@@ -1783,6 +1842,9 @@ async function initStoryPage(storyId) {
     // Setup favorite button
     setupFavoriteButton();
     
+    // Setup library button click handler
+    setupLibraryButton();
+    
     // Setup read button click handler
     setupReadButton();
     
@@ -1833,26 +1895,55 @@ async function loadStoryList() {
 
 async function loadStory(storyId) {
     try {
-        const { data, error } = await supabase
-            .from('grahams_devotional_spreads')
-            .select('*')
-            .eq('spread_code', storyId)
-            .single();
+        let story = null;
         
-        if (error || !data) {
-            showError();
-            return;
+        // If offline, try to load from cache/library first
+        if (window.GraceOffline?.isOffline()) {
+            story = await window.GraceOffline.getOfflineStory(storyId);
+            if (!story) {
+                showError('This story is not available offline.');
+                return;
+            }
+        } else {
+            // Online: fetch from Supabase
+            const { data, error } = await supabase
+                .from('grahams_devotional_spreads')
+                .select('*')
+                .eq('spread_code', storyId)
+                .single();
+            
+            if (error || !data) {
+                // Try offline cache as fallback
+                story = await window.GraceOffline?.getOfflineStory(storyId);
+                if (!story) {
+                    showError();
+                    return;
+                }
+            } else {
+                story = data;
+                // Cache the story for future offline access (async, don't block)
+                window.GraceOffline?.cacheStory(story);
+            }
         }
         
-        currentStory = data;
+        currentStory = story;
         currentStoryIndex = storyList.findIndex(s => s.spread_code === storyId);
         
-        renderStory(data);
+        renderStory(story);
         updateNavPosition();
         
     } catch (err) {
         console.error('Error loading story:', err);
-        showError();
+        // Try offline as last resort
+        const offlineStory = await window.GraceOffline?.getOfflineStory(storyId);
+        if (offlineStory) {
+            currentStory = offlineStory;
+            currentStoryIndex = storyList.findIndex(s => s.spread_code === storyId);
+            renderStory(offlineStory);
+            updateNavPosition();
+        } else {
+            showError();
+        }
     }
 }
 
@@ -2893,6 +2984,9 @@ async function handleStoryAuthStateChange(state) {
     // Update favorite button visibility and state
     await updateFavoriteButton();
     
+    // Update library button visibility and state
+    await updateLibraryButton();
+    
     // Update read button state
     await updateReadButton();
     
@@ -2959,6 +3053,66 @@ async function updateFavoriteButton() {
         favoriteBtn.classList.toggle('active', isFavorited);
     } else {
         favoriteBtn.style.display = 'none';
+    }
+}
+
+/**
+ * Setup library button for saving stories offline
+ */
+function setupLibraryButton() {
+    const libraryBtn = document.getElementById('libraryBtn');
+    if (!libraryBtn) return;
+    
+    libraryBtn.addEventListener('click', async () => {
+        if (!window.GraceAuth?.isAuthenticated()) {
+            window.GraceAuth?.showAuthModal();
+            return;
+        }
+        
+        if (!currentStory) return;
+        
+        const spreadCode = currentStory.spread_code;
+        
+        // Toggle library status
+        const isInLibrary = await window.GraceAuth.toggleLibrary(spreadCode, currentStory);
+        
+        // Update UI
+        libraryBtn.classList.toggle('in-library', isInLibrary);
+        libraryBtn.classList.add('just-toggled');
+        setTimeout(() => libraryBtn.classList.remove('just-toggled'), 350);
+        
+        // Update title
+        libraryBtn.title = isInLibrary ? 'Remove from offline library' : 'Save for offline reading';
+        
+        // Haptic feedback
+        hapticFeedback('light');
+        
+        // Show toast
+        showToast(isInLibrary ? '↓ Saved for offline reading' : 'Removed from library');
+    });
+    
+    // Initial state
+    updateLibraryButton();
+}
+
+/**
+ * Update library button state based on auth and library status
+ */
+async function updateLibraryButton() {
+    const libraryBtn = document.getElementById('libraryBtn');
+    if (!libraryBtn || !currentStory) return;
+    
+    if (window.GraceAuth?.isAuthenticated()) {
+        libraryBtn.style.display = 'flex';
+        
+        // Check if in library (local or cloud)
+        const isInLibrary = window.GraceAuth.isInLibrary(currentStory.spread_code) ||
+                           await window.GraceOffline?.isInLibrary(currentStory.spread_code);
+        
+        libraryBtn.classList.toggle('in-library', isInLibrary);
+        libraryBtn.title = isInLibrary ? 'Remove from offline library' : 'Save for offline reading';
+    } else {
+        libraryBtn.style.display = 'none';
     }
 }
 

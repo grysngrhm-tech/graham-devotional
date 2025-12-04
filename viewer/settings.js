@@ -131,6 +131,9 @@ const GraceSettings = (function() {
                     adminLink.style.display = window.GraceAuth.isAdmin() ? 'flex' : 'none';
                 }
                 
+                // Update storage statistics
+                updateStorageStats();
+                
                 settingsModal.classList.add('visible');
             });
         }
@@ -186,6 +189,166 @@ const GraceSettings = (function() {
                 }
             });
         }
+        
+        // Setup offline storage controls
+        setupOfflineStorage();
+    }
+    
+    /**
+     * Setup offline storage section in settings modal
+     */
+    function setupOfflineStorage() {
+        const clearCacheBtn = document.getElementById('clearCacheBtn');
+        const clearLibraryBtn = document.getElementById('clearLibraryBtn');
+        const downloadFavoritesBtn = document.getElementById('downloadFavoritesBtn');
+        
+        // Clear cache button
+        if (clearCacheBtn) {
+            clearCacheBtn.addEventListener('click', async () => {
+                if (!confirm('Clear all cached stories? This will slow down loading until you revisit stories.')) {
+                    return;
+                }
+                
+                try {
+                    await window.GraceOffline?.clearCache();
+                    showStorageToast('Cache cleared');
+                    updateStorageStats();
+                } catch (err) {
+                    console.error('[Settings] Error clearing cache:', err);
+                    showStorageToast('Failed to clear cache', true);
+                }
+            });
+        }
+        
+        // Clear library button
+        if (clearLibraryBtn) {
+            clearLibraryBtn.addEventListener('click', async () => {
+                if (!confirm('Remove all stories from your offline library? You can re-download them later.')) {
+                    return;
+                }
+                
+                try {
+                    await window.GraceAuth?.clearLibrary();
+                    showStorageToast('Library cleared');
+                    updateStorageStats();
+                } catch (err) {
+                    console.error('[Settings] Error clearing library:', err);
+                    showStorageToast('Failed to clear library', true);
+                }
+            });
+        }
+        
+        // Download favorites button
+        if (downloadFavoritesBtn) {
+            downloadFavoritesBtn.addEventListener('click', async () => {
+                downloadFavoritesBtn.disabled = true;
+                downloadFavoritesBtn.textContent = 'Downloading...';
+                
+                try {
+                    await downloadAllFavorites();
+                    showStorageToast('Favorites downloaded for offline use');
+                    updateStorageStats();
+                } catch (err) {
+                    console.error('[Settings] Error downloading favorites:', err);
+                    showStorageToast('Failed to download some favorites', true);
+                } finally {
+                    downloadFavoritesBtn.disabled = false;
+                    downloadFavoritesBtn.textContent = 'Download All Favorites';
+                }
+            });
+        }
+    }
+    
+    /**
+     * Update storage statistics display
+     */
+    async function updateStorageStats() {
+        const cacheStatsEl = document.getElementById('cacheStats');
+        const libraryStatsEl = document.getElementById('libraryStats');
+        const librarySection = document.getElementById('libraryStorageSection');
+        const signinPrompt = document.getElementById('librarySigninPrompt');
+        
+        // Cache stats (always shown)
+        if (cacheStatsEl && window.GraceOffline) {
+            const cacheStats = await window.GraceOffline.getCacheStats();
+            const countEl = cacheStatsEl.querySelector('.storage-count');
+            const sizeEl = cacheStatsEl.querySelector('.storage-size');
+            if (countEl) countEl.textContent = `${cacheStats.count} stories`;
+            if (sizeEl) sizeEl.textContent = window.GraceOffline.formatBytes(cacheStats.sizeEstimate);
+        }
+        
+        // Library stats (logged in users only)
+        const isAuthenticated = window.GraceAuth?.isAuthenticated();
+        
+        if (librarySection) {
+            librarySection.style.display = isAuthenticated ? 'block' : 'none';
+        }
+        if (signinPrompt) {
+            signinPrompt.style.display = isAuthenticated ? 'none' : 'block';
+        }
+        
+        if (libraryStatsEl && window.GraceOffline && isAuthenticated) {
+            const libraryStats = await window.GraceOffline.getLibraryStats();
+            const countEl = libraryStatsEl.querySelector('.storage-count');
+            const sizeEl = libraryStatsEl.querySelector('.storage-size');
+            if (countEl) countEl.textContent = `${libraryStats.count} stories`;
+            if (sizeEl) sizeEl.textContent = window.GraceOffline.formatBytes(libraryStats.sizeEstimate);
+        }
+    }
+    
+    /**
+     * Download all favorited stories to library
+     */
+    async function downloadAllFavorites() {
+        if (!window.GraceAuth?.isAuthenticated()) return;
+        
+        const favorites = await window.GraceAuth.getUserFavorites();
+        const supabase = window.supabaseClient;
+        
+        if (!favorites.length) {
+            showStorageToast('No favorites to download');
+            return;
+        }
+        
+        // Fetch full story data for each favorite
+        let downloaded = 0;
+        for (const spreadCode of favorites) {
+            try {
+                // Skip if already in library
+                if (window.GraceAuth.isInLibrary(spreadCode)) {
+                    downloaded++;
+                    continue;
+                }
+                
+                // Fetch story data
+                const { data: story } = await supabase
+                    .from('grahams_devotional_spreads')
+                    .select('*')
+                    .eq('spread_code', spreadCode)
+                    .single();
+                
+                if (story) {
+                    await window.GraceAuth.addToLibrary(spreadCode, story);
+                    downloaded++;
+                }
+            } catch (err) {
+                console.error(`[Settings] Failed to download ${spreadCode}:`, err);
+            }
+        }
+        
+        console.log(`[Settings] Downloaded ${downloaded}/${favorites.length} favorites to library`);
+    }
+    
+    /**
+     * Show a toast notification for storage actions
+     */
+    function showStorageToast(message, isError = false) {
+        // Use app.js toast if available, otherwise console
+        if (typeof showToast === 'function') {
+            showToast(message, isError);
+        } else {
+            console[isError ? 'error' : 'log']('[Settings]', message);
+        }
     }
     
     /**
@@ -206,7 +369,8 @@ const GraceSettings = (function() {
         applySettings,
         updateSetting,
         getSetting,
-        getAllSettings
+        getAllSettings,
+        updateStorageStats
     };
 })();
 

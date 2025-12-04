@@ -794,6 +794,182 @@ async function setUserPrimaryImage(spreadCode, imageSlot) {
 }
 
 // ============================================================================
+// Offline Library Functions
+// ============================================================================
+
+// Local state for library (synced with Supabase)
+let userLibrary = new Set();
+
+/**
+ * Get user's offline library entries from Supabase
+ * @returns {Promise<string[]>} Array of spread codes
+ */
+async function getUserLibrary() {
+    if (!isAuthenticated()) return [];
+    
+    try {
+        const { data, error } = await supabase
+            .from('user_library')
+            .select('spread_code')
+            .eq('user_id', currentUser.id);
+        
+        if (error) throw error;
+        
+        const codes = (data || []).map(d => d.spread_code);
+        userLibrary = new Set(codes);
+        return codes;
+    } catch (err) {
+        console.error('[Auth] Error loading library:', err);
+        return [];
+    }
+}
+
+/**
+ * Check if a story is in the user's library (from local cache)
+ * @param {string} spreadCode
+ * @returns {boolean}
+ */
+function isInLibrary(spreadCode) {
+    return userLibrary.has(spreadCode);
+}
+
+/**
+ * Add a story to the user's offline library
+ * Also saves the story data to local IndexedDB
+ * @param {string} spreadCode
+ * @param {Object} storyData - Full story object to save locally
+ * @returns {Promise<boolean>}
+ */
+async function addToLibrary(spreadCode, storyData) {
+    if (!isAuthenticated()) return false;
+    
+    try {
+        // Add to Supabase (cloud sync)
+        await supabase
+            .from('user_library')
+            .upsert(
+                { user_id: currentUser.id, spread_code: spreadCode },
+                { onConflict: 'user_id,spread_code' }
+            );
+        
+        // Save story data locally
+        if (storyData && window.GraceOffline) {
+            await window.GraceOffline.saveToLibrary(storyData);
+        }
+        
+        // Update local state
+        userLibrary.add(spreadCode);
+        
+        return true;
+    } catch (err) {
+        console.error('[Auth] Error adding to library:', err);
+        return false;
+    }
+}
+
+/**
+ * Remove a story from the user's offline library
+ * @param {string} spreadCode
+ * @returns {Promise<boolean>}
+ */
+async function removeFromLibrary(spreadCode) {
+    if (!isAuthenticated()) return false;
+    
+    try {
+        // Remove from Supabase
+        await supabase
+            .from('user_library')
+            .delete()
+            .eq('user_id', currentUser.id)
+            .eq('spread_code', spreadCode);
+        
+        // Remove from local IndexedDB
+        if (window.GraceOffline) {
+            await window.GraceOffline.removeFromLibrary(spreadCode);
+        }
+        
+        // Update local state
+        userLibrary.delete(spreadCode);
+        
+        return true;
+    } catch (err) {
+        console.error('[Auth] Error removing from library:', err);
+        return false;
+    }
+}
+
+/**
+ * Toggle a story's library status
+ * @param {string} spreadCode
+ * @param {Object} storyData - Full story object (needed for add)
+ * @returns {Promise<boolean>} New state (true = in library)
+ */
+async function toggleLibrary(spreadCode, storyData) {
+    if (isInLibrary(spreadCode)) {
+        await removeFromLibrary(spreadCode);
+        return false;
+    } else {
+        await addToLibrary(spreadCode, storyData);
+        return true;
+    }
+}
+
+/**
+ * Sync library state: download any library entries that aren't locally cached
+ * Called on login to ensure local storage matches Supabase
+ */
+async function syncLibrary() {
+    if (!isAuthenticated() || !window.GraceOffline) return;
+    
+    try {
+        // Get library entries from Supabase
+        const cloudLibrary = await getUserLibrary();
+        
+        // Get locally stored library entries
+        const localCodes = await window.GraceOffline.getLibraryStoryCodes();
+        
+        // Find entries in cloud but not local (need to download)
+        const needsDownload = cloudLibrary.filter(code => !localCodes.has(code));
+        
+        if (needsDownload.length > 0) {
+            console.log(`[Auth] Syncing ${needsDownload.length} library entries...`);
+            // Note: We don't auto-download here to avoid unexpected data usage
+            // User can manually re-download from settings if needed
+        }
+    } catch (err) {
+        console.error('[Auth] Error syncing library:', err);
+    }
+}
+
+/**
+ * Clear the user's entire library (local and cloud)
+ */
+async function clearLibrary() {
+    if (!isAuthenticated()) return false;
+    
+    try {
+        // Clear from Supabase
+        await supabase
+            .from('user_library')
+            .delete()
+            .eq('user_id', currentUser.id);
+        
+        // Clear local IndexedDB
+        if (window.GraceOffline) {
+            await window.GraceOffline.clearLibrary();
+        }
+        
+        // Update local state
+        userLibrary.clear();
+        
+        return true;
+    } catch (err) {
+        console.error('[Auth] Error clearing library:', err);
+        return false;
+    }
+}
+
+// ============================================================================
 // Export for use in app.js
 // ============================================================================
 
@@ -833,6 +1009,15 @@ window.GraceAuth = {
     unmarkAsRead,
     isRead,
     getUserPrimaryImage,
-    setUserPrimaryImage
+    setUserPrimaryImage,
+    
+    // Offline library
+    getUserLibrary,
+    isInLibrary,
+    addToLibrary,
+    removeFromLibrary,
+    toggleLibrary,
+    syncLibrary,
+    clearLibrary
 };
 

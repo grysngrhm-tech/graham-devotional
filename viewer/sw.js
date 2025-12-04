@@ -3,7 +3,8 @@
  * Provides offline caching with smart caching strategies
  */
 
-const CACHE_NAME = 'graham-bible-v6';
+const CACHE_NAME = 'graham-bible-v7';
+const IMAGE_CACHE = 'graham-bible-images-v1';
 
 // App shell files to cache on install
 const APP_SHELL = [
@@ -16,6 +17,7 @@ const APP_SHELL = [
     './404.html',
     './styles.css',
     './app.js',
+    './offline.js',
     './router.js',
     './auth.js',
     './settings.js',
@@ -32,6 +34,9 @@ const APP_SHELL = [
 
 // Google Fonts to cache
 const FONT_CACHE = 'grace-bible-fonts-v1';
+
+// Supabase storage domain for image caching
+const SUPABASE_STORAGE_HOST = 'zekbemqgvupzmukpntog.supabase.co';
 
 // Install event - cache app shell
 self.addEventListener('install', (event) => {
@@ -55,15 +60,16 @@ self.addEventListener('install', (event) => {
 // Activate event - clean up old caches and claim clients
 self.addEventListener('activate', (event) => {
     console.log('[SW] Activating service worker...');
+    const validCaches = [CACHE_NAME, FONT_CACHE, IMAGE_CACHE];
+    
     event.waitUntil(
         caches.keys().then((cacheNames) => {
             return Promise.all(
                 cacheNames
                     .filter((name) => {
                         // Delete old versions of our caches
-                        return name.startsWith('grace-bible-') && 
-                               name !== CACHE_NAME && 
-                               name !== FONT_CACHE;
+                        return (name.startsWith('grace-bible-') || name.startsWith('graham-bible-')) && 
+                               !validCaches.includes(name);
                     })
                     .map((name) => {
                         console.log('[SW] Deleting old cache:', name);
@@ -85,7 +91,13 @@ self.addEventListener('fetch', (event) => {
     // Skip non-GET requests
     if (request.method !== 'GET') return;
     
-    // Skip Supabase API calls - always network
+    // Handle Supabase storage images - cache first for performance
+    if (url.hostname === SUPABASE_STORAGE_HOST && url.pathname.includes('/storage/')) {
+        event.respondWith(handleImageRequest(request));
+        return;
+    }
+    
+    // Skip other Supabase API calls - always network
     if (url.hostname.includes('supabase')) return;
     
     // Skip n8n webhook calls - always network
@@ -176,6 +188,35 @@ async function handleStaticRequest(request) {
         // Network failed and not in cache
         console.error('[SW] Failed to fetch:', request.url);
         return new Response('Resource not available offline', { status: 503 });
+    }
+}
+
+// Cache-first strategy for Supabase storage images
+async function handleImageRequest(request) {
+    // Check image cache first
+    const cachedResponse = await caches.match(request);
+    if (cachedResponse) {
+        return cachedResponse;
+    }
+    
+    // Fetch from network
+    try {
+        const networkResponse = await fetch(request);
+        
+        // Cache successful image responses
+        if (networkResponse.ok) {
+            const cache = await caches.open(IMAGE_CACHE);
+            cache.put(request, networkResponse.clone());
+        }
+        
+        return networkResponse;
+    } catch (error) {
+        console.error('[SW] Failed to fetch image:', request.url);
+        // Return a placeholder or error response
+        return new Response('Image not available offline', { 
+            status: 503,
+            headers: { 'Content-Type': 'text/plain' }
+        });
     }
 }
 
