@@ -137,10 +137,14 @@ async function setCurrentUser(user) {
 function getAuthRedirectUrl() {
     const hostname = window.location.hostname;
     
-    // Production: Use hardcoded GitHub Pages URL to avoid any encoding issues
+    // Production: Custom domain (primary)
+    if (hostname === 'www.grahambible.com' || hostname === 'grahambible.com') {
+        return 'https://www.grahambible.com/';
+    }
+    
+    // Production: GitHub Pages (fallback)
     if (hostname.includes('github.io')) {
-        // Hardcoded to prevent any spaces or encoding problems
-        return 'https://grysngrhm-tech.github.io/graham-devotional/';
+        return 'https://grysngrhm-tech.github.io/graham-devotional/viewer/';
     }
     
     // Development: use current location
