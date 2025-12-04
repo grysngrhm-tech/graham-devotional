@@ -299,7 +299,7 @@ function updateAuthUI() {
     const signInBtn = document.getElementById('signInBtn');
     const settingsBtn = document.getElementById('settingsBtn');
     const adminBtn = document.getElementById('adminBtn');
-    const userFiltersRow = document.getElementById('userFiltersRow');
+    const userFilter = document.getElementById('userFilter');
     
     if (isAuthenticated()) {
         // Show signed-in state
@@ -318,7 +318,8 @@ function updateAuthUI() {
         if (adminBtn) {
             adminBtn.style.display = 'none';
         }
-        if (userFiltersRow) userFiltersRow.style.display = 'flex';
+        // Show user filters (favorites, read/unread)
+        if (userFilter) userFilter.style.display = 'flex';
     } else {
         // Show signed-out state
         if (signInBtn) signInBtn.style.display = 'inline-flex';
@@ -327,7 +328,8 @@ function updateAuthUI() {
             settingsBtn.classList.remove('is-admin');
         }
         if (adminBtn) adminBtn.style.display = 'none';
-        if (userFiltersRow) userFiltersRow.style.display = 'none';
+        // Hide user filters
+        if (userFilter) userFilter.style.display = 'none';
     }
     
     // Update admin-only elements
@@ -700,6 +702,26 @@ async function markAsRead(spreadCode) {
 }
 
 /**
+ * Unmark a story as read (remove from read list)
+ * @param {string} spreadCode - Story spread code
+ */
+async function unmarkAsRead(spreadCode) {
+    if (!isAuthenticated()) return;
+    
+    try {
+        await supabase
+            .from('user_read_stories')
+            .delete()
+            .eq('user_id', currentUser.id)
+            .eq('spread_code', spreadCode);
+        
+        console.log('[Auth] Unmarked as read:', spreadCode);
+    } catch (err) {
+        console.error('[Auth] Error unmarking as read:', err);
+    }
+}
+
+/**
  * Check if a story has been read
  * @param {string} spreadCode - Story spread code
  * @returns {Promise<boolean>}
@@ -804,6 +826,7 @@ window.GraceAuth = {
     isFavorited,
     getUserReadStories,
     markAsRead,
+    unmarkAsRead,
     isRead,
     getUserPrimaryImage,
     setUserPrimaryImage

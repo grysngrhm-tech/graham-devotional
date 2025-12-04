@@ -74,13 +74,17 @@
         <main class="main-content">
             <!-- Unified Filter Section -->
             <section class="filter-section compact">
-                <!-- User Filters (logged in only) - shown first -->
-                <div class="filter-row user-filters-row" id="userFiltersRow" style="display: none;">
-                    <div class="segment-control compact" id="userFilter">
+                <!-- Top Row: User Filters + Results Count -->
+                <div class="filter-row filter-top-row">
+                    <!-- User Filters (logged in only) -->
+                    <div class="segment-control compact user-filters" id="userFilter" style="display: none;">
                         <button class="segment active" data-value="all">All</button>
                         <button class="segment" data-value="favorites">♥ Favorites</button>
                         <button class="segment" data-value="unread">Unread</button>
                         <button class="segment" data-value="read">Read</button>
+                    </div>
+                    <div class="results-count">
+                        Showing <span id="resultsCount">—</span> stories
                     </div>
                 </div>
                 
@@ -116,15 +120,12 @@
                         <!-- Populated dynamically by JavaScript -->
                     </div>
                 </div>
-            </section>
-            
-            <!-- Active Filters & Results Count -->
-            <section class="filter-feedback">
-                <div class="active-filters" id="activeFilters">
-                    <!-- Populated by JavaScript -->
-                </div>
-                <div class="results-count">
-                    Showing <span id="resultsCount">—</span> stories
+                
+                <!-- Active Filters Tags -->
+                <div class="filter-row active-filters-row" id="activeFiltersRow">
+                    <div class="active-filters" id="activeFilters">
+                        <!-- Populated by JavaScript -->
+                    </div>
                 </div>
             </section>
 
@@ -146,11 +147,25 @@
         </template>
 
         <footer class="site-footer">
-            <p>
+            <div class="footer-about">
                 <span class="footer-brand">The Graham Bible</span>
+                <p class="footer-description">
+                    An illustrated devotional Bible featuring 500 stories from Genesis to Revelation, 
+                    each with AI-generated sacred artwork inspired by the masters and faithful narrative retellings.
+                </p>
+            </div>
+            <div class="footer-links">
+                <a href="https://github.com/grysngrhm-tech/graham-devotional#readme" target="_blank" rel="noopener" class="footer-link">
+                    Learn More
+                    <svg class="external-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+                        <polyline points="15 3 21 3 21 9"/>
+                        <line x1="10" y1="14" x2="21" y2="3"/>
+                    </svg>
+                </a>
                 <span class="footer-divider">•</span>
                 <span class="footer-copyright">A Family Devotional Project</span>
-            </p>
+            </div>
         </footer>
     </div>
 

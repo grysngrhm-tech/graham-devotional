@@ -1512,7 +1512,10 @@ async function initStoryPage() {
     // Setup favorite button
     setupFavoriteButton();
     
-    // Setup read tracking (scroll to bottom detection)
+    // Setup read button click handler
+    setupReadButton();
+    
+    // Setup read tracking (auto-mark at 50% scroll)
     setupReadTracking();
 }
 
@@ -2087,6 +2090,8 @@ async function triggerRegeneration(slot) {
             throw new Error('n8n webhook URL not configured');
         }
         
+        console.log('[Graham] Triggering regeneration:', { spreadCode, slot, webhookUrl });
+        
         // Trigger the n8n workflow
         const response = await fetch(webhookUrl, {
             method: 'POST',
@@ -2099,18 +2104,29 @@ async function triggerRegeneration(slot) {
             })
         });
         
+        console.log('[Graham] Webhook response status:', response.status);
+        
         if (!response.ok) {
+            const errorText = await response.text();
+            console.error('[Graham] Webhook error response:', errorText);
             throw new Error(`Webhook failed: ${response.status}`);
         }
         
         const result = await response.json();
+        console.log('[Graham] Webhook response data:', result);
+        
+        if (!result.request_id) {
+            console.error('[Graham] No request_id in response:', result);
+            throw new Error('No request_id returned from webhook');
+        }
+        
         activeRegenerationRequest = result.request_id;
         
         // Start polling for results
         startRegenerationPolling(result.request_id, slot);
         
     } catch (err) {
-        console.error('Error triggering regeneration:', err);
+        console.error('[Graham] Error triggering regeneration:', err);
         showToast('Failed to start regeneration', true);
         hideRegenerationModal();
     }
@@ -2190,11 +2206,14 @@ function startRegenerationPolling(requestId, slot) {
     let pollCount = 0;
     const maxPolls = 100; // 5 minutes at 3 second intervals
     
+    console.log('[Graham] Starting regeneration polling for request:', requestId);
+    
     regenerationPollInterval = setInterval(async () => {
         pollCount++;
         
         if (pollCount > maxPolls) {
             clearInterval(regenerationPollInterval);
+            console.warn('[Graham] Regeneration timed out after 5 minutes');
             showToast('Regeneration timed out', true);
             hideRegenerationModal();
             return;
@@ -2207,20 +2226,27 @@ function startRegenerationPolling(requestId, slot) {
                 .eq('id', requestId)
                 .single();
             
-            if (error) throw error;
+            if (error) {
+                console.error('[Graham] Polling query error:', error);
+                throw error;
+            }
+            
+            console.log('[Graham] Poll #' + pollCount + ' status:', data?.status);
             
             if (data.status === 'ready' && data.option_urls?.length > 0) {
                 clearInterval(regenerationPollInterval);
+                console.log('[Graham] Regeneration complete, showing options');
                 showRegenerationOptions(data.option_urls, slot, requestId);
             } else if (data.status === 'cancelled' || data.status === 'error') {
                 clearInterval(regenerationPollInterval);
+                console.error('[Graham] Regeneration failed with status:', data.status);
                 showToast('Regeneration failed', true);
                 hideRegenerationModal();
             }
             // Continue polling if status is still 'processing'
             
         } catch (err) {
-            console.error('Error polling regeneration status:', err);
+            console.error('[Graham] Error polling regeneration status:', err);
             // Continue polling on error
         }
     }, 3000);
@@ -2501,8 +2527,8 @@ async function handleStoryAuthStateChange(state) {
     // Update favorite button visibility and state
     await updateFavoriteButton();
     
-    // Update read indicator
-    await updateReadIndicator();
+    // Update read button state
+    await updateReadButton();
     
     // Update admin UI (regeneration buttons)
     updateAdminUI();
@@ -2571,43 +2597,103 @@ async function updateFavoriteButton() {
 }
 
 /**
- * Update read indicator visibility
+ * Update read button state
  */
-async function updateReadIndicator() {
-    const readIndicator = document.getElementById('readIndicator');
-    if (!readIndicator || !currentStory) return;
+async function updateReadButton() {
+    const readBtn = document.getElementById('readBtn');
+    if (!readBtn || !currentStory) return;
     
     if (window.GraceAuth?.isAuthenticated()) {
+        readBtn.style.display = 'inline-flex';
         const isRead = await window.GraceAuth.isRead(currentStory.spread_code);
-        readIndicator.style.display = isRead ? 'inline-flex' : 'none';
+        if (isRead) {
+            readBtn.classList.add('is-read');
+            readBtn.title = 'Mark as unread';
+        } else {
+            readBtn.classList.remove('is-read');
+            readBtn.title = 'Mark as read';
+        }
     } else {
-        readIndicator.style.display = 'none';
+        readBtn.style.display = 'none';
     }
 }
 
 /**
- * Setup read tracking - mark as read when user scrolls near bottom
+ * Setup read button click handler
+ */
+function setupReadButton() {
+    const readBtn = document.getElementById('readBtn');
+    if (!readBtn) return;
+    
+    readBtn.addEventListener('click', async () => {
+        if (!window.GraceAuth?.isAuthenticated() || !currentStory) return;
+        
+        const spreadCode = currentStory.spread_code;
+        const isCurrentlyRead = readBtn.classList.contains('is-read');
+        
+        try {
+            if (isCurrentlyRead) {
+                // Unmark as read
+                await window.GraceAuth.unmarkAsRead(spreadCode);
+                userReadStories.delete(spreadCode);
+                readBtn.classList.remove('is-read');
+                readBtn.title = 'Mark as read';
+                showToast('Marked as unread');
+            } else {
+                // Mark as read
+                await window.GraceAuth.markAsRead(spreadCode);
+                userReadStories.add(spreadCode);
+                readBtn.classList.add('is-read');
+                readBtn.classList.add('pop');
+                readBtn.title = 'Mark as unread';
+                setTimeout(() => readBtn.classList.remove('pop'), 300);
+                showToast('Marked as read');
+            }
+            
+            // Set flag so home page knows to refresh
+            sessionStorage.setItem('grace-user-data-changed', 'true');
+            
+        } catch (err) {
+            console.error('[Graham] Error toggling read status:', err);
+            showToast('Error updating read status', true);
+        }
+    });
+}
+
+/**
+ * Setup read tracking - auto-mark as read when user scrolls past 50%
  */
 function setupReadTracking() {
     const rightPage = document.getElementById('rightPage');
     if (!rightPage) return;
     
-    let hasMarkedAsRead = false;
+    let hasAutoMarkedAsRead = false;
     
     const checkReadStatus = async () => {
-        // Only mark as read once per page load
-        if (hasMarkedAsRead) return;
+        // Only auto-mark once per page load
+        if (hasAutoMarkedAsRead) return;
         
         // Only track if authenticated
         if (!window.GraceAuth?.isAuthenticated()) return;
         
-        // Check if scrolled near bottom (within 100px)
-        const isNearBottom = 
-            window.innerHeight + window.scrollY >= document.body.scrollHeight - 150 ||
-            rightPage.scrollTop + rightPage.clientHeight >= rightPage.scrollHeight - 100;
+        // Already marked as read? Don't auto-trigger again
+        const readBtn = document.getElementById('readBtn');
+        if (readBtn?.classList.contains('is-read')) {
+            hasAutoMarkedAsRead = true;
+            return;
+        }
         
-        if (isNearBottom && currentStory) {
-            hasMarkedAsRead = true;
+        // Calculate scroll percentage - check both window and rightPage
+        const windowScrollPercent = (window.scrollY + window.innerHeight) / document.body.scrollHeight;
+        const rightPageScrollPercent = rightPage.scrollHeight > rightPage.clientHeight 
+            ? (rightPage.scrollTop + rightPage.clientHeight) / rightPage.scrollHeight 
+            : 1;
+        
+        // Trigger at 50% scroll of either container
+        const isPastHalfway = windowScrollPercent >= 0.5 || rightPageScrollPercent >= 0.5;
+        
+        if (isPastHalfway && currentStory) {
+            hasAutoMarkedAsRead = true;
             const spreadCode = currentStory.spread_code;
             
             await window.GraceAuth.markAsRead(spreadCode);
@@ -2618,13 +2704,15 @@ function setupReadTracking() {
             // Set flag so home page knows to refresh
             sessionStorage.setItem('grace-user-data-changed', 'true');
             
-            // Update indicator
-            const readIndicator = document.getElementById('readIndicator');
-            if (readIndicator) {
-                readIndicator.style.display = 'inline-flex';
+            // Update button state with animation
+            if (readBtn) {
+                readBtn.classList.add('is-read');
+                readBtn.classList.add('pop');
+                readBtn.title = 'Mark as unread';
+                setTimeout(() => readBtn.classList.remove('pop'), 300);
             }
             
-            console.log('[GRACE] Marked as read:', spreadCode);
+            console.log('[Graham] Auto-marked as read:', spreadCode);
         }
     };
     

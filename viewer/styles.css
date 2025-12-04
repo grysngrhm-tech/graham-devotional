@@ -816,14 +816,47 @@ body.is-admin .card-status.admin-only {
     transform: scale(0.96);
 }
 
-/* Filter Feedback */
-.filter-feedback {
+/* Filter Top Row - User filters + Results count */
+.filter-top-row {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin-bottom: var(--spacing-lg);
-    padding: 0 var(--spacing-xs);
-    min-height: 32px;
+    gap: var(--spacing-sm);
+    min-height: 28px;
+}
+
+.filter-top-row .user-filters {
+    flex-shrink: 0;
+}
+
+.filter-top-row .results-count {
+    flex-shrink: 0;
+    margin-left: auto;
+}
+
+/* Hide results count on mobile when user filters are shown - too cramped */
+@media (max-width: 480px) {
+    .filter-top-row {
+        flex-wrap: wrap;
+        justify-content: flex-start;
+    }
+    
+    .filter-top-row .results-count {
+        order: -1;
+        width: 100%;
+        margin-left: 0;
+        margin-bottom: var(--spacing-xs);
+        text-align: left;
+    }
+}
+
+/* Active Filters Row */
+.active-filters-row {
+    display: none; /* Hidden when no active filters */
+}
+
+.active-filters-row:has(.filter-tag) {
+    display: block;
 }
 
 .active-filters {
@@ -1221,41 +1254,69 @@ body.is-admin .card-status.admin-only {
     letter-spacing: 0.02em;
     border-top: 1px solid var(--border-color);
     transition: background-color 0.3s ease, border-color 0.3s ease;
-}
-
-.site-footer p {
-    margin: 0;
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: var(--spacing-xs);
+    gap: var(--spacing-lg);
+}
+
+.footer-about {
+    max-width: 500px;
 }
 
 .footer-brand {
     font-family: 'IM Fell English', 'Times New Roman', serif;
-    font-size: 0.9375rem;
+    font-size: 1.125rem;
     color: var(--text-secondary);
     letter-spacing: 0.02em;
     transition: color 0.3s ease;
+    display: block;
+    margin-bottom: var(--spacing-sm);
 }
 
-.footer-tagline {
-    font-size: 0.6875rem;
-    color: #999;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
+.footer-description {
+    font-size: 0.8125rem;
+    line-height: 1.6;
+    color: var(--text-muted);
+    margin: 0;
+}
+
+.footer-links {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
+.footer-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    color: var(--text-secondary);
+    text-decoration: none;
+    font-size: 0.75rem;
+    transition: color 0.2s ease;
+}
+
+.footer-link:hover {
+    color: var(--accent-primary);
+}
+
+.footer-link .external-icon {
+    width: 12px;
+    height: 12px;
+    opacity: 0.7;
 }
 
 .footer-divider {
-    width: 40px;
-    height: 1px;
-    background: #DDD;
-    margin: var(--spacing-sm) 0;
+    color: var(--text-muted);
+    opacity: 0.5;
 }
 
 .footer-copyright {
     font-size: 0.6875rem;
-    color: #AAA;
+    color: var(--text-muted);
 }
 
 /* Loading & Empty States */
@@ -3972,25 +4033,64 @@ body.is-admin .card-status.admin-only {
 }
 
 /* ============================================================================
-   Read Status Indicator (Story Page)
+   Read Status Button (Story Page)
    ============================================================================ */
 
-.read-indicator {
+.read-btn {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
-    padding: 4px 10px;
-    background: rgba(76, 175, 80, 0.15);
-    border-radius: 100px;
-    font-family: 'Inter', -apple-system, sans-serif;
-    font-size: 0.6875rem;
-    font-weight: 500;
-    color: #4CAF50;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    background: transparent;
+    border: none;
+    border-radius: 50%;
+    cursor: pointer;
+    transition: transform 0.2s ease, background-color 0.2s ease;
     margin-left: auto;
 }
 
-.read-indicator .check {
-    font-size: 0.75rem;
+.read-btn:hover {
+    background: rgba(128, 128, 128, 0.1);
+}
+
+.read-btn:active {
+    transform: scale(0.92);
+}
+
+.read-btn .read-icon {
+    width: 22px;
+    height: 22px;
+    stroke: var(--text-muted);
+    fill: none;
+    transition: stroke 0.2s ease, fill 0.2s ease;
+}
+
+.read-btn .read-icon .check-mark {
+    stroke-dasharray: 20;
+    stroke-dashoffset: 20;
+    transition: stroke-dashoffset 0.3s ease;
+}
+
+/* Read state */
+.read-btn.is-read .read-icon {
+    stroke: #4CAF50;
+}
+
+.read-btn.is-read .read-icon .check-mark {
+    stroke-dashoffset: 0;
+}
+
+/* Pop animation when marked as read */
+@keyframes readPop {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.3); }
+    100% { transform: scale(1); }
+}
+
+.read-btn.pop {
+    animation: readPop 0.3s ease;
 }
 
 /* ============================================================================
