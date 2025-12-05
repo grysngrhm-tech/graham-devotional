@@ -5021,6 +5021,99 @@ body.is-offline {
     color: var(--text-primary);
 }
 
+/* Empty state - no images placeholder */
+.curation-images.empty-state {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.curation-no-images-placeholder {
+    text-align: center;
+    padding: var(--spacing-xl);
+    background: var(--bg-card);
+    border: 2px dashed var(--border-color);
+    border-radius: 16px;
+    max-width: 400px;
+}
+
+.no-images-icon {
+    width: 80px;
+    height: 80px;
+    margin: 0 auto var(--spacing-md);
+    color: var(--text-muted);
+}
+
+.no-images-icon svg {
+    width: 100%;
+    height: 100%;
+}
+
+.curation-no-images-placeholder h3 {
+    font-family: var(--font-heading);
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0 0 var(--spacing-sm) 0;
+}
+
+.curation-no-images-placeholder p {
+    font-family: var(--font-body);
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+    margin: 0 0 var(--spacing-lg) 0;
+    line-height: 1.5;
+}
+
+.curation-generate-all {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 14px 28px;
+    background: var(--color-accent);
+    color: var(--bg-primary);
+    border: none;
+    border-radius: 12px;
+    font-family: var(--font-body);
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.curation-generate-all svg {
+    width: 20px;
+    height: 20px;
+}
+
+.curation-generate-all:hover:not(:disabled) {
+    background: #c9a030;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(212, 175, 55, 0.3);
+}
+
+.curation-generate-all:disabled {
+    opacity: 0.8;
+    cursor: wait;
+}
+
+.curation-generate-all .spinning {
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+.generate-estimate {
+    font-family: var(--font-body);
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin-top: var(--spacing-sm);
+}
+
 /* Mobile adjustments for curation view */
 @media (max-width: 900px) {
     .curation-content {

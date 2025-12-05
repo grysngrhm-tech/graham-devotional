@@ -199,30 +199,63 @@ function renderCurationView(story) {
     const abstractText = story.image_abstract || 
         'No scene abstract available. This story may not have been fully processed.';
     
-    // Build image cards HTML
-    const imageCards = [1, 2, 3, 4].map(slot => {
-        const imageUrl = story[`image_url_${slot}`];
-        const isCurrentDefault = story.image_url === imageUrl && imageUrl;
-        return `
-            <div class="curation-image-card ${isCurrentDefault ? 'is-default' : ''}" data-slot="${slot}">
-                <div class="curation-image-wrapper">
-                    ${imageUrl 
-                        ? `<img src="${imageUrl}" alt="Option ${slot}" loading="lazy">`
-                        : `<div class="curation-no-image">No Image</div>`
-                    }
-                    ${isCurrentDefault ? '<div class="curation-default-badge">Current Default</div>' : ''}
+    // Check if story has NO images at all
+    const hasNoImages = !story.image_url_1 && !story.image_url_2 && 
+                        !story.image_url_3 && !story.image_url_4;
+    
+    // Build image section HTML based on whether images exist
+    let imagesSection;
+    
+    if (hasNoImages) {
+        // Show "Generate All Images" button for empty stories
+        imagesSection = `
+            <div class="curation-no-images-placeholder">
+                <div class="no-images-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                        <circle cx="8.5" cy="8.5" r="1.5"/>
+                        <polyline points="21 15 16 10 5 21"/>
+                    </svg>
                 </div>
-                <div class="curation-image-actions">
-                    <button class="curation-set-default" onclick="setGlobalDefaultBySlot(${slot})" ${!imageUrl ? 'disabled' : ''}>
-                        Set as Default
-                    </button>
-                    <button class="curation-regenerate" onclick="triggerRegenerateSlot(${slot})" title="Regenerate this slot (Shift+${slot})">
-                        Regenerate
-                    </button>
-                </div>
+                <h3>No Images Generated</h3>
+                <p>This story doesn't have any images yet. Generate all 4 image variations to begin curation.</p>
+                <button class="curation-generate-all" onclick="generateAllImages()" id="generateAllBtn">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polygon points="5 3 19 12 5 21 5 3"/>
+                    </svg>
+                    Generate All 4 Images
+                </button>
+                <div class="generate-estimate">Estimated time: ~90 seconds</div>
             </div>
         `;
-    }).join('');
+    } else {
+        // Normal image cards for stories with images
+        const imageCards = [1, 2, 3, 4].map(slot => {
+            const imageUrl = story[`image_url_${slot}`];
+            const isCurrentDefault = story.image_url === imageUrl && imageUrl;
+            return `
+                <div class="curation-image-card ${isCurrentDefault ? 'is-default' : ''}" data-slot="${slot}">
+                    <div class="curation-image-wrapper">
+                        ${imageUrl 
+                            ? `<img src="${imageUrl}" alt="Option ${slot}" loading="lazy">`
+                            : `<div class="curation-no-image">No Image</div>`
+                        }
+                        ${isCurrentDefault ? '<div class="curation-default-badge">Current Default</div>' : ''}
+                    </div>
+                    <div class="curation-image-actions">
+                        <button class="curation-set-default" onclick="setGlobalDefaultBySlot(${slot})" ${!imageUrl ? 'disabled' : ''}>
+                            Set as Default
+                        </button>
+                        <button class="curation-regenerate" onclick="triggerRegenerateSlot(${slot})" title="Regenerate this slot (Shift+${slot})">
+                            Regenerate
+                        </button>
+                    </div>
+                </div>
+            `;
+        }).join('');
+        
+        imagesSection = imageCards;
+    }
     
     container.innerHTML = `
         <div class="curation-view">
@@ -250,9 +283,9 @@ function renderCurationView(story) {
             
             <!-- Main Curation Content -->
             <div class="curation-content">
-                <!-- Left: Image Grid -->
-                <div class="curation-images">
-                    ${imageCards}
+                <!-- Left: Image Grid or Generate Placeholder -->
+                <div class="curation-images ${hasNoImages ? 'empty-state' : ''}">
+                    ${imagesSection}
                 </div>
                 
                 <!-- Right: Story Info & Abstract -->
@@ -267,8 +300,11 @@ function renderCurationView(story) {
                     
                     <div class="curation-keyboard-help">
                         <h4>Keyboard Shortcuts</h4>
-                        <div class="shortcut-row"><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd><kbd>4</kbd> Set slot as default</div>
-                        <div class="shortcut-row"><kbd>Shift</kbd>+<kbd>1-4</kbd> Regenerate slot</div>
+                        ${hasNoImages 
+                            ? '<div class="shortcut-row"><kbd>G</kbd> Generate all images</div>'
+                            : '<div class="shortcut-row"><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd><kbd>4</kbd> Set slot as default</div>'
+                        }
+                        ${!hasNoImages ? '<div class="shortcut-row"><kbd>Shift</kbd>+<kbd>1-4</kbd> Regenerate slot</div>' : ''}
                         <div class="shortcut-row"><kbd>←</kbd><kbd>→</kbd> Navigate stories</div>
                         <div class="shortcut-row"><kbd>Esc</kbd> Exit curation</div>
                     </div>
@@ -321,6 +357,12 @@ function handleCurationKeyboard(e) {
                 setGlobalDefaultBySlot(slot);
             }
             break;
+        case 'g':
+        case 'G':
+            e.preventDefault();
+            // Generate all images for empty stories
+            generateAllImages();
+            break;
         case 'Escape':
             e.preventDefault();
             exitCurationMode();
@@ -341,6 +383,202 @@ async function triggerRegenerateSlot(slot) {
     
     // Use the existing regeneration function which handles the modal and polling
     await triggerRegeneration(slot);
+}
+
+/**
+ * Generate all 4 images for a story with no images
+ * Calls the n8n webhook and auto-assigns all 4 generated images to slots 1-4
+ */
+async function generateAllImages() {
+    const story = window._currentStory;
+    if (!story || !window.GraceAuth?.isAdmin()) {
+        showToast('Admin access required', true);
+        return;
+    }
+    
+    // Check if story really has no images
+    const hasNoImages = !story.image_url_1 && !story.image_url_2 && 
+                        !story.image_url_3 && !story.image_url_4;
+    if (!hasNoImages) {
+        showToast('This story already has images');
+        return;
+    }
+    
+    const spreadCode = story.spread_code;
+    
+    // Disable button and show loading state
+    const btn = document.getElementById('generateAllBtn');
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = `
+            <svg class="spinning" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
+            </svg>
+            Generating... (~90s)
+        `;
+    }
+    
+    try {
+        // Get webhook URL from config
+        const webhookUrl = window.N8N_CONFIG?.webhookUrl;
+        if (!webhookUrl) {
+            throw new Error('n8n webhook URL not configured');
+        }
+        
+        console.log('[Graham] Triggering generate-all:', { spreadCode, webhookUrl });
+        
+        // Trigger the n8n workflow (slot 1 is arbitrary - we'll use all 4 results)
+        const response = await fetch(webhookUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                spread_code: spreadCode,
+                slot: 1  // n8n generates 4 images regardless of slot
+            })
+        });
+        
+        if (!response.ok) {
+            throw new Error(`Webhook failed: ${response.status}`);
+        }
+        
+        const result = await response.json();
+        
+        if (!result.request_id) {
+            throw new Error('No request_id returned from webhook');
+        }
+        
+        // Start polling with auto-assign mode
+        await pollForGenerateAll(result.request_id, spreadCode);
+        
+    } catch (err) {
+        console.error('[Graham] Error generating all images:', err);
+        showToast('Failed to start image generation', true);
+        
+        // Reset button
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = `
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polygon points="5 3 19 12 5 21 5 3"/>
+                </svg>
+                Generate All 4 Images
+            `;
+        }
+    }
+}
+
+/**
+ * Poll for generate-all results and auto-assign all 4 images
+ */
+async function pollForGenerateAll(requestId, spreadCode) {
+    let pollCount = 0;
+    const maxPolls = 100; // 5 minutes at 3 second intervals
+    
+    console.log('[Graham] Starting generate-all polling for request:', requestId);
+    
+    const poll = async () => {
+        pollCount++;
+        
+        if (pollCount > maxPolls) {
+            showToast('Generation timed out', true);
+            resetGenerateButton();
+            return;
+        }
+        
+        try {
+            const { data, error } = await supabase
+                .from('regeneration_requests')
+                .select('status, option_urls')
+                .eq('id', requestId)
+                .single();
+            
+            if (error) throw error;
+            
+            console.log('[Graham] Generate-all poll #' + pollCount + ' status:', data?.status);
+            
+            if (data.status === 'ready' && data.option_urls?.length >= 4) {
+                // Auto-assign all 4 images to slots
+                await autoAssignAllImages(spreadCode, data.option_urls);
+            } else if (data.status === 'cancelled' || data.status === 'error') {
+                showToast('Image generation failed', true);
+                resetGenerateButton();
+            } else {
+                // Continue polling
+                setTimeout(poll, 3000);
+            }
+            
+        } catch (err) {
+            console.error('[Graham] Error polling generate-all status:', err);
+            // Continue polling on error
+            setTimeout(poll, 3000);
+        }
+    };
+    
+    // Start polling
+    setTimeout(poll, 3000);
+}
+
+/**
+ * Auto-assign all 4 generated images to slots 1-4
+ */
+async function autoAssignAllImages(spreadCode, optionUrls) {
+    console.log('[Graham] Auto-assigning 4 images to story:', spreadCode);
+    
+    try {
+        // Update the database with all 4 images
+        const { error } = await supabase
+            .from('grahams_devotional_spreads')
+            .update({
+                image_url_1: optionUrls[0],
+                image_url_2: optionUrls[1],
+                image_url_3: optionUrls[2],
+                image_url_4: optionUrls[3],
+                status_image: 'done'
+            })
+            .eq('spread_code', spreadCode);
+        
+        if (error) throw error;
+        
+        // Update the local story object
+        const story = window._currentStory;
+        if (story && story.spread_code === spreadCode) {
+            story.image_url_1 = optionUrls[0];
+            story.image_url_2 = optionUrls[1];
+            story.image_url_3 = optionUrls[2];
+            story.image_url_4 = optionUrls[3];
+            story.status_image = 'done';
+        }
+        
+        showToast('All 4 images generated! Select a default.');
+        
+        // Refresh the curation view to show the new images
+        if (curationMode.active && story) {
+            renderCurationView(story);
+        }
+        
+    } catch (err) {
+        console.error('[Graham] Error auto-assigning images:', err);
+        showToast('Failed to save generated images', true);
+        resetGenerateButton();
+    }
+}
+
+/**
+ * Reset the generate all button to initial state
+ */
+function resetGenerateButton() {
+    const btn = document.getElementById('generateAllBtn');
+    if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = `
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polygon points="5 3 19 12 5 21 5 3"/>
+            </svg>
+            Generate All 4 Images
+        `;
+    }
 }
 
 /**

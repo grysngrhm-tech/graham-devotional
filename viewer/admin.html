@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+kio<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -1102,61 +1102,76 @@
         
         async function loadRecentUsers() {
             try {
+                // Use SECURITY DEFINER function to bypass RLS recursion issue
                 const { data: users, error } = await supabase
-                    .from('user_profiles')
-                    .select('id, email, is_admin, created_at')
-                    .order('created_at', { ascending: false })
-                    .limit(10);
+                    .rpc('admin_get_all_profiles');
                 
-                if (error) throw error;
-                
-                const tbody = document.getElementById('userTableBody');
-                
-                if (!users || users.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--text-muted);">No users found</td></tr>';
-                    return;
+                if (error) {
+                    console.warn('[Admin] admin_get_all_profiles failed, trying direct query:', error.message);
+                    // Fallback: try direct query (works if RLS is fixed)
+                    const { data: fallbackUsers, error: fallbackError } = await supabase
+                        .from('user_profiles')
+                        .select('id, email, is_admin, created_at')
+                        .order('created_at', { ascending: false })
+                        .limit(10);
+                    
+                    if (fallbackError) throw fallbackError;
+                    return renderUserTable(fallbackUsers || []);
                 }
                 
-                // Get user stats
-                const userIds = users.map(u => u.id);
-                
-                const { data: favCounts } = await supabase
-                    .from('user_favorites')
-                    .select('user_id')
-                    .in('user_id', userIds);
-                
-                const { data: readCounts } = await supabase
-                    .from('user_read_stories')
-                    .select('user_id')
-                    .in('user_id', userIds);
-                
-                // Count per user
-                const favCountMap = {};
-                const readCountMap = {};
-                
-                (favCounts || []).forEach(f => {
-                    favCountMap[f.user_id] = (favCountMap[f.user_id] || 0) + 1;
-                });
-                
-                (readCounts || []).forEach(r => {
-                    readCountMap[r.user_id] = (readCountMap[r.user_id] || 0) + 1;
-                });
-                
-                tbody.innerHTML = users.map(user => `
-                    <tr>
-                        <td class="user-email">${user.email || 'Unknown'}</td>
-                        <td><span class="user-role ${user.is_admin ? 'admin' : 'user'}">${user.is_admin ? 'Admin' : 'User'}</span></td>
-                        <td>${favCountMap[user.id] || 0}</td>
-                        <td>${readCountMap[user.id] || 0}</td>
-                        <td>${user.created_at ? new Date(user.created_at).toLocaleDateString() : '—'}</td>
-                    </tr>
-                `).join('');
+                // Limit to 10 most recent
+                const recentUsers = (users || []).slice(0, 10);
+                await renderUserTable(recentUsers);
                 
             } catch (err) {
                 console.error('[Admin] Error loading users:', err);
                 document.getElementById('userTableBody').innerHTML = 
                     '<tr><td colspan="5" style="text-align: center; color: var(--text-muted);">Error loading users</td></tr>';
             }
+        }
+        
+        async function renderUserTable(users) {
+            const tbody = document.getElementById('userTableBody');
+            
+            if (!users || users.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--text-muted);">No users found</td></tr>';
+                return;
+            }
+            
+            // Get user stats
+            const userIds = users.map(u => u.id);
+            
+            const { data: favCounts } = await supabase
+                .from('user_favorites')
+                .select('user_id')
+                .in('user_id', userIds);
+            
+            const { data: readCounts } = await supabase
+                .from('user_read_stories')
+                .select('user_id')
+                .in('user_id', userIds);
+            
+            // Count per user
+            const favCountMap = {};
+            const readCountMap = {};
+            
+            (favCounts || []).forEach(f => {
+                favCountMap[f.user_id] = (favCountMap[f.user_id] || 0) + 1;
+            });
+            
+            (readCounts || []).forEach(r => {
+                readCountMap[r.user_id] = (readCountMap[r.user_id] || 0) + 1;
+            });
+            
+            tbody.innerHTML = users.map(user => `
+                <tr>
+                    <td class="user-email">${user.email || 'Unknown'}</td>
+                    <td><span class="user-role ${user.is_admin ? 'admin' : 'user'}">${user.is_admin ? 'Admin' : 'User'}</span></td>
+                    <td>${favCountMap[user.id] || 0}</td>
+                    <td>${readCountMap[user.id] || 0}</td>
+                    <td>${user.created_at ? new Date(user.created_at).toLocaleDateString() : '—'}</td>
+                </tr>
+            `).join('');
         }
         
         async function loadPopularImages() {
