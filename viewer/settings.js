@@ -125,14 +125,23 @@ const GraceSettings = (function() {
                     userEmailEl.textContent = user?.email || 'Unknown';
                 }
                 
-                // Show/hide admin link
-                const adminLink = document.getElementById('settingsAdminLink');
-                if (adminLink && window.GraceAuth) {
-                    adminLink.style.display = window.GraceAuth.isAdmin() ? 'flex' : 'none';
+                // Show/hide admin section
+                const adminSection = document.getElementById('adminSection');
+                if (adminSection && window.GraceAuth) {
+                    adminSection.style.display = window.GraceAuth.isAdmin() ? 'block' : 'none';
+                }
+                
+                // Show/hide account section based on auth
+                const accountSection = document.getElementById('accountSection');
+                if (accountSection) {
+                    accountSection.style.display = window.GraceAuth?.isAuthenticated() ? 'block' : 'none';
                 }
                 
                 // Update storage statistics
                 updateStorageStats();
+                
+                // Update download estimate
+                updateDownloadEstimate();
                 
                 settingsModal.classList.add('visible');
             });
@@ -201,6 +210,7 @@ const GraceSettings = (function() {
         const clearCacheBtn = document.getElementById('clearCacheBtn');
         const clearLibraryBtn = document.getElementById('clearLibraryBtn');
         const downloadFavoritesBtn = document.getElementById('downloadFavoritesBtn');
+        const downloadEntireBibleBtn = document.getElementById('downloadEntireBibleBtn');
         
         // Clear cache button
         if (clearCacheBtn) {
@@ -242,7 +252,8 @@ const GraceSettings = (function() {
         if (downloadFavoritesBtn) {
             downloadFavoritesBtn.addEventListener('click', async () => {
                 downloadFavoritesBtn.disabled = true;
-                downloadFavoritesBtn.textContent = 'Downloading...';
+                const btnText = downloadFavoritesBtn.querySelector('span');
+                if (btnText) btnText.textContent = 'Downloading...';
                 
                 try {
                     await downloadAllFavorites();
@@ -253,9 +264,78 @@ const GraceSettings = (function() {
                     showStorageToast('Failed to download some favorites', true);
                 } finally {
                     downloadFavoritesBtn.disabled = false;
-                    downloadFavoritesBtn.textContent = 'Download All Favorites';
+                    if (btnText) btnText.textContent = 'Download Favorites';
                 }
             });
+        }
+        
+        // Download entire Bible button
+        if (downloadEntireBibleBtn) {
+            downloadEntireBibleBtn.addEventListener('click', async () => {
+                if (!confirm('Download all 500 stories with images? This will use approximately 625 MB of storage and may take several minutes.')) {
+                    return;
+                }
+                
+                downloadEntireBibleBtn.disabled = true;
+                const progressEl = document.getElementById('downloadProgress');
+                const progressFill = document.getElementById('downloadProgressFill');
+                const progressText = document.getElementById('downloadProgressText');
+                
+                if (progressEl) progressEl.style.display = 'block';
+                
+                try {
+                    // Get user's primary image selections to download correct images
+                    const userPrimaryImages = window.GraceAuth?.isAuthenticated() 
+                        ? await window.GraceAuth.getAllUserPrimaryImages()
+                        : new Map();
+                    
+                    const result = await window.GraceOffline?.downloadEntireBible(
+                        ({ current, total, message, phase }) => {
+                            if (progressFill) {
+                                const percent = total > 0 ? Math.round((current / total) * 100) : 0;
+                                progressFill.style.width = `${percent}%`;
+                            }
+                            if (progressText) {
+                                progressText.textContent = message;
+                            }
+                        },
+                        userPrimaryImages
+                    );
+                    
+                    if (result?.success) {
+                        showStorageToast(`Downloaded ${result.storiesDownloaded} stories`);
+                    } else {
+                        showStorageToast('Download completed with some errors', true);
+                    }
+                    updateStorageStats();
+                } catch (err) {
+                    console.error('[Settings] Error downloading entire Bible:', err);
+                    showStorageToast('Download failed', true);
+                } finally {
+                    downloadEntireBibleBtn.disabled = false;
+                    if (progressEl) {
+                        setTimeout(() => {
+                            progressEl.style.display = 'none';
+                            if (progressFill) progressFill.style.width = '0%';
+                        }, 2000);
+                    }
+                }
+            });
+        }
+    }
+    
+    /**
+     * Update download size estimate
+     */
+    async function updateDownloadEstimate() {
+        const estimateEl = document.getElementById('downloadSizeEstimate');
+        if (!estimateEl || !window.GraceOffline) return;
+        
+        try {
+            const estimate = await window.GraceOffline.getDownloadEstimate();
+            estimateEl.textContent = `~${estimate.estimatedMB} MB`;
+        } catch (err) {
+            estimateEl.textContent = '~625 MB';
         }
     }
     
@@ -267,32 +347,44 @@ const GraceSettings = (function() {
         const libraryStatsEl = document.getElementById('libraryStats');
         const librarySection = document.getElementById('libraryStorageSection');
         const signinPrompt = document.getElementById('librarySigninPrompt');
+        const downloadFavoritesBtn = document.getElementById('downloadFavoritesBtn');
         
         // Cache stats (always shown)
         if (cacheStatsEl && window.GraceOffline) {
             const cacheStats = await window.GraceOffline.getCacheStats();
+            // Handle both old format (nested elements) and new format (direct text)
             const countEl = cacheStatsEl.querySelector('.storage-count');
-            const sizeEl = cacheStatsEl.querySelector('.storage-size');
-            if (countEl) countEl.textContent = `${cacheStats.count} stories`;
-            if (sizeEl) sizeEl.textContent = window.GraceOffline.formatBytes(cacheStats.sizeEstimate);
+            if (countEl) {
+                countEl.textContent = `${cacheStats.count} stories`;
+            } else {
+                // New compact format: just show count and size inline
+                cacheStatsEl.textContent = `${cacheStats.count} stories · ${window.GraceOffline.formatBytes(cacheStats.sizeEstimate)}`;
+            }
         }
         
         // Library stats (logged in users only)
         const isAuthenticated = window.GraceAuth?.isAuthenticated();
         
         if (librarySection) {
-            librarySection.style.display = isAuthenticated ? 'block' : 'none';
+            librarySection.style.display = isAuthenticated ? 'flex' : 'none';
         }
         if (signinPrompt) {
             signinPrompt.style.display = isAuthenticated ? 'none' : 'block';
         }
+        if (downloadFavoritesBtn) {
+            // Show download favorites only for logged in users
+            downloadFavoritesBtn.style.display = isAuthenticated ? 'flex' : 'none';
+        }
         
         if (libraryStatsEl && window.GraceOffline && isAuthenticated) {
             const libraryStats = await window.GraceOffline.getLibraryStats();
+            // Handle both old format (nested elements) and new format (direct text)
             const countEl = libraryStatsEl.querySelector('.storage-count');
-            const sizeEl = libraryStatsEl.querySelector('.storage-size');
-            if (countEl) countEl.textContent = `${libraryStats.count} stories`;
-            if (sizeEl) sizeEl.textContent = window.GraceOffline.formatBytes(libraryStats.sizeEstimate);
+            if (countEl) {
+                countEl.textContent = `${libraryStats.count} stories`;
+            } else {
+                libraryStatsEl.textContent = `${libraryStats.count} stories · ${window.GraceOffline.formatBytes(libraryStats.sizeEstimate)}`;
+            }
         }
     }
     

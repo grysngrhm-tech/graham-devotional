@@ -24,7 +24,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=IM+Fell+English:ital@0;1&family=Inter:wght@300;400;500;600&family=Playfair+Display:ital,opsz,wght@0,8..72,400;0,8..72,500;0,8..72,600;0,8..72,700;1,8..72,400&family=Source+Serif+4:ital,opsz,wght@0,8..60,300;0,8..60,400;0,8..60,500;1,8..60,400&display=swap" rel="stylesheet">
     
-    <link rel="stylesheet" href="styles.css?v=28">
+    <link rel="stylesheet" href="styles.css?v=29">
     
     <!-- PWA -->
     <link rel="manifest" href="manifest.json">
@@ -591,102 +591,157 @@
         </div>
     </div>
 
-    <!-- Settings Modal -->
+    <!-- Settings Modal (iOS-style sections) -->
     <div class="settings-modal" id="settingsModal">
         <div class="settings-modal-content">
             <button class="settings-close" id="settingsClose">&times;</button>
             <h2>Settings</h2>
             
-            <div class="setting-row">
-                <span class="setting-label">Dark Mode</span>
-                <label class="toggle-switch">
-                    <input type="checkbox" id="darkModeToggle" checked>
-                    <span class="toggle-slider"></span>
-                </label>
-            </div>
-            
-            <div class="setting-row">
-                <span class="setting-label">Font Size</span>
-                <select class="setting-select" id="fontSizeSelect">
-                    <option value="small">Small</option>
-                    <option value="medium" selected>Medium</option>
-                    <option value="large">Large</option>
-                </select>
-            </div>
-            
-            <div class="setting-row">
-                <span class="setting-label">Bible Version</span>
-                <select class="setting-select" id="bibleVersionSelect">
-                    <option value="NIV" selected>New International Version</option>
-                    <option value="ESV">English Standard Version</option>
-                    <option value="KJV">King James Version</option>
-                    <option value="NKJV">New King James Version</option>
-                    <option value="NLT">New Living Translation</option>
-                    <option value="NASB">New American Standard</option>
-                    <option value="WEB">World English Bible</option>
-                </select>
-            </div>
-            
-            <a href="admin.html" class="settings-admin-link" id="settingsAdminLink" style="display: none;">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-                </svg>
-                Admin Panel
-            </a>
-            
-            <!-- Offline Storage Section -->
-            <div class="settings-section" id="offlineStorageSection">
-                <h3 class="settings-section-title">Offline Storage</h3>
-                
-                <div class="storage-subsection">
-                    <div class="storage-label">Automatic Cache</div>
-                    <div class="storage-desc">Recently viewed stories cached for faster loading</div>
-                    <div class="storage-stats" id="cacheStats">
-                        <span class="storage-count">0 stories</span>
-                        <span class="storage-size">0 B</span>
+            <!-- Appearance Section -->
+            <div class="settings-section-group">
+                <div class="settings-section-header">Appearance</div>
+                <div class="settings-section-card">
+                    <div class="setting-row">
+                        <span class="setting-label">Dark Mode</span>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="darkModeToggle" checked>
+                            <span class="toggle-slider"></span>
+                        </label>
                     </div>
-                    <button class="storage-action-btn" id="clearCacheBtn">Clear Cache</button>
+                    <div class="setting-row">
+                        <span class="setting-label">Font Size</span>
+                        <select class="setting-select" id="fontSizeSelect">
+                            <option value="small">Small</option>
+                            <option value="medium" selected>Medium</option>
+                            <option value="large">Large</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Reading Section -->
+            <div class="settings-section-group">
+                <div class="settings-section-header">Reading</div>
+                <div class="settings-section-card">
+                    <div class="setting-row">
+                        <span class="setting-label">Bible Version</span>
+                        <select class="setting-select" id="bibleVersionSelect">
+                            <option value="NIV" selected>NIV</option>
+                            <option value="ESV">ESV</option>
+                            <option value="KJV">KJV</option>
+                            <option value="NKJV">NKJV</option>
+                            <option value="NLT">NLT</option>
+                            <option value="NASB">NASB</option>
+                            <option value="WEB">WEB</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Storage Section -->
+            <div class="settings-section-group" id="offlineStorageSection">
+                <div class="settings-section-header">Storage</div>
+                <div class="settings-section-card">
+                    <!-- Automatic Cache -->
+                    <div class="storage-row">
+                        <div class="storage-info">
+                            <span class="storage-label">Automatic Cache</span>
+                            <span class="storage-stats" id="cacheStats">0 stories</span>
+                        </div>
+                        <button class="storage-action-btn compact" id="clearCacheBtn">Clear</button>
+                    </div>
+                    
+                    <!-- My Library (logged in users) -->
+                    <div class="storage-row" id="libraryStorageSection" style="display: none;">
+                        <div class="storage-info">
+                            <span class="storage-label">My Library</span>
+                            <span class="storage-stats" id="libraryStats">0 stories</span>
+                        </div>
+                        <button class="storage-action-btn compact" id="clearLibraryBtn">Clear</button>
+                    </div>
                 </div>
                 
-                <div class="storage-subsection library-storage" id="libraryStorageSection" style="display: none;">
-                    <div class="storage-label">My Offline Library</div>
-                    <div class="storage-desc">Stories saved for offline reading</div>
-                    <div class="storage-stats" id="libraryStats">
-                        <span class="storage-count">0 stories</span>
-                        <span class="storage-size">0 B</span>
-                    </div>
-                    <div class="storage-actions">
-                        <button class="storage-action-btn" id="downloadFavoritesBtn">Download All Favorites</button>
-                        <button class="storage-action-btn danger" id="clearLibraryBtn">Clear Library</button>
+                <!-- Download Buttons -->
+                <div class="settings-section-card download-section">
+                    <button class="download-btn" id="downloadFavoritesBtn">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                            <polyline points="7 10 12 15 17 10"/>
+                            <line x1="12" y1="15" x2="12" y2="3"/>
+                        </svg>
+                        <span>Download Favorites</span>
+                    </button>
+                    <button class="download-btn primary" id="downloadEntireBibleBtn">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                            <polyline points="7 10 12 15 17 10"/>
+                            <line x1="12" y1="15" x2="12" y2="3"/>
+                        </svg>
+                        <span>Download Entire Bible</span>
+                        <span class="download-size" id="downloadSizeEstimate">~625 MB</span>
+                    </button>
+                    
+                    <!-- Download Progress -->
+                    <div class="download-progress" id="downloadProgress" style="display: none;">
+                        <div class="progress-bar">
+                            <div class="progress-fill" id="downloadProgressFill"></div>
+                        </div>
+                        <div class="progress-text" id="downloadProgressText">Downloading...</div>
                     </div>
                 </div>
                 
                 <div class="storage-signin-prompt" id="librarySigninPrompt">
-                    Sign in to save stories for offline reading
+                    Sign in to sync your library across devices
                 </div>
             </div>
             
-            <div class="settings-user-info" id="settingsUserInfo">
-                Logged in as: <span id="settingsUserEmail"></span>
+            <!-- Admin Section (admin only) -->
+            <div class="settings-section-group" id="adminSection" style="display: none;">
+                <div class="settings-section-header">Admin</div>
+                <div class="settings-section-card">
+                    <a href="admin.html" class="settings-admin-link" id="settingsAdminLink">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                        </svg>
+                        <span>Admin Panel</span>
+                        <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="9 18 15 12 9 6"/>
+                        </svg>
+                    </a>
+                </div>
             </div>
             
-            <div class="settings-legal-links">
-                <a href="privacy.html" target="_blank">Privacy Policy</a>
-                <span class="settings-legal-sep">•</span>
-                <a href="terms.html" target="_blank">Terms of Service</a>
+            <!-- Account Section -->
+            <div class="settings-section-group" id="accountSection">
+                <div class="settings-section-header">Account</div>
+                <div class="settings-section-card">
+                    <div class="settings-user-info" id="settingsUserInfo">
+                        <span id="settingsUserEmail"></span>
+                    </div>
+                    <button class="settings-signout" id="settingsSignOut">Sign Out</button>
+                </div>
             </div>
             
-            <button class="settings-signout" id="settingsSignOut">Sign Out</button>
+            <!-- About Section -->
+            <div class="settings-section-group">
+                <div class="settings-section-header">About</div>
+                <div class="settings-section-card">
+                    <div class="settings-legal-links">
+                        <a href="privacy.html" target="_blank">Privacy Policy</a>
+                        <a href="terms.html" target="_blank">Terms of Service</a>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
     <!-- Supabase JS Client (self-hosted to avoid tracking prevention blocks) -->
     <script src="lib/supabase.min.js"></script>
     <script src="config.js"></script>
-    <script src="offline.js?v=1"></script>
-    <script src="auth.js?v=10"></script>
-    <script src="settings.js?v=2"></script>
+    <script src="offline.js?v=2"></script>
+    <script src="auth.js?v=11"></script>
+    <script src="settings.js?v=3"></script>
     <script src="router.js?v=2"></script>
-    <script src="app.js?v=28"></script>
+    <script src="app.js?v=29"></script>
 </body>
 </html>

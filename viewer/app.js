@@ -24,6 +24,28 @@ let userReadStories = new Set();
 let userLibrary = new Set();
 let userPrimaryImages = new Map(); // spread_code -> image_slot (1-4)
 
+/**
+ * Get the primary image URL for a story
+ * Shared logic used by home page cards AND download feature
+ * Priority: user's selection > global default > first option
+ * @param {Object} story - Story object with image_url fields
+ * @param {Map} [primaryImagesMap] - Optional map of spread_code -> slot (defaults to userPrimaryImages)
+ * @returns {string|null} Image URL or null
+ */
+function getPrimaryImageUrl(story, primaryImagesMap = userPrimaryImages) {
+    if (!story) return null;
+    
+    // Check for user's personal selection
+    const userSlot = primaryImagesMap?.get(story.spread_code);
+    if (userSlot) {
+        const userImageUrl = story[`image_url_${userSlot}`];
+        if (userImageUrl) return userImageUrl;
+    }
+    
+    // Fall back to global default or first available
+    return story.image_url || story.image_url_1 || null;
+}
+
 // Filter state
 let currentFilters = {
     testament: 'all',
@@ -33,6 +55,271 @@ let currentFilters = {
     search: '',
     userFilter: 'all' // all, favorites, unread, read
 };
+
+// ============================================================================
+// Admin Curation Mode
+// ============================================================================
+
+let curationMode = {
+    active: false,
+    filter: 'all', // all, no-default, pending, regenerating
+    stories: [], // Filtered list of stories to curate
+    currentIndex: 0
+};
+
+/**
+ * Initialize curation mode if detected in URL hash
+ */
+function checkCurationMode() {
+    const hash = window.location.hash;
+    const match = hash.match(/#curation=(\w+)/);
+    if (match && window.GraceAuth?.isAdmin()) {
+        const filter = match[1];
+        console.log('[GRACE] Curation mode activated with filter:', filter);
+        startCurationMode(filter);
+        return true;
+    }
+    return false;
+}
+
+/**
+ * Start curation mode with specified filter
+ */
+async function startCurationMode(filter = 'all') {
+    if (!window.GraceAuth?.isAdmin()) {
+        console.warn('[GRACE] Curation mode requires admin privileges');
+        return;
+    }
+    
+    curationMode.active = true;
+    curationMode.filter = filter;
+    curationMode.currentIndex = 0;
+    
+    // Load stories based on filter
+    await loadCurationStories(filter);
+    
+    // If we have stories to curate, navigate to the first one
+    if (curationMode.stories.length > 0) {
+        const firstStory = curationMode.stories[0];
+        window.GraceRouter?.navigateToStory(firstStory.spread_code);
+    } else {
+        showToast('No stories found for curation with this filter');
+        curationMode.active = false;
+    }
+}
+
+/**
+ * Load stories for curation based on filter
+ */
+async function loadCurationStories(filter) {
+    try {
+        let query = supabase
+            .from('grahams_devotional_spreads')
+            .select('spread_code, title, image_url, image_url_1, image_url_2, image_url_3, image_url_4, status_image, book, testament');
+        
+        switch (filter) {
+            case 'no-default':
+                // Stories without a default image set
+                query = query.or('image_url.is.null,image_url.eq.');
+                break;
+            case 'pending':
+                // Stories with pending image status
+                query = query.neq('status_image', 'done');
+                break;
+            case 'regenerating':
+                // Would need to join with regeneration_requests - for now just get all
+                // This is simplified - could be enhanced with a proper join
+                break;
+            case 'all':
+            default:
+                // All stories
+                break;
+        }
+        
+        const { data, error } = await query;
+        if (error) throw error;
+        
+        curationMode.stories = sortStoriesChronologically(data || []);
+        console.log('[GRACE] Curation stories loaded:', curationMode.stories.length);
+        
+    } catch (err) {
+        console.error('[GRACE] Error loading curation stories:', err);
+        curationMode.stories = [];
+    }
+}
+
+/**
+ * Navigate to the next story in curation mode
+ */
+function curationNext() {
+    if (!curationMode.active || curationMode.stories.length === 0) return;
+    
+    curationMode.currentIndex++;
+    if (curationMode.currentIndex >= curationMode.stories.length) {
+        showToast('Curation complete! Reviewed all stories.');
+        exitCurationMode();
+        return;
+    }
+    
+    const nextStory = curationMode.stories[curationMode.currentIndex];
+    window.GraceRouter?.navigateToStory(nextStory.spread_code);
+}
+
+/**
+ * Navigate to the previous story in curation mode
+ */
+function curationPrevious() {
+    if (!curationMode.active || curationMode.stories.length === 0) return;
+    
+    if (curationMode.currentIndex > 0) {
+        curationMode.currentIndex--;
+        const prevStory = curationMode.stories[curationMode.currentIndex];
+        window.GraceRouter?.navigateToStory(prevStory.spread_code);
+    }
+}
+
+/**
+ * Exit curation mode
+ */
+function exitCurationMode() {
+    curationMode.active = false;
+    curationMode.stories = [];
+    curationMode.currentIndex = 0;
+    
+    // Update UI
+    const curationBar = document.getElementById('curationBar');
+    if (curationBar) curationBar.remove();
+    
+    // Clear hash
+    history.replaceState(null, '', window.location.pathname);
+    
+    // Go home
+    window.GraceRouter?.navigateHome();
+}
+
+/**
+ * Render curation bar on story page
+ */
+function renderCurationBar(story) {
+    if (!curationMode.active) return;
+    
+    // Remove existing bar
+    const existingBar = document.getElementById('curationBar');
+    if (existingBar) existingBar.remove();
+    
+    const total = curationMode.stories.length;
+    const current = curationMode.currentIndex + 1;
+    
+    const bar = document.createElement('div');
+    bar.id = 'curationBar';
+    bar.className = 'curation-bar';
+    bar.innerHTML = `
+        <div class="curation-progress">
+            <span class="curation-count">${current} / ${total}</span>
+            <div class="curation-progress-bar">
+                <div class="curation-progress-fill" style="width: ${(current / total) * 100}%"></div>
+            </div>
+        </div>
+        <div class="curation-actions">
+            <button class="curation-btn" onclick="curationPrevious()" ${curationMode.currentIndex === 0 ? 'disabled' : ''} title="Previous (←)">
+                ← Back
+            </button>
+            <button class="curation-btn primary" onclick="curationNext()" title="Next (→)">
+                ${curationMode.currentIndex === total - 1 ? 'Finish' : 'Next →'}
+            </button>
+            <button class="curation-btn exit" onclick="exitCurationMode()" title="Exit curation (Esc)">
+                Exit
+            </button>
+        </div>
+        <div class="curation-shortcuts">
+            Keys: 1-4 set default • R regenerate • ←→ navigate
+        </div>
+    `;
+    
+    // Insert at top of story content
+    const storyContent = document.querySelector('.story-content');
+    if (storyContent) {
+        storyContent.prepend(bar);
+    }
+}
+
+/**
+ * Handle curation keyboard shortcuts
+ */
+function handleCurationKeyboard(e) {
+    if (!curationMode.active) return;
+    
+    // Don't interfere with input fields
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+    
+    switch (e.key) {
+        case 'ArrowRight':
+            e.preventDefault();
+            curationNext();
+            break;
+        case 'ArrowLeft':
+            e.preventDefault();
+            curationPrevious();
+            break;
+        case '1':
+        case '2':
+        case '3':
+        case '4':
+            e.preventDefault();
+            const slot = parseInt(e.key);
+            setGlobalDefaultBySlot(slot);
+            break;
+        case 'r':
+        case 'R':
+            e.preventDefault();
+            // Trigger regenerate for current displayed image
+            const regenBtn = document.querySelector('.admin-controls .btn-regenerate');
+            if (regenBtn && !regenBtn.disabled) regenBtn.click();
+            break;
+        case 'Escape':
+            e.preventDefault();
+            exitCurationMode();
+            break;
+    }
+}
+
+/**
+ * Set global default image by slot number (for curation keyboard shortcut)
+ */
+async function setGlobalDefaultBySlot(slot) {
+    const story = window._currentStory;
+    if (!story || !window.GraceAuth?.isAdmin()) return;
+    
+    const imageUrl = story[`image_url_${slot}`];
+    if (!imageUrl) {
+        showToast(`No image in slot ${slot}`);
+        return;
+    }
+    
+    try {
+        const { error } = await supabase
+            .from('grahams_devotional_spreads')
+            .update({ image_url: imageUrl })
+            .eq('spread_code', story.spread_code);
+        
+        if (error) throw error;
+        
+        showToast(`Set slot ${slot} as default`);
+        
+        // Update local story object
+        story.image_url = imageUrl;
+        
+        // Re-render images to show the update
+        renderImages(story);
+        
+    } catch (err) {
+        console.error('[GRACE] Error setting global default:', err);
+        showToast('Failed to set default', true);
+    }
+}
+
+// Add curation keyboard listener
+document.addEventListener('keydown', handleCurationKeyboard);
 
 // ============================================================================
 // Theme Management
@@ -221,9 +508,21 @@ document.addEventListener('DOMContentLoaded', () => {
         window.GraceRouter.init();
         window.GraceRouter.onRouteChange(handleRouteChange);
         
-        // Handle initial route
-        const route = window.GraceRouter.getCurrentRoute();
-        handleRouteChange(route, null);
+        // Check for curation mode first (admin only)
+        // Defer curation check until auth is ready
+        const tryCheckCuration = async () => {
+            if (window.GraceAuth) {
+                await window.GraceAuth.initAuth();
+                if (checkCurationMode()) {
+                    return; // Curation mode handles navigation
+                }
+            }
+            // Handle initial route if not in curation mode
+            const route = window.GraceRouter.getCurrentRoute();
+            handleRouteChange(route, null);
+        };
+        
+        tryCheckCuration();
     } else {
         // Fallback if router not loaded - show home
         console.warn('[GRACE] Router not loaded, defaulting to home view');
@@ -775,6 +1074,7 @@ function setupScrollMemory() {
 
 /**
  * Load user favorites and read stories when authenticated
+ * Uses parallel queries for ~50% faster loading
  * @param {boolean} rerender - Whether to re-render stories after loading (for home page)
  */
 async function loadUserData(rerender = false) {
@@ -787,27 +1087,13 @@ async function loadUserData(rerender = false) {
     }
     
     try {
-        // Load favorites
-        const favorites = await window.GraceAuth.getUserFavorites();
-        userFavorites = new Set(favorites);
+        // Load all user data in parallel (4 queries at once)
+        const data = await window.GraceAuth.getAllUserDataParallel();
         
-        // Load read stories
-        const readStories = await window.GraceAuth.getUserReadStories();
-        userReadStories = new Set(readStories);
-        
-        // Load library (offline saved stories)
-        const library = await window.GraceAuth.getUserLibrary();
-        userLibrary = new Set(library);
-        
-        // Load user's primary image selections (for home page thumbnails)
-        userPrimaryImages = await window.GraceAuth.getAllUserPrimaryImages();
-        
-        console.log('[GRACE] User data loaded:', {
-            favorites: userFavorites.size,
-            read: userReadStories.size,
-            library: userLibrary.size,
-            primaryImages: userPrimaryImages.size
-        });
+        userFavorites = new Set(data.favorites);
+        userReadStories = new Set(data.readStories);
+        userLibrary = new Set(data.library);
+        userPrimaryImages = data.primaryImages;
         
         // Re-render stories if on home page and requested
         if (rerender && document.getElementById('storiesGrid')) {
@@ -896,68 +1182,114 @@ function showSkeletonCards(count) {
 }
 
 async function loadAllStories() {
-    let loadedFromSupabase = false;
+    let loadedFromCache = false;
+    let needsBackgroundRefresh = true;
     
-    // Try loading from Supabase first
+    // STEP 1: Try loading from IndexedDB cache first (instant)
     try {
-        const { data, error } = await supabase
-            .from('grahams_devotional_spreads')
-            .select('spread_code, title, kjv_passage_ref, status_text, status_image, image_url, image_url_1, image_url_2, image_url_3, image_url_4, testament, book, start_chapter, start_verse');
-        
-        if (error) throw error;
-        
-        if (data && data.length > 0) {
-            // Sort in Biblical order (book → chapter → verse)
-            allStories = sortStoriesChronologically(data);
+        const cached = await window.GraceOffline?.getStoryList();
+        if (cached?.stories?.length > 0) {
+            allStories = sortStoriesChronologically(cached.stories);
             filteredStories = [...allStories];
-            loadedFromSupabase = true;
-            console.log('[GRACE] Stories loaded from Supabase:', allStories.length);
-        } else {
-            throw new Error('No data returned from Supabase');
+            loadedFromCache = true;
+            needsBackgroundRefresh = !cached.isFresh; // Only refresh if stale (>5 min)
+            console.log('[GRACE] Stories loaded from cache:', allStories.length, cached.isFresh ? '(fresh)' : '(stale, will refresh)');
         }
-    } catch (err) {
-        console.warn('[GRACE] Supabase failed, trying fallback:', err.message);
+    } catch (cacheErr) {
+        console.warn('[GRACE] Cache read failed:', cacheErr);
     }
     
-    // Fallback: load from static JSON file
-    if (!loadedFromSupabase) {
+    // If we have cached data, render immediately - don't wait for network
+    if (loadedFromCache && !needsBackgroundRefresh) {
+        return; // Cache is fresh, no need to fetch
+    }
+    
+    // STEP 2: Fetch from Supabase (blocking if no cache, background if cache exists)
+    const fetchFromSupabase = async () => {
         try {
-            const response = await fetch('data/all-spreads.json');
-            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            const { data, error } = await supabase
+                .from('grahams_devotional_spreads')
+                .select('spread_code, title, kjv_passage_ref, status_text, status_image, image_url, image_url_1, image_url_2, image_url_3, image_url_4, testament, book, start_chapter, start_verse');
             
-            const json = await response.json();
-            if (json.spreads && json.spreads.length > 0) {
-                // Map static data to match Supabase schema
-                allStories = sortStoriesChronologically(json.spreads.map(s => ({
-                    spread_code: s.spread_code,
-                    title: s.title,
-                    kjv_passage_ref: s.kjv_key_verse_ref || `${s.book} ${s.start_chapter}:${s.start_verse}`,
-                    status_text: 'done', // Assume complete in static data
-                    status_image: 'done',
-                    image_url: null, // Will be loaded per-story
-                    image_url_1: null,
-                    testament: s.testament,
-                    book: s.book,
-                    start_chapter: s.start_chapter,
-                    start_verse: s.start_verse
-                })));
-                filteredStories = [...allStories];
-                console.log('[GRACE] Stories loaded from fallback JSON:', allStories.length);
-            } else {
-                throw new Error('No spreads in fallback JSON');
+            if (error) throw error;
+            
+            if (data && data.length > 0) {
+                const sorted = sortStoriesChronologically(data);
+                
+                // Save to cache for next time
+                window.GraceOffline?.saveStoryList(data);
+                
+                // If data changed or we didn't have cache, update and re-render
+                if (!loadedFromCache || data.length !== allStories.length) {
+                    allStories = sorted;
+                    filteredStories = [...allStories];
+                    if (loadedFromCache) {
+                        // Re-render only if we already showed cached data
+                        applyFilters();
+                    }
+                    console.log('[GRACE] Stories updated from Supabase:', allStories.length);
+                } else {
+                    // Update in place without re-render (same count, just fresher data)
+                    allStories = sorted;
+                    filteredStories = [...allStories];
+                    console.log('[GRACE] Stories refreshed from Supabase (no re-render needed)');
+                }
+                return true;
             }
-        } catch (fallbackErr) {
-            console.error('[GRACE] Both Supabase and fallback failed:', fallbackErr);
-            const grid = document.getElementById('storiesGrid');
-            if (grid) {
-                grid.innerHTML = `
-                    <div class="empty-state">
-                        <p>Unable to load stories. Please check your connection and try again.</p>
-                        <button onclick="location.reload()" style="margin-top: 10px; padding: 8px 16px; cursor: pointer;">
-                            Retry
-                        </button>
-                    </div>
-                `;
+            return false;
+        } catch (err) {
+            console.warn('[GRACE] Supabase failed:', err.message);
+            return false;
+        }
+    };
+    
+    if (loadedFromCache) {
+        // Background refresh - don't block rendering
+        fetchFromSupabase();
+    } else {
+        // No cache - must wait for network
+        const supabaseWorked = await fetchFromSupabase();
+        
+        // STEP 3: Fallback to static JSON if Supabase failed
+        if (!supabaseWorked) {
+            try {
+                const response = await fetch('data/all-spreads.json');
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                
+                const json = await response.json();
+                if (json.spreads && json.spreads.length > 0) {
+                    // Map static data to match Supabase schema
+                    allStories = sortStoriesChronologically(json.spreads.map(s => ({
+                        spread_code: s.spread_code,
+                        title: s.title,
+                        kjv_passage_ref: s.kjv_key_verse_ref || `${s.book} ${s.start_chapter}:${s.start_verse}`,
+                        status_text: 'done',
+                        status_image: 'done',
+                        image_url: null,
+                        image_url_1: null,
+                        testament: s.testament,
+                        book: s.book,
+                        start_chapter: s.start_chapter,
+                        start_verse: s.start_verse
+                    })));
+                    filteredStories = [...allStories];
+                    console.log('[GRACE] Stories loaded from fallback JSON:', allStories.length);
+                } else {
+                    throw new Error('No spreads in fallback JSON');
+                }
+            } catch (fallbackErr) {
+                console.error('[GRACE] All story sources failed:', fallbackErr);
+                const grid = document.getElementById('storiesGrid');
+                if (grid) {
+                    grid.innerHTML = `
+                        <div class="empty-state">
+                            <p>Unable to load stories. Please check your connection and try again.</p>
+                            <button onclick="location.reload()" style="margin-top: 10px; padding: 8px 16px; cursor: pointer;">
+                                Retry
+                            </button>
+                        </div>
+                    `;
+                }
             }
         }
     }
@@ -1543,16 +1875,8 @@ function renderStories() {
         const statusClass = isComplete ? 'complete' : 'pending';
         const statusText = isComplete ? 'Complete' : 'Pending';
         
-        // Determine which image to show: user's primary selection > global default > first option
-        let imageUrl = story.image_url || story.image_url_1;
-        const userPrimarySlot = userPrimaryImages.get(story.spread_code);
-        if (userPrimarySlot) {
-            // User has a personal selection - use their chosen image
-            const userImageUrl = story[`image_url_${userPrimarySlot}`];
-            if (userImageUrl) {
-                imageUrl = userImageUrl;
-            }
-        }
+        // Use shared function for primary image (same logic used by download feature)
+        const imageUrl = getPrimaryImageUrl(story);
         
         const passageRef = story.kjv_passage_ref || '';
         
@@ -2101,10 +2425,16 @@ async function loadStory(storyId, navigationId) {
         }
         
         currentStory = story;
+        window._currentStory = story; // Expose for curation mode
         currentStoryIndex = storyList.findIndex(s => s.spread_code === storyId);
         
         renderStory(story);
         updateNavPosition();
+        
+        // Render curation bar if in curation mode
+        if (curationMode.active) {
+            renderCurationBar(story);
+        }
         
     } catch (err) {
         console.error('Error loading story:', err);
@@ -2112,9 +2442,13 @@ async function loadStory(storyId, navigationId) {
         const offlineStory = await window.GraceOffline?.getOfflineStory(storyId);
         if (offlineStory) {
             currentStory = offlineStory;
+            window._currentStory = offlineStory;
             currentStoryIndex = storyList.findIndex(s => s.spread_code === storyId);
             renderStory(offlineStory);
             updateNavPosition();
+            if (curationMode.active) {
+                renderCurationBar(offlineStory);
+            }
         } else {
             showError();
         }

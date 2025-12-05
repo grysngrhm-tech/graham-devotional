@@ -4430,6 +4430,366 @@ body.is-offline {
     background: rgba(229, 62, 62, 0.25);
 }
 
+/* ============================================================================
+   iOS-style Settings Sections
+   ============================================================================ */
+
+.settings-section-group {
+    margin-bottom: 20px;
+}
+
+.settings-section-header {
+    font-family: var(--font-body);
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+    padding: 0 12px 6px;
+}
+
+.settings-section-card {
+    background: var(--bg-hover);
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+.settings-section-card .setting-row {
+    padding: 14px 16px;
+    margin: 0;
+    border-bottom: 1px solid var(--border-light);
+}
+
+.settings-section-card .setting-row:last-child {
+    border-bottom: none;
+}
+
+/* Compact Storage Rows */
+.storage-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border-light);
+}
+
+.storage-row:last-child {
+    border-bottom: none;
+}
+
+.storage-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.storage-info .storage-label {
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--text-primary);
+    margin: 0;
+}
+
+.storage-info .storage-stats {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    background: none;
+    padding: 0;
+    margin: 0;
+}
+
+.storage-action-btn.compact {
+    width: auto;
+    padding: 6px 14px;
+    font-size: 0.75rem;
+    border-radius: 6px;
+    background: var(--bg-card);
+}
+
+/* Download Buttons Section */
+.download-section {
+    padding: 12px;
+    margin-top: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.download-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    padding: 12px 16px;
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    background: var(--bg-card);
+    color: var(--text-primary);
+    font-family: var(--font-body);
+    font-size: 0.875rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.download-btn svg {
+    width: 18px;
+    height: 18px;
+    stroke: currentColor;
+    flex-shrink: 0;
+}
+
+.download-btn:hover {
+    background: var(--bg-primary);
+    border-color: var(--text-muted);
+}
+
+.download-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.download-btn.primary {
+    background: var(--color-accent);
+    border-color: var(--color-accent);
+    color: var(--bg-primary);
+}
+
+.download-btn.primary:hover {
+    background: #c9a030;
+    border-color: #c9a030;
+}
+
+.download-btn .download-size {
+    font-size: 0.7rem;
+    opacity: 0.7;
+    margin-left: auto;
+}
+
+/* Download Progress */
+.download-progress {
+    padding: 12px 0;
+}
+
+.progress-bar {
+    height: 6px;
+    background: var(--bg-card);
+    border-radius: 3px;
+    overflow: hidden;
+    margin-bottom: 8px;
+}
+
+.progress-fill {
+    height: 100%;
+    width: 0%;
+    background: var(--color-accent);
+    border-radius: 3px;
+    transition: width 0.3s ease;
+}
+
+.progress-text {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    text-align: center;
+}
+
+/* Redesigned Admin Link */
+.settings-section-card .settings-admin-link {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 16px;
+    margin: 0;
+    border: none;
+    border-radius: 0;
+    background: transparent;
+    color: var(--text-primary);
+    text-decoration: none;
+    transition: background 0.15s ease;
+}
+
+.settings-section-card .settings-admin-link:hover {
+    background: var(--bg-card);
+    color: var(--text-primary);
+}
+
+.settings-section-card .settings-admin-link svg {
+    width: 20px;
+    height: 20px;
+    stroke: var(--color-accent);
+}
+
+.settings-section-card .settings-admin-link .chevron {
+    width: 16px;
+    height: 16px;
+    stroke: var(--text-muted);
+    margin-left: auto;
+}
+
+/* Compact Account Section */
+.settings-section-card .settings-user-info {
+    margin: 0;
+    padding: 14px 16px;
+    background: transparent;
+    border-radius: 0;
+    text-align: left;
+    border-bottom: 1px solid var(--border-light);
+}
+
+.settings-section-card .settings-signout {
+    margin: 0;
+    padding: 14px 16px;
+    border-radius: 0;
+    background: transparent;
+    color: #E53E3E;
+    text-align: left;
+}
+
+.settings-section-card .settings-signout:hover {
+    background: rgba(229, 62, 62, 0.05);
+}
+
+/* Legal Links in Card */
+.settings-section-card .settings-legal-links {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
+    margin: 0;
+}
+
+.settings-section-card .settings-legal-links a {
+    display: block;
+    padding: 14px 16px;
+    color: var(--text-primary);
+    border-bottom: 1px solid var(--border-light);
+    transition: background 0.15s ease;
+}
+
+.settings-section-card .settings-legal-links a:last-child {
+    border-bottom: none;
+}
+
+.settings-section-card .settings-legal-links a:hover {
+    background: var(--bg-card);
+    color: var(--color-accent);
+}
+
+/* ============================================================================
+   Admin Curation Mode
+   ============================================================================ */
+
+.curation-bar {
+    background: var(--color-accent);
+    color: var(--bg-primary);
+    padding: 12px 16px;
+    border-radius: 12px;
+    margin-bottom: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.curation-progress {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.curation-count {
+    font-family: var(--font-body);
+    font-size: 0.875rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.curation-progress-bar {
+    flex: 1;
+    height: 6px;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.curation-progress-fill {
+    height: 100%;
+    background: var(--bg-primary);
+    border-radius: 3px;
+    transition: width 0.3s ease;
+}
+
+.curation-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.curation-btn {
+    padding: 8px 16px;
+    border: none;
+    border-radius: 6px;
+    font-family: var(--font-body);
+    font-size: 0.8125rem;
+    font-weight: 600;
+    cursor: pointer;
+    background: rgba(0, 0, 0, 0.15);
+    color: inherit;
+    transition: background 0.15s ease;
+}
+
+.curation-btn:hover:not(:disabled) {
+    background: rgba(0, 0, 0, 0.25);
+}
+
+.curation-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.curation-btn.primary {
+    background: var(--bg-primary);
+    color: var(--color-accent);
+}
+
+.curation-btn.primary:hover {
+    background: var(--bg-secondary);
+}
+
+.curation-btn.exit {
+    background: rgba(229, 62, 62, 0.8);
+    color: white;
+}
+
+.curation-btn.exit:hover {
+    background: rgba(229, 62, 62, 1);
+}
+
+.curation-shortcuts {
+    font-size: 0.7rem;
+    opacity: 0.8;
+    font-family: var(--font-body);
+}
+
+/* Mobile adjustments for curation bar */
+@media (max-width: 480px) {
+    .curation-bar {
+        padding: 10px 12px;
+    }
+    
+    .curation-actions {
+        justify-content: center;
+    }
+    
+    .curation-btn {
+        padding: 6px 12px;
+        font-size: 0.75rem;
+    }
+    
+    .curation-shortcuts {
+        text-align: center;
+    }
+}
+
 /* Mobile adjustments for settings modal */
 @media (max-width: 768px) {
     .settings-modal {

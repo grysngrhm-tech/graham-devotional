@@ -10,10 +10,12 @@
  */
 
 const DB_NAME = 'graham-bible-offline';
-const DB_VERSION = 1;
+const DB_VERSION = 2; // Bumped for story-list store
 const CACHE_STORE = 'story-cache';
 const LIBRARY_STORE = 'library';
+const STORY_LIST_STORE = 'story-list'; // New: cached story list for instant home page
 const MAX_CACHE_SIZE = 100; // LRU eviction after 100 stories
+const STORY_LIST_FRESHNESS_MS = 5 * 60 * 1000; // 5 minutes - consider cached list "fresh"
 
 let db = null;
 
@@ -54,6 +56,11 @@ async function openDatabase() {
             if (!database.objectStoreNames.contains(LIBRARY_STORE)) {
                 const libraryStore = database.createObjectStore(LIBRARY_STORE, { keyPath: 'spread_code' });
                 libraryStore.createIndex('saved_at', 'saved_at', { unique: false });
+            }
+            
+            // Story list store (cached home page data for instant loading)
+            if (!database.objectStoreNames.contains(STORY_LIST_STORE)) {
+                database.createObjectStore(STORY_LIST_STORE, { keyPath: 'id' });
             }
         };
     });
@@ -268,6 +275,103 @@ async function getCacheStats() {
 }
 
 // ============================================================================
+// Story List Cache (For Instant Home Page Loading)
+// ============================================================================
+
+/**
+ * Save the full story list to cache
+ * @param {Object[]} stories - Array of story metadata objects
+ */
+async function saveStoryList(stories) {
+    if (!stories?.length) return;
+    
+    try {
+        const database = await openDatabase();
+        const tx = database.transaction(STORY_LIST_STORE, 'readwrite');
+        const store = tx.objectStore(STORY_LIST_STORE);
+        
+        const entry = {
+            id: 'main', // Single entry for the story list
+            stories: stories,
+            cached_at: Date.now()
+        };
+        
+        store.put(entry);
+        
+        await new Promise((resolve, reject) => {
+            tx.oncomplete = resolve;
+            tx.onerror = () => reject(tx.error);
+        });
+        
+        console.log('[Offline] Story list cached:', stories.length, 'stories');
+    } catch (err) {
+        console.error('[Offline] Failed to cache story list:', err);
+    }
+}
+
+/**
+ * Get the cached story list
+ * @returns {Promise<{stories: Object[], cached_at: number, isFresh: boolean}|null>}
+ */
+async function getStoryList() {
+    try {
+        const database = await openDatabase();
+        const tx = database.transaction(STORY_LIST_STORE, 'readonly');
+        const store = tx.objectStore(STORY_LIST_STORE);
+        
+        return new Promise((resolve, reject) => {
+            const request = store.get('main');
+            request.onsuccess = () => {
+                const entry = request.result;
+                if (entry) {
+                    const age = Date.now() - entry.cached_at;
+                    const isFresh = age < STORY_LIST_FRESHNESS_MS;
+                    resolve({
+                        stories: entry.stories,
+                        cached_at: entry.cached_at,
+                        isFresh: isFresh
+                    });
+                } else {
+                    resolve(null);
+                }
+            };
+            request.onerror = () => reject(request.error);
+        });
+    } catch (err) {
+        console.error('[Offline] Failed to get cached story list:', err);
+        return null;
+    }
+}
+
+/**
+ * Check if story list cache is fresh (< 5 minutes old)
+ * @returns {Promise<boolean>}
+ */
+async function isStoryListFresh() {
+    const cached = await getStoryList();
+    return cached?.isFresh || false;
+}
+
+/**
+ * Clear the story list cache
+ */
+async function clearStoryListCache() {
+    try {
+        const database = await openDatabase();
+        const tx = database.transaction(STORY_LIST_STORE, 'readwrite');
+        const store = tx.objectStore(STORY_LIST_STORE);
+        store.clear();
+        
+        await new Promise((resolve, reject) => {
+            tx.oncomplete = resolve;
+            tx.onerror = () => reject(tx.error);
+        });
+    } catch (err) {
+        console.error('[Offline] Failed to clear story list cache:', err);
+    }
+}
+
+// ============================================================================
 // Library (Intentional - Logged-In Users)
 // ============================================================================
 
@@ -475,6 +579,161 @@ async function getLibraryStats() {
 }
 
 // ============================================================================
+// Download Entire Bible Feature
+// ============================================================================
+
+/**
+ * Download the entire Bible for offline use
+ * Downloads all story data and only the PRIMARY image per story (not all 4)
+ * @param {Function} progressCallback - Called with {current, total, message, phase}
+ * @param {Map} userPrimaryImages - Map of spread_code -> image_slot for user's selections
+ * @returns {Promise<{success: boolean, storiesDownloaded: number, imagesDownloaded: number, errors: number}>}
+ */
+async function downloadEntireBible(progressCallback, userPrimaryImages = new Map()) {
+    const result = {
+        success: false,
+        storiesDownloaded: 0,
+        imagesDownloaded: 0,
+        errors: 0
+    };
+    
+    try {
+        // Phase 1: Fetch all stories from Supabase
+        progressCallback?.({ current: 0, total: 100, message: 'Fetching stories...', phase: 'fetch' });
+        
+        const supabase = window.supabaseClient;
+        if (!supabase) {
+            throw new Error('Supabase not initialized');
+        }
+        
+        const { data: stories, error } = await supabase
+            .from('grahams_devotional_spreads')
+            .select('*');
+        
+        if (error) throw error;
+        if (!stories?.length) throw new Error('No stories returned');
+        
+        const total = stories.length;
+        console.log('[Offline] Downloading', total, 'stories');
+        
+        // Phase 2: Save stories to library and cache images
+        const database = await openDatabase();
+        const imageCache = await caches.open('graham-bible-images-v1');
+        
+        for (let i = 0; i < stories.length; i++) {
+            const story = stories[i];
+            const progress = Math.round((i / total) * 100);
+            
+            progressCallback?.({
+                current: i + 1,
+                total: total,
+                message: `Downloading ${i + 1}/${total}: ${story.title || story.spread_code}`,
+                phase: 'download'
+            });
+            
+            try {
+                // Save story data to library
+                const tx = database.transaction(LIBRARY_STORE, 'readwrite');
+                const store = tx.objectStore(LIBRARY_STORE);
+                
+                const libraryEntry = {
+                    spread_code: story.spread_code,
+                    data: story,
+                    saved_at: Date.now()
+                };
+                
+                store.put(libraryEntry);
+                await new Promise((resolve, reject) => {
+                    tx.oncomplete = resolve;
+                    tx.onerror = () => reject(tx.error);
+                });
+                
+                result.storiesDownloaded++;
+                
+                // Determine primary image URL (user's selection > global default > first)
+                let primaryImageUrl = null;
+                const userSlot = userPrimaryImages.get(story.spread_code);
+                if (userSlot) {
+                    primaryImageUrl = story[`image_url_${userSlot}`];
+                }
+                if (!primaryImageUrl) {
+                    primaryImageUrl = story.image_url || story.image_url_1;
+                }
+                
+                // Cache the primary image
+                if (primaryImageUrl) {
+                    try {
+                        // Check if already cached
+                        const cachedResponse = await imageCache.match(primaryImageUrl);
+                        if (!cachedResponse) {
+                            const imageResponse = await fetch(primaryImageUrl);
+                            if (imageResponse.ok) {
+                                await imageCache.put(primaryImageUrl, imageResponse);
+                                result.imagesDownloaded++;
+                            }
+                        } else {
+                            result.imagesDownloaded++; // Already cached
+                        }
+                    } catch (imgErr) {
+                        console.warn('[Offline] Failed to cache image for', story.spread_code, imgErr);
+                        // Don't count as error - story data is still saved
+                    }
+                }
+                
+            } catch (storyErr) {
+                console.error('[Offline] Failed to save story', story.spread_code, storyErr);
+                result.errors++;
+            }
+        }
+        
+        // Phase 3: Complete
+        progressCallback?.({
+            current: total,
+            total: total,
+            message: `Downloaded ${result.storiesDownloaded} stories, ${result.imagesDownloaded} images`,
+            phase: 'complete'
+        });
+        
+        result.success = result.storiesDownloaded > 0;
+        console.log('[Offline] Download complete:', result);
+        
+    } catch (err) {
+        console.error('[Offline] Download failed:', err);
+        progressCallback?.({
+            current: 0,
+            total: 0,
+            message: `Download failed: ${err.message}`,
+            phase: 'error'
+        });
+    }
+    
+    return result;
+}
+
+/**
+ * Get download size estimate
+ * @returns {{stories: number, estimatedMB: number}}
+ */
+async function getDownloadEstimate() {
+    try {
+        const supabase = window.supabaseClient;
+        if (!supabase) return { stories: 500, estimatedMB: 625 }; // Default estimate
+        
+        const { count } = await supabase
+            .from('grahams_devotional_spreads')
+            .select('*', { count: 'exact', head: true });
+        
+        // Estimate: ~5KB per story data + ~1.25MB per image = ~1.25MB per story
+        const stories = count || 500;
+        const estimatedMB = Math.round(stories * 1.25);
+        
+        return { stories, estimatedMB };
+    } catch (err) {
+        return { stories: 500, estimatedMB: 625 };
+    }
+}
+
+// ============================================================================
 // Combined Offline Access
 // ============================================================================
 
@@ -628,6 +887,16 @@ window.GraceOffline = {
     getCachedStoryCodes,
     getCacheStats,
     clearCache,
+    
+    // Story list cache (for instant home page)
+    saveStoryList,
+    getStoryList,
+    isStoryListFresh,
+    clearStoryListCache,
+    
+    // Download entire Bible
+    downloadEntireBible,
+    getDownloadEstimate,
     
     // Library (intentional)
     saveToLibrary,

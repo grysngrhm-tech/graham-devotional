@@ -674,6 +674,47 @@
                 </div>
             </section>
             
+            <!-- Curation Section -->
+            <section class="admin-section">
+                <h2>Content Curation</h2>
+                <div class="dashboard-grid">
+                    <div class="stat-card accent" style="cursor: pointer;" onclick="startCuration('no-default')">
+                        <h3>Need Default Image</h3>
+                        <div class="stat-value" id="statNeedDefault">—</div>
+                        <div class="stat-subtitle">stories without image_url set</div>
+                    </div>
+                    <div class="stat-card" style="cursor: pointer;" onclick="startCuration('pending')">
+                        <h3>Pending Images</h3>
+                        <div class="stat-value" id="statPendingImages">—</div>
+                        <div class="stat-subtitle">status_image != 'done'</div>
+                    </div>
+                    <div class="stat-card" style="cursor: pointer;" onclick="startCuration('regenerating')">
+                        <h3>Being Regenerated</h3>
+                        <div class="stat-value" id="statRegenerating">—</div>
+                        <div class="stat-subtitle">active regeneration requests</div>
+                    </div>
+                </div>
+                <div class="action-grid" style="margin-top: var(--spacing-md);">
+                    <div class="action-card" onclick="startCuration('all')">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="3" y="3" width="7" height="7"/>
+                            <rect x="14" y="3" width="7" height="7"/>
+                            <rect x="14" y="14" width="7" height="7"/>
+                            <rect x="3" y="14" width="7" height="7"/>
+                        </svg>
+                        <span>Curate All Stories</span>
+                    </div>
+                    <div class="action-card" onclick="startCuration('no-default')">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                            <circle cx="8.5" cy="8.5" r="1.5"/>
+                            <polyline points="21 15 16 10 5 21"/>
+                        </svg>
+                        <span>Set Default Images</span>
+                    </div>
+                </div>
+            </section>
+            
             <!-- Quick Actions -->
             <section class="admin-section">
                 <h2>Quick Actions</h2>
@@ -857,8 +898,46 @@
             await loadPopularImages();
         }
         
+        async function loadCurationStats() {
+            try {
+                // Stories without default image set (image_url is null or empty)
+                const { count: needDefault } = await supabase
+                    .from('grahams_devotional_spreads')
+                    .select('*', { count: 'exact', head: true })
+                    .or('image_url.is.null,image_url.eq.');
+                document.getElementById('statNeedDefault').textContent = needDefault || '0';
+                
+                // Stories with pending images
+                const { count: pendingImages } = await supabase
+                    .from('grahams_devotional_spreads')
+                    .select('*', { count: 'exact', head: true })
+                    .neq('status_image', 'done');
+                document.getElementById('statPendingImages').textContent = pendingImages || '0';
+                
+                // Stories being regenerated (have active regeneration requests)
+                const { count: regenerating } = await supabase
+                    .from('regeneration_requests')
+                    .select('*', { count: 'exact', head: true })
+                    .eq('status', 'pending');
+                document.getElementById('statRegenerating').textContent = regenerating || '0';
+                
+            } catch (err) {
+                console.error('[Admin] Error loading curation stats:', err);
+            }
+        }
+        
+        function startCuration(filter = 'all') {
+            // Redirect to home page with curation mode enabled
+            const url = new URL(window.location.origin + window.location.pathname.replace('admin.html', 'index.html'));
+            url.hash = `#curation=${filter}`;
+            window.location.href = url.toString();
+        }
+        
         async function loadDashboardStats() {
             try {
+                // Load curation stats first
+                await loadCurationStats();
+                
                 // Total stories
                 const { count: totalStories } = await supabase
                     .from('grahams_devotional_spreads')
