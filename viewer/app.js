@@ -110,31 +110,16 @@ async function startCurationMode(filter = 'all') {
 
 /**
  * Load stories for curation based on filter
+ * Fetches image_abstract for simplified curation view
  */
 async function loadCurationStories(filter) {
     try {
-        let query = supabase
+        // Only support 'no-default' filter for streamlined curation
+        const query = supabase
             .from('grahams_devotional_spreads')
-            .select('spread_code, title, image_url, image_url_1, image_url_2, image_url_3, image_url_4, status_image, book, testament');
-        
-        switch (filter) {
-            case 'no-default':
-                // Stories without a default image set
-                query = query.or('image_url.is.null,image_url.eq.');
-                break;
-            case 'pending':
-                // Stories with pending image status
-                query = query.neq('status_image', 'done');
-                break;
-            case 'regenerating':
-                // Would need to join with regeneration_requests - for now just get all
-                // This is simplified - could be enhanced with a proper join
-                break;
-            case 'all':
-            default:
-                // All stories
-                break;
-        }
+            .select('spread_code, title, image_abstract, image_url, image_url_1, image_url_2, image_url_3, image_url_4, status_image, book, testament, kjv_passage_ref')
+            .or('image_url.is.null,image_url.eq.') // Only stories needing defaults
+            .order('spread_code'); // Chronological order
         
         const { data, error } = await query;
         if (error) throw error;
@@ -198,49 +183,110 @@ function exitCurationMode() {
 }
 
 /**
- * Render curation bar on story page
+ * Render full curation view (replaces story page content in curation mode)
+ * Shows images on left, abstract summary on right
  */
-function renderCurationBar(story) {
+function renderCurationView(story) {
     if (!curationMode.active) return;
     
-    // Remove existing bar
-    const existingBar = document.getElementById('curationBar');
-    if (existingBar) existingBar.remove();
+    const container = document.getElementById('bookStory');
+    if (!container) return;
     
     const total = curationMode.stories.length;
     const current = curationMode.currentIndex + 1;
     
-    const bar = document.createElement('div');
-    bar.id = 'curationBar';
-    bar.className = 'curation-bar';
-    bar.innerHTML = `
-        <div class="curation-progress">
-            <span class="curation-count">${current} / ${total}</span>
-            <div class="curation-progress-bar">
-                <div class="curation-progress-fill" style="width: ${(current / total) * 100}%"></div>
+    // Get abstract or fallback text
+    const abstractText = story.image_abstract || 
+        'No scene abstract available. This story may not have been fully processed.';
+    
+    // Build image cards HTML
+    const imageCards = [1, 2, 3, 4].map(slot => {
+        const imageUrl = story[`image_url_${slot}`];
+        const isCurrentDefault = story.image_url === imageUrl && imageUrl;
+        return `
+            <div class="curation-image-card ${isCurrentDefault ? 'is-default' : ''}" data-slot="${slot}">
+                <div class="curation-image-wrapper">
+                    ${imageUrl 
+                        ? `<img src="${imageUrl}" alt="Option ${slot}" loading="lazy">`
+                        : `<div class="curation-no-image">No Image</div>`
+                    }
+                    ${isCurrentDefault ? '<div class="curation-default-badge">Current Default</div>' : ''}
+                </div>
+                <div class="curation-image-actions">
+                    <button class="curation-set-default" onclick="setGlobalDefaultBySlot(${slot})" ${!imageUrl ? 'disabled' : ''}>
+                        Set as Default
+                    </button>
+                    <button class="curation-regenerate" onclick="triggerRegenerateSlot(${slot})" title="Regenerate this slot (Shift+${slot})">
+                        Regenerate
+                    </button>
+                </div>
             </div>
-        </div>
-        <div class="curation-actions">
-            <button class="curation-btn" onclick="curationPrevious()" ${curationMode.currentIndex === 0 ? 'disabled' : ''} title="Previous (←)">
-                ← Back
-            </button>
-            <button class="curation-btn primary" onclick="curationNext()" title="Next (→)">
-                ${curationMode.currentIndex === total - 1 ? 'Finish' : 'Next →'}
-            </button>
-            <button class="curation-btn exit" onclick="exitCurationMode()" title="Exit curation (Esc)">
-                Exit
-            </button>
-        </div>
-        <div class="curation-shortcuts">
-            Keys: 1-4 set default • R regenerate • ←→ navigate
+        `;
+    }).join('');
+    
+    container.innerHTML = `
+        <div class="curation-view">
+            <!-- Curation Header -->
+            <div class="curation-header">
+                <div class="curation-progress">
+                    <span class="curation-count">${current} / ${total}</span>
+                    <div class="curation-progress-bar">
+                        <div class="curation-progress-fill" style="width: ${(current / total) * 100}%"></div>
+                    </div>
+                    <span class="curation-remaining">${total - current} remaining</span>
+                </div>
+                <div class="curation-nav-actions">
+                    <button class="curation-btn" onclick="curationPrevious()" ${curationMode.currentIndex === 0 ? 'disabled' : ''} title="Previous (←)">
+                        ← Back
+                    </button>
+                    <button class="curation-btn primary" onclick="curationNext()" title="Next (→)">
+                        ${curationMode.currentIndex === total - 1 ? 'Finish' : 'Next →'}
+                    </button>
+                    <button class="curation-btn exit" onclick="exitCurationMode()" title="Exit curation (Esc)">
+                        Exit
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Main Curation Content -->
+            <div class="curation-content">
+                <!-- Left: Image Grid -->
+                <div class="curation-images">
+                    ${imageCards}
+                </div>
+                
+                <!-- Right: Story Info & Abstract -->
+                <div class="curation-info">
+                    <h2 class="curation-title">${story.title || 'Untitled Story'}</h2>
+                    <div class="curation-ref">${story.kjv_passage_ref || story.spread_code}</div>
+                    
+                    <div class="curation-abstract-section">
+                        <h3>Scene Abstract</h3>
+                        <p class="curation-abstract">${abstractText}</p>
+                    </div>
+                    
+                    <div class="curation-keyboard-help">
+                        <h4>Keyboard Shortcuts</h4>
+                        <div class="shortcut-row"><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd><kbd>4</kbd> Set slot as default</div>
+                        <div class="shortcut-row"><kbd>Shift</kbd>+<kbd>1-4</kbd> Regenerate slot</div>
+                        <div class="shortcut-row"><kbd>←</kbd><kbd>→</kbd> Navigate stories</div>
+                        <div class="shortcut-row"><kbd>Esc</kbd> Exit curation</div>
+                    </div>
+                </div>
+            </div>
         </div>
     `;
     
-    // Insert at top of story content
-    const storyContent = document.querySelector('.story-content');
-    if (storyContent) {
-        storyContent.prepend(bar);
-    }
+    // Store current story for keyboard shortcuts
+    window._currentStory = story;
+}
+
+/**
+ * Legacy function - kept for compatibility but now uses renderCurationView
+ */
+function renderCurationBar(story) {
+    // In the new design, the curation bar is built into renderCurationView
+    // This function is kept for any legacy calls but does nothing
 }
 
 /**
@@ -267,20 +313,34 @@ function handleCurationKeyboard(e) {
         case '4':
             e.preventDefault();
             const slot = parseInt(e.key);
-            setGlobalDefaultBySlot(slot);
-            break;
-        case 'r':
-        case 'R':
-            e.preventDefault();
-            // Trigger regenerate for current displayed image
-            const regenBtn = document.querySelector('.admin-controls .btn-regenerate');
-            if (regenBtn && !regenBtn.disabled) regenBtn.click();
+            if (e.shiftKey) {
+                // Shift+1-4: Regenerate that slot
+                triggerRegenerateSlot(slot);
+            } else {
+                // 1-4: Set as default
+                setGlobalDefaultBySlot(slot);
+            }
             break;
         case 'Escape':
             e.preventDefault();
             exitCurationMode();
             break;
     }
+}
+
+/**
+ * Trigger image regeneration for a specific slot
+ * Uses the existing regeneration system (triggerRegeneration function)
+ */
+async function triggerRegenerateSlot(slot) {
+    const story = window._currentStory;
+    if (!story || !window.GraceAuth?.isAdmin()) {
+        showToast('Admin access required', true);
+        return;
+    }
+    
+    // Use the existing regeneration function which handles the modal and polling
+    await triggerRegeneration(slot);
 }
 
 /**
@@ -304,13 +364,21 @@ async function setGlobalDefaultBySlot(slot) {
         
         if (error) throw error;
         
-        showToast(`Set slot ${slot} as default`);
-        
         // Update local story object
         story.image_url = imageUrl;
         
-        // Re-render images to show the update
-        renderImages(story);
+        // In curation mode, auto-advance to next story after brief feedback
+        if (curationMode.active) {
+            showToast(`Default set! Moving to next...`);
+            // Brief delay so user sees the feedback
+            setTimeout(() => {
+                curationNext();
+            }, 500);
+        } else {
+            showToast(`Set slot ${slot} as default`);
+            // Re-render images to show the update
+            renderImages(story);
+        }
         
     } catch (err) {
         console.error('[GRACE] Error setting global default:', err);
@@ -2428,12 +2496,12 @@ async function loadStory(storyId, navigationId) {
         window._currentStory = story; // Expose for curation mode
         currentStoryIndex = storyList.findIndex(s => s.spread_code === storyId);
         
-        renderStory(story);
-        updateNavPosition();
-        
-        // Render curation bar if in curation mode
+        // Use dedicated curation view when in curation mode
         if (curationMode.active) {
-            renderCurationBar(story);
+            renderCurationView(story);
+        } else {
+            renderStory(story);
+            updateNavPosition();
         }
         
     } catch (err) {
@@ -2444,10 +2512,12 @@ async function loadStory(storyId, navigationId) {
             currentStory = offlineStory;
             window._currentStory = offlineStory;
             currentStoryIndex = storyList.findIndex(s => s.spread_code === storyId);
-            renderStory(offlineStory);
-            updateNavPosition();
+            
             if (curationMode.active) {
-                renderCurationBar(offlineStory);
+                renderCurationView(offlineStory);
+            } else {
+                renderStory(offlineStory);
+                updateNavPosition();
             }
         } else {
             showError();

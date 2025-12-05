@@ -578,6 +578,116 @@
             padding: var(--spacing-lg);
         }
         
+        /* Curation Hero Section */
+        .curation-hero {
+            display: flex;
+            flex-direction: column;
+            gap: var(--spacing-md);
+        }
+        
+        .curation-progress-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: var(--spacing-lg);
+        }
+        
+        .curation-progress-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: var(--spacing-sm);
+        }
+        
+        .curation-progress-header h3 {
+            font-family: var(--font-body);
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin: 0;
+        }
+        
+        .curation-progress-fraction {
+            font-family: var(--font-heading);
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: var(--color-accent);
+        }
+        
+        .curation-progress-bar-large {
+            height: 12px;
+            background: var(--bg-hover);
+            border-radius: 6px;
+            overflow: hidden;
+            margin-bottom: var(--spacing-sm);
+        }
+        
+        .curation-progress-fill-large {
+            height: 100%;
+            background: var(--color-accent);
+            border-radius: 6px;
+            transition: width 0.5s ease;
+            width: 0%;
+        }
+        
+        .curation-progress-subtitle {
+            font-family: var(--font-body);
+            font-size: 0.8125rem;
+            color: var(--text-secondary);
+        }
+        
+        .curation-action-card {
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-md);
+            padding: var(--spacing-lg);
+            background: linear-gradient(135deg, rgba(212, 175, 55, 0.1) 0%, var(--bg-card) 100%);
+            border: 2px solid var(--color-accent);
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .curation-action-card:hover {
+            background: linear-gradient(135deg, rgba(212, 175, 55, 0.2) 0%, var(--bg-card) 100%);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(212, 175, 55, 0.2);
+        }
+        
+        .curation-action-card > svg:first-child {
+            width: 48px;
+            height: 48px;
+            stroke: var(--color-accent);
+            flex-shrink: 0;
+        }
+        
+        .curation-action-text {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        
+        .curation-action-title {
+            font-family: var(--font-heading);
+            font-size: 1.125rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+        
+        .curation-action-desc {
+            font-family: var(--font-body);
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+        }
+        
+        .curation-arrow {
+            width: 24px;
+            height: 24px;
+            stroke: var(--text-muted);
+            flex-shrink: 0;
+        }
+        
         /* Responsive */
         @media (max-width: 768px) {
             .admin-header {
@@ -592,6 +702,15 @@
             
             .stat-value {
                 font-size: 2rem;
+            }
+            
+            .curation-action-card > svg:first-child {
+                width: 36px;
+                height: 36px;
+            }
+            
+            .curation-action-title {
+                font-size: 1rem;
             }
         }
         
@@ -677,40 +796,34 @@
             <!-- Curation Section -->
             <section class="admin-section">
                 <h2>Content Curation</h2>
-                <div class="dashboard-grid">
-                    <div class="stat-card accent" style="cursor: pointer;" onclick="startCuration('no-default')">
-                        <h3>Need Default Image</h3>
-                        <div class="stat-value" id="statNeedDefault">—</div>
-                        <div class="stat-subtitle">stories without image_url set</div>
+                <div class="curation-hero">
+                    <div class="curation-progress-card">
+                        <div class="curation-progress-header">
+                            <h3>Default Image Progress</h3>
+                            <span class="curation-progress-fraction">
+                                <span id="statCurated">—</span> / <span id="statTotal">500</span>
+                            </span>
+                        </div>
+                        <div class="curation-progress-bar-large">
+                            <div class="curation-progress-fill-large" id="curationProgressFill"></div>
+                        </div>
+                        <div class="curation-progress-subtitle">
+                            <span id="statNeedDefault">—</span> stories still need a default image
+                        </div>
                     </div>
-                    <div class="stat-card" style="cursor: pointer;" onclick="startCuration('pending')">
-                        <h3>Pending Images</h3>
-                        <div class="stat-value" id="statPendingImages">—</div>
-                        <div class="stat-subtitle">status_image != 'done'</div>
-                    </div>
-                    <div class="stat-card" style="cursor: pointer;" onclick="startCuration('regenerating')">
-                        <h3>Being Regenerated</h3>
-                        <div class="stat-value" id="statRegenerating">—</div>
-                        <div class="stat-subtitle">active regeneration requests</div>
-                    </div>
-                </div>
-                <div class="action-grid" style="margin-top: var(--spacing-md);">
-                    <div class="action-card" onclick="startCuration('all')">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <rect x="3" y="3" width="7" height="7"/>
-                            <rect x="14" y="3" width="7" height="7"/>
-                            <rect x="14" y="14" width="7" height="7"/>
-                            <rect x="3" y="14" width="7" height="7"/>
-                        </svg>
-                        <span>Curate All Stories</span>
-                    </div>
-                    <div class="action-card" onclick="startCuration('no-default')">
+                    <div class="curation-action-card" onclick="startCuration('no-default')">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
                             <circle cx="8.5" cy="8.5" r="1.5"/>
                             <polyline points="21 15 16 10 5 21"/>
                         </svg>
-                        <span>Set Default Images</span>
+                        <div class="curation-action-text">
+                            <span class="curation-action-title">Curate Default Images</span>
+                            <span class="curation-action-desc">Review stories and set the best image as default</span>
+                        </div>
+                        <svg class="curation-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="9 18 15 12 9 6"/>
+                        </svg>
                     </div>
                 </div>
             </section>
@@ -900,26 +1013,32 @@
         
         async function loadCurationStats() {
             try {
+                // Total stories
+                const { count: totalStories } = await supabase
+                    .from('grahams_devotional_spreads')
+                    .select('*', { count: 'exact', head: true });
+                
                 // Stories without default image set (image_url is null or empty)
                 const { count: needDefault } = await supabase
                     .from('grahams_devotional_spreads')
                     .select('*', { count: 'exact', head: true })
                     .or('image_url.is.null,image_url.eq.');
-                document.getElementById('statNeedDefault').textContent = needDefault || '0';
                 
-                // Stories with pending images
-                const { count: pendingImages } = await supabase
-                    .from('grahams_devotional_spreads')
-                    .select('*', { count: 'exact', head: true })
-                    .neq('status_image', 'done');
-                document.getElementById('statPendingImages').textContent = pendingImages || '0';
+                const total = totalStories || 500;
+                const needing = needDefault || 0;
+                const curated = total - needing;
+                const progressPercent = total > 0 ? Math.round((curated / total) * 100) : 0;
                 
-                // Stories being regenerated (have active regeneration requests)
-                const { count: regenerating } = await supabase
-                    .from('regeneration_requests')
-                    .select('*', { count: 'exact', head: true })
-                    .eq('status', 'pending');
-                document.getElementById('statRegenerating').textContent = regenerating || '0';
+                // Update UI elements
+                document.getElementById('statNeedDefault').textContent = needing;
+                document.getElementById('statTotal').textContent = total;
+                document.getElementById('statCurated').textContent = curated;
+                
+                // Update progress bar
+                const progressFill = document.getElementById('curationProgressFill');
+                if (progressFill) {
+                    progressFill.style.width = `${progressPercent}%`;
+                }
                 
             } catch (err) {
                 console.error('[Admin] Error loading curation stats:', err);
