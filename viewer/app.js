@@ -195,9 +195,44 @@ function renderCurationView(story) {
     const total = curationMode.stories.length;
     const current = curationMode.currentIndex + 1;
     
-    // Get abstract or fallback text
-    const abstractText = story.image_abstract || 
-        'No scene abstract available. This story may not have been fully processed.';
+    // Parse image_abstract JSON to extract key fields for curation
+    let sceneInfo = {
+        title: '',
+        focalSymbol: '',
+        visualApproach: '',
+        prompt: ''
+    };
+    
+    if (story.image_abstract) {
+        try {
+            // Try to parse as JSON array
+            let abstractData = story.image_abstract;
+            
+            // Handle if it's a string that needs parsing
+            if (typeof abstractData === 'string') {
+                // Remove markdown code fence if present
+                abstractData = abstractData.replace(/^```json\s*/i, '').replace(/\s*```$/i, '').trim();
+                abstractData = JSON.parse(abstractData);
+            }
+            
+            // Find variant_index 1 (or first item)
+            const variant = Array.isArray(abstractData) 
+                ? abstractData.find(v => v.variant_index === 1) || abstractData[0]
+                : abstractData;
+            
+            if (variant) {
+                sceneInfo.title = variant.title || '';
+                sceneInfo.focalSymbol = variant.focal_symbol || '';
+                sceneInfo.visualApproach = variant.visual_approach || '';
+                // prompt might be in different places depending on the data structure
+                sceneInfo.prompt = variant.prompt || variant.image_prompt || '';
+            }
+        } catch (e) {
+            console.warn('[Curation] Could not parse image_abstract as JSON:', e);
+            // If parsing fails, just use the raw text
+            sceneInfo.visualApproach = story.image_abstract;
+        }
+    }
     
     // Check if story has NO images at all
     const hasNoImages = !story.image_url_1 && !story.image_url_2 && 
@@ -288,18 +323,50 @@ function renderCurationView(story) {
                     ${imagesSection}
                 </div>
                 
-                <!-- Right: Story Info & Abstract -->
+                <!-- Right: Story Info & Scene Details -->
                 <div class="curation-info">
                     <h2 class="curation-title">${story.title || 'Untitled Story'}</h2>
                     <div class="curation-ref">${story.kjv_passage_ref || story.spread_code}</div>
                     
-                    <div class="curation-abstract-section">
-                        <h3>Scene Abstract</h3>
-                        <p class="curation-abstract">${abstractText}</p>
+                    <div class="curation-scene-details">
+                        ${sceneInfo.title ? `
+                            <div class="scene-field">
+                                <label>Image Title</label>
+                                <p class="scene-value title-value">${sceneInfo.title}</p>
+                            </div>
+                        ` : ''}
+                        
+                        ${sceneInfo.focalSymbol ? `
+                            <div class="scene-field">
+                                <label>Focal Symbol</label>
+                                <p class="scene-value focal-value">${sceneInfo.focalSymbol}</p>
+                            </div>
+                        ` : ''}
+                        
+                        ${sceneInfo.visualApproach ? `
+                            <div class="scene-field">
+                                <label>Visual Approach</label>
+                                <p class="scene-value approach-value">${sceneInfo.visualApproach}</p>
+                            </div>
+                        ` : ''}
+                        
+                        ${sceneInfo.prompt ? `
+                            <div class="scene-field">
+                                <label>Image Prompt</label>
+                                <p class="scene-value prompt-value">${sceneInfo.prompt}</p>
+                            </div>
+                        ` : ''}
+                        
+                        ${!sceneInfo.title && !sceneInfo.focalSymbol && !sceneInfo.visualApproach ? `
+                            <div class="scene-field">
+                                <label>No Scene Data</label>
+                                <p class="scene-value">This story doesn't have parsed scene information yet.</p>
+                            </div>
+                        ` : ''}
                     </div>
                     
                     <div class="curation-keyboard-help">
-                        <h4>Keyboard Shortcuts</h4>
+                        <h4>Shortcuts</h4>
                         ${hasNoImages 
                             ? '<div class="shortcut-row"><kbd>G</kbd> Generate all images</div>'
                             : '<div class="shortcut-row"><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd><kbd>4</kbd> Set slot as default</div>'
