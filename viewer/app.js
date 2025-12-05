@@ -22,6 +22,7 @@ let currentStoryIndex = 0;
 let userFavorites = new Set();
 let userReadStories = new Set();
 let userLibrary = new Set();
+let userPrimaryImages = new Map(); // spread_code -> image_slot (1-4)
 
 // Filter state
 let currentFilters = {
@@ -176,6 +177,8 @@ function sortStoriesChronologically(stories) {
 let homeView = null;
 let storyView = null;
 let currentView = null;
+let navigationInProgress = false; // Prevents race conditions during navigation
+let currentNavigationId = 0; // Track which navigation is current
 
 document.addEventListener('DOMContentLoaded', () => {
     // Theme is now handled by settings.js
@@ -234,15 +237,29 @@ document.addEventListener('DOMContentLoaded', () => {
 async function handleRouteChange(newRoute, previousRoute) {
     console.log('[GRACE] Route change:', previousRoute?.type, '->', newRoute.type);
     
+    // Generate unique ID for this navigation to detect stale requests
+    const thisNavigationId = ++currentNavigationId;
+    
+    // If navigation already in progress, let the new one take over
+    // (previous navigation will detect it's stale via navigationId)
+    navigationInProgress = true;
+    
     // Stop any audio playback when changing routes
     if (previousRoute && previousRoute.type !== newRoute.type) {
         stopAudioPlayback();
     }
     
-    if (newRoute.type === 'story') {
-        await showStoryView(newRoute.storyId);
-    } else {
-        await showHomeView();
+    try {
+        if (newRoute.type === 'story') {
+            await showStoryView(newRoute.storyId, thisNavigationId);
+        } else {
+            await showHomeView();
+        }
+    } finally {
+        // Only clear lock if this is still the current navigation
+        if (thisNavigationId === currentNavigationId) {
+            navigationInProgress = false;
+        }
     }
 }
 
@@ -254,6 +271,13 @@ async function showHomeView() {
         return; // Already showing home
     }
     
+    // Clean up story page state when leaving
+    if (storyAuthUnsubscribe) {
+        storyAuthUnsubscribe();
+        storyAuthUnsubscribe = null;
+    }
+    showingGrid = false;
+    
     // Hide story view, show home view
     if (storyView) storyView.style.display = 'none';
     if (homeView) homeView.style.display = 'block';
@@ -261,17 +285,17 @@ async function showHomeView() {
     // Remove story-page class from body
     document.body.classList.remove('story-page');
     
+    const wasOnStory = currentView === 'story';
     currentView = 'home';
     
     // Initialize home page if not already done
     if (!allStories.length) {
         await initIndexPage();
-    } else {
-        // Refresh user data in case it changed on story page
-        if (sessionStorage.getItem('grace-user-data-changed')) {
-            sessionStorage.removeItem('grace-user-data-changed');
-            await loadUserData(true);
-        }
+    } else if (wasOnStory || sessionStorage.getItem('grace-user-data-changed')) {
+        // Always refresh user data when coming from story page
+        // This ensures favorites, read status, and primary images are up to date
+        sessionStorage.removeItem('grace-user-data-changed');
+        await loadUserData(true);
     }
     
     // Update page title
@@ -286,8 +310,10 @@ async function showHomeView() {
 
 /**
  * Show the story view
+ * @param {string} storyId - The story spread_code
+ * @param {number} navigationId - ID to detect stale navigation requests
  */
-async function showStoryView(storyId) {
+async function showStoryView(storyId, navigationId) {
     // Hide home view, show story view
     if (homeView) homeView.style.display = 'none';
     if (storyView) storyView.style.display = 'block';
@@ -297,8 +323,17 @@ async function showStoryView(storyId) {
     
     currentView = 'story';
     
-    // Initialize and load the story
-    await initStoryPage(storyId);
+    // Reset image grid state for clean story view (fixes bug where grid stays expanded)
+    showingGrid = false;
+    
+    // Clean up previous auth listener to prevent accumulation
+    if (storyAuthUnsubscribe) {
+        storyAuthUnsubscribe();
+        storyAuthUnsubscribe = null;
+    }
+    
+    // Initialize and load the story (pass navigationId to detect stale loads)
+    await initStoryPage(storyId, navigationId);
     
     // Scroll to top
     window.scrollTo(0, 0);
@@ -747,6 +782,7 @@ async function loadUserData(rerender = false) {
         userFavorites = new Set();
         userReadStories = new Set();
         userLibrary = new Set();
+        userPrimaryImages = new Map();
         return;
     }
     
@@ -763,10 +799,14 @@ async function loadUserData(rerender = false) {
         const library = await window.GraceAuth.getUserLibrary();
         userLibrary = new Set(library);
         
+        // Load user's primary image selections (for home page thumbnails)
+        userPrimaryImages = await window.GraceAuth.getAllUserPrimaryImages();
+        
         console.log('[GRACE] User data loaded:', {
             favorites: userFavorites.size,
             read: userReadStories.size,
-            library: userLibrary.size
+            library: userLibrary.size,
+            primaryImages: userPrimaryImages.size
         });
         
         // Re-render stories if on home page and requested
@@ -790,6 +830,7 @@ async function handleAuthStateChange(state) {
         userFavorites = new Set();
         userReadStories = new Set();
         userLibrary = new Set();
+        userPrimaryImages = new Map();
         // Reset user filter
         currentFilters.userFilter = 'all';
         const userFilterBtns = document.querySelectorAll('#userFilter .segment');
@@ -861,7 +902,7 @@ async function loadAllStories() {
     try {
         const { data, error } = await supabase
             .from('grahams_devotional_spreads')
-            .select('spread_code, title, kjv_passage_ref, status_text, status_image, image_url, image_url_1, testament, book, start_chapter, start_verse');
+            .select('spread_code, title, kjv_passage_ref, status_text, status_image, image_url, image_url_1, image_url_2, image_url_3, image_url_4, testament, book, start_chapter, start_verse');
         
         if (error) throw error;
         
@@ -1501,7 +1542,18 @@ function renderStories() {
         const isComplete = story.status_text === 'done' && story.status_image === 'done';
         const statusClass = isComplete ? 'complete' : 'pending';
         const statusText = isComplete ? 'Complete' : 'Pending';
-        const imageUrl = story.image_url || story.image_url_1;
+        
+        // Determine which image to show: user's primary selection > global default > first option
+        let imageUrl = story.image_url || story.image_url_1;
+        const userPrimarySlot = userPrimaryImages.get(story.spread_code);
+        if (userPrimarySlot) {
+            // User has a personal selection - use their chosen image
+            const userImageUrl = story[`image_url_${userPrimarySlot}`];
+            if (userImageUrl) {
+                imageUrl = userImageUrl;
+            }
+        }
+        
         const passageRef = story.kjv_passage_ref || '';
         
         // User state classes
@@ -1829,8 +1881,9 @@ function updateStats() {
 let currentStory = null;
 let storyList = [];
 let showingGrid = false;
+let storyAuthUnsubscribe = null; // Store unsubscribe function for auth listener cleanup
 
-async function initStoryPage(storyId) {
+async function initStoryPage(storyId, navigationId) {
     // Get storyId from parameter or fall back to URL params (for direct links)
     if (!storyId) {
         const urlParams = new URLSearchParams(window.location.search);
@@ -1853,17 +1906,31 @@ async function initStoryPage(storyId) {
         window.GraceAuth.setupAuthModal();
     }
     
+    // Check if this navigation is stale (user navigated elsewhere)
+    if (navigationId && navigationId !== currentNavigationId) {
+        console.log('[GRACE] Stale navigation detected, aborting story load');
+        return;
+    }
+    
     // Setup story auth controls
     setupStoryAuthControls();
     
-    // Listen for auth state changes
-    window.GraceAuth?.onAuthStateChange(handleStoryAuthStateChange);
+    // Listen for auth state changes (store unsubscribe for cleanup)
+    if (window.GraceAuth) {
+        storyAuthUnsubscribe = window.GraceAuth.onAuthStateChange(handleStoryAuthStateChange);
+    }
     
     // Load all stories for navigation
     await loadStoryList();
     
+    // Check again after async operation
+    if (navigationId && navigationId !== currentNavigationId) {
+        console.log('[GRACE] Stale navigation detected after story list load');
+        return;
+    }
+    
     // Load the specific story
-    await loadStory(storyId);
+    await loadStory(storyId, navigationId);
     
     // Setup navigation
     setupStoryNavigation();
@@ -1957,7 +2024,7 @@ async function loadStoryList() {
     }
 }
 
-async function loadStory(storyId) {
+async function loadStory(storyId, navigationId) {
     try {
         let story = null;
         
@@ -2025,6 +2092,12 @@ async function loadStory(storyId) {
                     return;
                 }
             }
+        }
+        
+        // Final stale navigation check before rendering
+        if (navigationId && navigationId !== currentNavigationId) {
+            console.log('[GRACE] Stale navigation detected, not rendering story');
+            return;
         }
         
         currentStory = story;
@@ -2443,6 +2516,12 @@ async function setUserPrimaryImage(slot) {
         
         // Update local state
         window._currentUserPrimarySlot = slot;
+        
+        // Update the userPrimaryImages map so home page thumbnails will show the new selection
+        userPrimaryImages.set(currentStory.spread_code, slot);
+        
+        // Set flag so home page knows to refresh
+        sessionStorage.setItem('grace-user-data-changed', 'true');
         
         // Success haptic
         hapticFeedback('success');
@@ -3112,29 +3191,37 @@ function setupFavoriteButton() {
         
         const spreadCode = currentStory.spread_code;
         
-        // Toggle favorite in database
-        const isFavorited = await window.GraceAuth.toggleFavorite(spreadCode);
+        // Optimistic UI update - determine expected new state
+        const wasInFavorites = userFavorites.has(spreadCode);
+        const expectedState = !wasInFavorites;
         
-        // Update local state for cross-page sync
-        if (isFavorited) {
-            userFavorites.add(spreadCode);
-        } else {
-            userFavorites.delete(spreadCode);
-        }
-        
-        // Set flag so home page knows to refresh
-        sessionStorage.setItem('grace-user-data-changed', 'true');
-        
-        // Update UI
-        favoriteBtn.classList.toggle('active', isFavorited);
+        // Update UI immediately (optimistic)
+        favoriteBtn.classList.toggle('active', expectedState);
         favoriteBtn.classList.add('just-toggled');
         setTimeout(() => favoriteBtn.classList.remove('just-toggled'), 350);
-        
-        // Haptic feedback
         hapticFeedback('light');
         
-        // Show toast
-        showToast(isFavorited ? '♥ Added to favorites' : 'Removed from favorites');
+        // Toggle favorite in database (with retry logic)
+        const result = await window.GraceAuth.toggleFavorite(spreadCode);
+        
+        if (result.success) {
+            // Update local state for cross-page sync
+            if (result.isFavorited) {
+                userFavorites.add(spreadCode);
+            } else {
+                userFavorites.delete(spreadCode);
+            }
+            
+            // Set flag so home page knows to refresh
+            sessionStorage.setItem('grace-user-data-changed', 'true');
+            
+            // Show toast
+            showToast(result.isFavorited ? '♥ Added to favorites' : 'Removed from favorites');
+        } else {
+            // Revert optimistic update on failure
+            favoriteBtn.classList.toggle('active', wasInFavorites);
+            showToast('Failed to update favorite. Please try again.', true);
+        }
     });
     
     // Initial state

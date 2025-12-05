@@ -1009,39 +1009,53 @@ async function getUserFavorites() {
 /**
  * Toggle favorite status for a story
  * @param {string} spreadCode - Story spread code
- * @returns {Promise<boolean>} New favorite status
+ * @returns {Promise<{success: boolean, isFavorited: boolean}>} Result with success flag and new favorite status
  */
 async function toggleFavorite(spreadCode) {
-    if (!isAuthenticated()) return false;
+    if (!isAuthenticated()) return { success: false, isFavorited: false };
     
-    try {
-        // Check if already favorited
-        const { data: existing } = await supabase
-            .from('user_favorites')
-            .select('spread_code')
-            .eq('user_id', currentUser.id)
-            .eq('spread_code', spreadCode)
-            .single();
-        
-        if (existing) {
-            // Remove favorite
-            await supabase
+    const maxRetries = 2;
+    
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+        try {
+            // Check if already favorited
+            const { data: existing } = await supabase
                 .from('user_favorites')
-                .delete()
+                .select('spread_code')
                 .eq('user_id', currentUser.id)
-                .eq('spread_code', spreadCode);
-            return false;
-        } else {
-            // Add favorite
-            await supabase
-                .from('user_favorites')
-                .insert({ user_id: currentUser.id, spread_code: spreadCode });
-            return true;
+                .eq('spread_code', spreadCode)
+                .single();
+            
+            if (existing) {
+                // Remove favorite
+                const { error } = await supabase
+                    .from('user_favorites')
+                    .delete()
+                    .eq('user_id', currentUser.id)
+                    .eq('spread_code', spreadCode);
+                
+                if (error) throw error;
+                return { success: true, isFavorited: false };
+            } else {
+                // Add favorite
+                const { error } = await supabase
+                    .from('user_favorites')
+                    .insert({ user_id: currentUser.id, spread_code: spreadCode });
+                
+                if (error) throw error;
+                return { success: true, isFavorited: true };
+            }
+        } catch (err) {
+            console.error(`[Auth] Error toggling favorite (attempt ${attempt + 1}):`, err);
+            if (attempt === maxRetries) {
+                return { success: false, isFavorited: false };
+            }
+            // Wait before retry
+            await new Promise(resolve => setTimeout(resolve, 500 * (attempt + 1)));
         }
-    } catch (err) {
-        console.error('[Auth] Error toggling favorite:', err);
-        return false;
     }
+    
+    return { success: false, isFavorited: false };
 }
 
 /**
@@ -1090,39 +1104,63 @@ async function getUserReadStories() {
 /**
  * Mark a story as read
  * @param {string} spreadCode - Story spread code
+ * @returns {Promise<boolean>} Success
  */
 async function markAsRead(spreadCode) {
-    if (!isAuthenticated()) return;
+    if (!isAuthenticated()) return false;
     
-    try {
-        // Use upsert to avoid duplicates
-        await supabase
-            .from('user_read_stories')
-            .upsert(
-                { user_id: currentUser.id, spread_code: spreadCode },
-                { onConflict: 'user_id,spread_code' }
-            );
-    } catch (err) {
-        console.error('[Auth] Error marking as read:', err);
+    const maxRetries = 2;
+    
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+        try {
+            // Use upsert to avoid duplicates
+            const { error } = await supabase
+                .from('user_read_stories')
+                .upsert(
+                    { user_id: currentUser.id, spread_code: spreadCode },
+                    { onConflict: 'user_id,spread_code' }
+                );
+            
+            if (error) throw error;
+            return true;
+        } catch (err) {
+            console.error(`[Auth] Error marking as read (attempt ${attempt + 1}):`, err);
+            if (attempt === maxRetries) return false;
+            await new Promise(resolve => setTimeout(resolve, 500 * (attempt + 1)));
+        }
     }
+    
+    return false;
 }
 
 /**
  * Unmark a story as read (remove from read list)
  * @param {string} spreadCode - Story spread code
+ * @returns {Promise<boolean>} Success
  */
 async function unmarkAsRead(spreadCode) {
-    if (!isAuthenticated()) return;
+    if (!isAuthenticated()) return false;
     
-    try {
-        await supabase
-            .from('user_read_stories')
-            .delete()
-            .eq('user_id', currentUser.id)
-            .eq('spread_code', spreadCode);
-    } catch (err) {
-        console.error('[Auth] Error unmarking as read:', err);
+    const maxRetries = 2;
+    
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+        try {
+            const { error } = await supabase
+                .from('user_read_stories')
+                .delete()
+                .eq('user_id', currentUser.id)
+                .eq('spread_code', spreadCode);
+            
+            if (error) throw error;
+            return true;
+        } catch (err) {
+            console.error(`[Auth] Error unmarking as read (attempt ${attempt + 1}):`, err);
+            if (attempt === maxRetries) return false;
+            await new Promise(resolve => setTimeout(resolve, 500 * (attempt + 1)));
+        }
     }
+    
+    return false;
 }
 
 /**
@@ -1170,9 +1208,37 @@ async function getUserPrimaryImage(spreadCode) {
 }
 
 /**
+ * Get ALL user's primary image selections (for home page display)
+ * @returns {Promise<Map<string, number>>} Map of spread_code -> image_slot
+ */
+async function getAllUserPrimaryImages() {
+    if (!isAuthenticated()) return new Map();
+    
+    try {
+        const { data, error } = await supabase
+            .from('user_primary_images')
+            .select('spread_code, image_slot')
+            .eq('user_id', currentUser.id);
+        
+        if (error) throw error;
+        
+        const imageMap = new Map();
+        (data || []).forEach(item => {
+            imageMap.set(item.spread_code, item.image_slot);
+        });
+        
+        return imageMap;
+    } catch (err) {
+        console.error('[Auth] Error loading all primary images:', err);
+        return new Map();
+    }
+}
+
+/**
  * Set user's primary image selection for a story
  * @param {string} spreadCode - Story spread code
  * @param {number} imageSlot - Image slot (1-4)
+ * @returns {Promise<boolean>} Success
  */
 async function setUserPrimaryImage(spreadCode, imageSlot) {
     if (!isAuthenticated()) {
@@ -1180,25 +1246,27 @@ async function setUserPrimaryImage(spreadCode, imageSlot) {
         return false;
     }
     
-    try {
-        const { data, error } = await supabase
-            .from('user_primary_images')
-            .upsert(
-                { user_id: currentUser.id, spread_code: spreadCode, image_slot: imageSlot },
-                { onConflict: 'user_id,spread_code' }
-            )
-            .select();
-        
-        if (error) {
-            console.error('[Auth] Supabase error setting primary image:', error);
-            return false;
+    const maxRetries = 2;
+    
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+        try {
+            const { error } = await supabase
+                .from('user_primary_images')
+                .upsert(
+                    { user_id: currentUser.id, spread_code: spreadCode, image_slot: imageSlot },
+                    { onConflict: 'user_id,spread_code' }
+                );
+            
+            if (error) throw error;
+            return true;
+        } catch (err) {
+            console.error(`[Auth] Error setting primary image (attempt ${attempt + 1}):`, err);
+            if (attempt === maxRetries) return false;
+            await new Promise(resolve => setTimeout(resolve, 500 * (attempt + 1)));
         }
-        
-        return true;
-    } catch (err) {
-        console.error('[Auth] Error setting primary image:', err);
-        return false;
     }
+    
+    return false;
 }
 
 // ============================================================================
@@ -1419,6 +1487,7 @@ window.GraceAuth = {
     unmarkAsRead,
     isRead,
     getUserPrimaryImage,
+    getAllUserPrimaryImages,
     setUserPrimaryImage,
     
     // Offline library
