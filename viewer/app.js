@@ -2880,7 +2880,7 @@ async function loadStoryList() {
         
         // Try loading from fallback JSON
         try {
-            const response = await fetch('data/all-spreads.json?v=2');
+            const response = await fetch('data/all-spreads.json?v=3');
             if (response.ok) {
                 const json = await response.json();
                 if (json.spreads?.length > 0) {
@@ -2946,7 +2946,7 @@ async function loadStory(storyId, navigationId) {
                 // If not in cache, try loading from fallback JSON
                 if (!story) {
                     try {
-                        const response = await fetch('data/all-spreads.json?v=2');
+                        const response = await fetch('data/all-spreads.json?v=3');
                         if (response.ok) {
                             const json = await response.json();
                             const fallbackStory = json.spreads?.find(s => s.spread_code === storyId);

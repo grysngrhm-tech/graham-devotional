@@ -3,7 +3,7 @@
  * Provides offline caching with smart caching strategies
  */
 
-const CACHE_NAME = 'graham-bible-v16'; // Slot-based primary image model
+const CACHE_NAME = 'graham-bible-v17'; // Regenerated JSON with primary_slot
 const IMAGE_CACHE = 'graham-bible-images-v1';
 
 // App shell files to cache on install
