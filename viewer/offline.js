@@ -589,13 +589,91 @@ async function getLibraryStats() {
  * @param {Map} userPrimaryImages - Map of spread_code -> image_slot for user's selections
  * @returns {Promise<{success: boolean, storiesDownloaded: number, imagesDownloaded: number, errors: number}>}
  */
-async function downloadEntireBible(progressCallback, userPrimaryImages = new Map()) {
+// Download progress storage key
+const DOWNLOAD_PROGRESS_KEY = 'graham-download-progress';
+
+/**
+ * Get saved download progress (for resume)
+ * @returns {{completed: Set<string>, startedAt: number, total: number}|null}
+ */
+function getSavedDownloadProgress() {
+    try {
+        const saved = localStorage.getItem(DOWNLOAD_PROGRESS_KEY);
+        if (!saved) return null;
+        
+        const data = JSON.parse(saved);
+        // Check if progress is less than 24 hours old
+        if (Date.now() - data.startedAt > 24 * 60 * 60 * 1000) {
+            clearDownloadProgress();
+            return null;
+        }
+        
+        return {
+            completed: new Set(data.completed || []),
+            startedAt: data.startedAt,
+            total: data.total
+        };
+    } catch {
+        return null;
+    }
+}
+
+/**
+ * Save download progress for resume
+ */
+function saveDownloadProgress(completed, total) {
+    try {
+        localStorage.setItem(DOWNLOAD_PROGRESS_KEY, JSON.stringify({
+            completed: Array.from(completed),
+            startedAt: Date.now(),
+            total
+        }));
+    } catch {
+        // localStorage might be full or unavailable
+    }
+}
+
+/**
+ * Clear download progress (on completion or cancel)
+ */
+function clearDownloadProgress() {
+    localStorage.removeItem(DOWNLOAD_PROGRESS_KEY);
+}
+
+/**
+ * Check if there's a download that can be resumed
+ * @returns {{canResume: boolean, completed: number, total: number}}
+ */
+function checkResumableDownload() {
+    const progress = getSavedDownloadProgress();
+    if (!progress) {
+        return { canResume: false, completed: 0, total: 0 };
+    }
+    return {
+        canResume: progress.completed.size > 0 && progress.completed.size < progress.total,
+        completed: progress.completed.size,
+        total: progress.total
+    };
+}
+
+async function downloadEntireBible(progressCallback, userPrimaryImages = new Map(), resumePrevious = true) {
     const result = {
         success: false,
         storiesDownloaded: 0,
         imagesDownloaded: 0,
-        errors: 0
+        errors: 0,
+        skipped: 0
     };
+    
+    // Check for resumable progress
+    let completedSpreadCodes = new Set();
+    if (resumePrevious) {
+        const savedProgress = getSavedDownloadProgress();
+        if (savedProgress) {
+            completedSpreadCodes = savedProgress.completed;
+            console.log('[Offline] Resuming download, skipping', completedSpreadCodes.size, 'already completed stories');
+        }
+    }
     
     try {
         // Phase 1: Fetch all stories from Supabase
@@ -622,12 +700,19 @@ async function downloadEntireBible(progressCallback, userPrimaryImages = new Map
         
         for (let i = 0; i < stories.length; i++) {
             const story = stories[i];
-            const progress = Math.round((i / total) * 100);
+            
+            // Skip already completed stories (for resume)
+            if (completedSpreadCodes.has(story.spread_code)) {
+                result.skipped++;
+                continue;
+            }
+            
+            const processed = i + 1;
             
             progressCallback?.({
-                current: i + 1,
+                current: processed,
                 total: total,
-                message: `Downloading ${i + 1}/${total}: ${story.title || story.spread_code}`,
+                message: `Downloading ${processed}/${total}: ${story.title || story.spread_code}`,
                 phase: 'download'
             });
             
@@ -680,13 +765,21 @@ async function downloadEntireBible(progressCallback, userPrimaryImages = new Map
                     }
                 }
                 
+                // Mark as completed and save progress periodically (every 10 stories)
+                completedSpreadCodes.add(story.spread_code);
+                if (processed % 10 === 0) {
+                    saveDownloadProgress(completedSpreadCodes, total);
+                }
+                
             } catch (storyErr) {
                 console.error('[Offline] Failed to save story', story.spread_code, storyErr);
                 result.errors++;
             }
         }
         
-        // Phase 3: Complete
+        // Phase 3: Complete - clear progress since we're done
+        clearDownloadProgress();
+        
         progressCallback?.({
             current: total,
             total: total,
@@ -699,6 +792,10 @@ async function downloadEntireBible(progressCallback, userPrimaryImages = new Map
         
     } catch (err) {
         console.error('[Offline] Download failed:', err);
+        // Save progress on error so user can resume
+        if (completedSpreadCodes.size > 0) {
+            saveDownloadProgress(completedSpreadCodes, result.storiesDownloaded + result.errors);
+        }
         progressCallback?.({
             current: 0,
             total: 0,
@@ -894,9 +991,11 @@ window.GraceOffline = {
     isStoryListFresh,
     clearStoryListCache,
     
-    // Download entire Bible
+    // Download entire Bible (with resume support)
     downloadEntireBible,
     getDownloadEstimate,
+    checkResumableDownload,
+    clearDownloadProgress,
     
     // Library (intentional)
     saveToLibrary,

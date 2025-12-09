@@ -981,6 +981,21 @@ async function showHomeView() {
 }
 
 /**
+ * Show the story loading skeleton immediately
+ * Prevents flash of old content while new story loads
+ */
+function showStoryLoadingSkeleton() {
+    const container = document.getElementById('bookStory');
+    const template = document.getElementById('storySkeletonTemplate');
+    
+    if (container && template) {
+        container.innerHTML = '';
+        const skeleton = template.content.cloneNode(true);
+        container.appendChild(skeleton);
+    }
+}
+
+/**
  * Show the story view
  * @param {string} storyId - The story spread_code
  * @param {number} navigationId - ID to detect stale navigation requests
@@ -994,6 +1009,9 @@ async function showStoryView(storyId, navigationId) {
     document.body.classList.add('story-page');
     
     currentView = 'story';
+    
+    // IMMEDIATELY show loading skeleton to prevent flash of old content
+    showStoryLoadingSkeleton();
     
     // Reset image grid state for clean story view (fixes bug where grid stays expanded)
     showingGrid = false;
@@ -3197,7 +3215,7 @@ async function setGlobalPrimaryImage(imageUrl) {
         
     } catch (err) {
         console.error('Error saving global primary image:', err);
-        showToast('Error saving selection', true);
+        showToast(getUserFriendlyError(err, 'image'), true);
     }
 }
 
@@ -3244,7 +3262,7 @@ async function setUserPrimaryImage(slot) {
         
     } catch (err) {
         console.error('Error saving user primary image:', err);
-        showToast('Error saving selection', true);
+        showToast(getUserFriendlyError(err, 'image'), true);
     }
 }
 
@@ -3621,7 +3639,7 @@ async function confirmRegeneration(imageUrl, slot, requestId) {
         
     } catch (err) {
         console.error('Error confirming regeneration:', err);
-        showToast('Error saving new image', true);
+        showToast(getUserFriendlyError(err, 'image'), true);
     }
 }
 
@@ -3753,6 +3771,57 @@ function showToast(message, isError = false) {
     setTimeout(() => {
         toast.classList.remove('show');
     }, 3000);
+}
+
+/**
+ * Convert Supabase/network errors into user-friendly messages
+ * @param {Error|object} error - The error object
+ * @param {string} context - What action was being performed
+ * @returns {string} User-friendly error message
+ */
+function getUserFriendlyError(error, context = 'action') {
+    const errorMsg = error?.message || error?.toString() || '';
+    
+    // Network/timeout errors
+    if (errorMsg.includes('timeout') || errorMsg.includes('Timeout')) {
+        return 'Taking longer than expected. Please try again.';
+    }
+    if (errorMsg.includes('fetch') || errorMsg.includes('network') || errorMsg.includes('Network')) {
+        return 'Connection issue. Please check your internet.';
+    }
+    if (errorMsg.includes('Failed to fetch')) {
+        return 'Could not connect to server. Please try again.';
+    }
+    
+    // Auth errors
+    if (errorMsg.includes('JWT') || errorMsg.includes('token') || errorMsg.includes('session')) {
+        return 'Session expired. Please sign in again.';
+    }
+    if (errorMsg.includes('not authenticated') || errorMsg.includes('unauthorized')) {
+        return 'Please sign in to continue.';
+    }
+    
+    // Rate limiting
+    if (errorMsg.includes('rate limit') || errorMsg.includes('too many')) {
+        return 'Too many requests. Please wait a moment.';
+    }
+    
+    // Generic database errors
+    if (errorMsg.includes('duplicate') || errorMsg.includes('unique')) {
+        return 'This action was already completed.';
+    }
+    
+    // Default based on context
+    const contextMessages = {
+        'favorite': 'Could not update favorite. Please try again.',
+        'read': 'Could not update read status. Please try again.',
+        'library': 'Could not update library. Please try again.',
+        'image': 'Could not update image. Please try again.',
+        'load': 'Could not load content. Please refresh the page.',
+        'save': 'Could not save changes. Please try again.'
+    };
+    
+    return contextMessages[context] || 'Something went wrong. Please try again.';
 }
 
 function setupStoryNavigation() {
@@ -4095,7 +4164,7 @@ function setupReadButton() {
             
         } catch (err) {
             console.error('[Graham] Error toggling read status:', err);
-            showToast('Error updating read status', true);
+            showToast(getUserFriendlyError(err, 'read'), true);
         }
     });
     
