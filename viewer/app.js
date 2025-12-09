@@ -2989,6 +2989,11 @@ async function loadStory(storyId, navigationId) {
         } else {
             renderStory(story);
             updateNavPosition();
+            
+            // Trigger smart prefetch for adjacent stories (non-blocking)
+            if (window.GraceOffline?.prefetchAdjacentStories && filteredStories?.length > 0) {
+                window.GraceOffline.prefetchAdjacentStories(story.spread_code, filteredStories, 2);
+            }
         }
         
     } catch (err) {
@@ -3005,6 +3010,11 @@ async function loadStory(storyId, navigationId) {
             } else {
                 renderStory(offlineStory);
                 updateNavPosition();
+                
+                // Trigger smart prefetch for adjacent stories (non-blocking)
+                if (window.GraceOffline?.prefetchAdjacentStories && filteredStories?.length > 0) {
+                    window.GraceOffline.prefetchAdjacentStories(offlineStory.spread_code, filteredStories, 2);
+                }
             }
         } else {
             showError();

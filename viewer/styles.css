@@ -4615,6 +4615,57 @@ body.is-offline {
     text-align: center;
 }
 
+/* Storage Quota Display */
+.storage-quota-card {
+    padding: 12px 16px;
+}
+
+.storage-quota-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.storage-quota-header .storage-label {
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--text-primary);
+}
+
+.storage-quota-text {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+}
+
+.storage-quota-track {
+    height: 6px;
+    background: var(--bg-card);
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.storage-quota-bar {
+    height: 100%;
+    width: 0%;
+    background: var(--color-accent);
+    border-radius: 3px;
+    transition: width 0.3s ease, background-color 0.3s ease;
+}
+
+/* Setting Row with Description */
+.setting-label-group {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.setting-description {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    font-weight: 400;
+}
+
 /* Redesigned Admin Link */
 .settings-section-card .settings-admin-link {
     display: flex;

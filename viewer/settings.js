@@ -10,7 +10,8 @@ const GraceSettings = (function() {
     const defaults = {
         darkMode: true,  // Dark mode is default
         fontSize: 'medium',
-        bibleVersion: 'NIV'  // NIV is a popular, readable translation
+        bibleVersion: 'NIV',  // NIV is a popular, readable translation
+        prefetchEnabled: true  // Smart prefetch for adjacent stories
     };
     
     let currentSettings = { ...defaults };
@@ -100,52 +101,58 @@ const GraceSettings = (function() {
      */
     function setupSettingsModal() {
         const settingsBtn = document.getElementById('settingsBtn');
+        const storySettingsBtn = document.getElementById('storySettingsBtn'); // Story page button
         const settingsModal = document.getElementById('settingsModal');
         const settingsClose = document.getElementById('settingsClose');
         const darkModeToggle = document.getElementById('darkModeToggle');
         const fontSizeSelect = document.getElementById('fontSizeSelect');
         const bibleVersionSelect = document.getElementById('bibleVersionSelect');
         const settingsSignOut = document.getElementById('settingsSignOut');
+        const prefetchToggle = document.getElementById('prefetchToggle');
         
         if (!settingsModal) return;
         
-        // Open modal
-        if (settingsBtn) {
-            settingsBtn.addEventListener('click', () => {
-                // Sync UI with current settings
-                if (darkModeToggle) darkModeToggle.checked = currentSettings.darkMode;
-                if (fontSizeSelect) fontSizeSelect.value = currentSettings.fontSize;
-                if (bibleVersionSelect) bibleVersionSelect.value = currentSettings.bibleVersion;
-                
-                // Update user email display
-                const userEmailEl = document.getElementById('settingsUserEmail');
-                const userInfoEl = document.getElementById('settingsUserInfo');
-                if (userEmailEl && window.GraceAuth) {
-                    const user = window.GraceAuth.getCurrentUser();
-                    userEmailEl.textContent = user?.email || 'Unknown';
-                }
-                
-                // Show/hide admin section
-                const adminSection = document.getElementById('adminSection');
-                if (adminSection && window.GraceAuth) {
-                    adminSection.style.display = window.GraceAuth.isAdmin() ? 'block' : 'none';
-                }
-                
-                // Show/hide account section based on auth
-                const accountSection = document.getElementById('accountSection');
-                if (accountSection) {
-                    accountSection.style.display = window.GraceAuth?.isAuthenticated() ? 'block' : 'none';
-                }
-                
-                // Update storage statistics
-                updateStorageStats();
-                
-                // Update download estimate
-                updateDownloadEstimate();
-                
-                settingsModal.classList.add('visible');
-            });
+        // Shared handler to open settings modal
+        function openSettingsModal() {
+            // Sync UI with current settings
+            if (darkModeToggle) darkModeToggle.checked = currentSettings.darkMode;
+            if (fontSizeSelect) fontSizeSelect.value = currentSettings.fontSize;
+            if (bibleVersionSelect) bibleVersionSelect.value = currentSettings.bibleVersion;
+            if (prefetchToggle) prefetchToggle.checked = currentSettings.prefetchEnabled !== false; // Default to true
+            
+            // Update user email display
+            const userEmailEl = document.getElementById('settingsUserEmail');
+            if (userEmailEl && window.GraceAuth) {
+                const user = window.GraceAuth.getCurrentUser();
+                userEmailEl.textContent = user?.email || 'Unknown';
+            }
+            
+            // Show/hide admin section
+            const adminSection = document.getElementById('adminSection');
+            if (adminSection && window.GraceAuth) {
+                adminSection.style.display = window.GraceAuth.isAdmin() ? 'block' : 'none';
+            }
+            
+            // Show/hide account section based on auth
+            const accountSection = document.getElementById('accountSection');
+            if (accountSection) {
+                accountSection.style.display = window.GraceAuth?.isAuthenticated() ? 'block' : 'none';
+            }
+            
+            // Update storage statistics and quota
+            updateStorageStats();
+            updateStorageQuota();
+            
+            // Update download estimate
+            updateDownloadEstimate();
+            
+            settingsModal.classList.add('visible');
         }
+        
+        // Attach click handler to both settings buttons (home page and story page)
+        [settingsBtn, storySettingsBtn].forEach(btn => {
+            if (btn) btn.addEventListener('click', openSettingsModal);
+        });
         
         // Close modal
         if (settingsClose) {
@@ -186,6 +193,14 @@ const GraceSettings = (function() {
         if (bibleVersionSelect) {
             bibleVersionSelect.addEventListener('change', () => {
                 updateSetting('bibleVersion', bibleVersionSelect.value);
+            });
+        }
+        
+        // Prefetch toggle
+        const prefetchToggle = document.getElementById('prefetchToggle');
+        if (prefetchToggle) {
+            prefetchToggle.addEventListener('change', () => {
+                updateSetting('prefetchEnabled', prefetchToggle.checked);
             });
         }
         
@@ -385,6 +400,57 @@ const GraceSettings = (function() {
             } else {
                 libraryStatsEl.textContent = `${libraryStats.count} stories · ${window.GraceOffline.formatBytes(libraryStats.sizeEstimate)}`;
             }
+        }
+    }
+    
+    /**
+     * Update storage quota display
+     */
+    async function updateStorageQuota() {
+        const quotaBar = document.getElementById('storageQuotaBar');
+        const quotaText = document.getElementById('storageQuotaText');
+        const quotaSection = document.getElementById('storageQuotaSection');
+        
+        if (!quotaSection) return;
+        
+        // Check if Storage API is available
+        if (!navigator.storage || !navigator.storage.estimate) {
+            quotaSection.style.display = 'none';
+            return;
+        }
+        
+        try {
+            const estimate = await navigator.storage.estimate();
+            const usedMB = Math.round((estimate.usage || 0) / (1024 * 1024));
+            const quotaMB = Math.round((estimate.quota || 0) / (1024 * 1024));
+            const percentUsed = quotaMB > 0 ? Math.round((estimate.usage / estimate.quota) * 100) : 0;
+            
+            if (quotaBar) {
+                quotaBar.style.width = `${Math.min(percentUsed, 100)}%`;
+                // Color code based on usage
+                if (percentUsed > 90) {
+                    quotaBar.style.backgroundColor = 'var(--color-error, #ef4444)';
+                } else if (percentUsed > 70) {
+                    quotaBar.style.backgroundColor = 'var(--color-warning, #f59e0b)';
+                } else {
+                    quotaBar.style.backgroundColor = 'var(--color-accent, #d4af37)';
+                }
+            }
+            
+            if (quotaText) {
+                if (quotaMB > 1024) {
+                    const usedGB = (usedMB / 1024).toFixed(1);
+                    const quotaGB = (quotaMB / 1024).toFixed(1);
+                    quotaText.textContent = `${usedGB} GB / ${quotaGB} GB used`;
+                } else {
+                    quotaText.textContent = `${usedMB} MB / ${quotaMB} MB used`;
+                }
+            }
+            
+            quotaSection.style.display = 'block';
+        } catch (err) {
+            console.warn('[Settings] Could not get storage quota:', err);
+            quotaSection.style.display = 'none';
         }
     }
     

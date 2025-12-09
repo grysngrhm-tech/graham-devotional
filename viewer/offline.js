@@ -973,6 +973,116 @@ function formatBytes(bytes) {
 }
 
 // ============================================================================
+// Smart Prefetch System
+// ============================================================================
+
+// Track pending prefetch operations to avoid duplicates
+const pendingPrefetch = new Set();
+
+/**
+ * Prefetch adjacent stories for faster navigation
+ * Uses requestIdleCallback for low-priority fetching
+ * @param {string} currentSpreadCode - Current story being viewed
+ * @param {Array} filteredStories - Array of filtered story objects
+ * @param {number} range - Number of adjacent stories to prefetch (default: 2)
+ */
+async function prefetchAdjacentStories(currentSpreadCode, filteredStories, range = 2) {
+    // Check if prefetch is enabled in settings
+    if (window.GraceSettings?.getSetting('prefetchEnabled') === false) {
+        return;
+    }
+    
+    if (!filteredStories?.length || !currentSpreadCode) return;
+    
+    // Find current position
+    const currentIndex = filteredStories.findIndex(s => s.spread_code === currentSpreadCode);
+    if (currentIndex === -1) return;
+    
+    // Collect spread codes to prefetch (prev and next)
+    const toPrefetch = [];
+    
+    for (let i = 1; i <= range; i++) {
+        // Previous stories
+        if (currentIndex - i >= 0) {
+            toPrefetch.push(filteredStories[currentIndex - i].spread_code);
+        }
+        // Next stories
+        if (currentIndex + i < filteredStories.length) {
+            toPrefetch.push(filteredStories[currentIndex + i].spread_code);
+        }
+    }
+    
+    // Filter out already cached or pending stories
+    const cachedCodes = await getCachedStoryCodes();
+    const codesToFetch = toPrefetch.filter(code => 
+        !cachedCodes.has(code) && !pendingPrefetch.has(code)
+    );
+    
+    if (codesToFetch.length === 0) return;
+    
+    console.log('[Offline] Prefetching', codesToFetch.length, 'adjacent stories');
+    
+    // Use requestIdleCallback for low-priority fetching
+    const scheduleIdleTask = window.requestIdleCallback || ((cb) => setTimeout(cb, 100));
+    
+    for (const spreadCode of codesToFetch) {
+        pendingPrefetch.add(spreadCode);
+        
+        scheduleIdleTask(async () => {
+            try {
+                await prefetchStory(spreadCode);
+            } finally {
+                pendingPrefetch.delete(spreadCode);
+            }
+        }, { timeout: 5000 }); // Max 5 second delay
+    }
+}
+
+/**
+ * Prefetch a single story (data only, no images)
+ * @param {string} spreadCode
+ */
+async function prefetchStory(spreadCode) {
+    // Skip if already cached
+    const cached = await getCachedStory(spreadCode);
+    if (cached) return;
+    
+    // Skip if no Supabase client
+    const supabase = window.supabaseClient;
+    if (!supabase) return;
+    
+    try {
+        const { data: story, error } = await supabase
+            .from('grahams_devotional_spreads')
+            .select('spread_code, title, testament, book, start_chapter, start_verse, end_chapter, end_verse, kjv_passage_ref, devotional_content, key_verse, key_verse_text, life_application, primary_slot, image_url_1, image_url_2, image_url_3, image_url_4')
+            .eq('spread_code', spreadCode)
+            .single();
+        
+        if (error) throw error;
+        
+        if (story) {
+            // Cache story data only (not images - to save bandwidth)
+            await cacheStory(story);
+            console.log('[Offline] Prefetched:', spreadCode);
+        }
+    } catch (err) {
+        // Silent fail - prefetch is non-critical
+        console.warn('[Offline] Prefetch failed for', spreadCode, err.message);
+    }
+}
+
+/**
+ * Get prefetch status for debugging
+ * @returns {{pending: number, codes: string[]}}
+ */
+function getPrefetchStatus() {
+    return {
+        pending: pendingPrefetch.size,
+        codes: Array.from(pendingPrefetch)
+    };
+}
+
+// ============================================================================
 // Export
 // ============================================================================
 
@@ -1018,6 +1128,11 @@ window.GraceOffline = {
     initOfflineDetection,
     updateOfflineUI,
     onOfflineChange,
+    
+    // Smart prefetch
+    prefetchAdjacentStories,
+    prefetchStory,
+    getPrefetchStatus,
     
     // Utility
     formatBytes
