@@ -3,7 +3,7 @@
  * Provides offline caching with smart caching strategies
  */
 
-const CACHE_NAME = 'graham-bible-v18'; // Settings + prefetch improvements
+const CACHE_NAME = 'graham-bible-v19'; // Fix missing script tag
 const IMAGE_CACHE = 'graham-bible-images-v1';
 
 // App shell files to cache on install
