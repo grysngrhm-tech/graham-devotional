@@ -395,6 +395,33 @@ CREATE POLICY "Public read access" ON grahams_devotional_spreads
 -- Write/Update/Delete restricted to service_role (n8n workflows)
 ```
 
+### Admin RLS Policies (Additional)
+
+Admins need to view aggregate data for the dashboard. These policies allow admin users to read all records:
+
+```sql
+-- Admin can read all user data for statistics
+CREATE POLICY "Admins can read all favorites" ON user_favorites
+  FOR SELECT USING (
+    EXISTS (SELECT 1 FROM public.user_profiles 
+            WHERE id = auth.uid() AND is_admin = TRUE)
+  );
+
+CREATE POLICY "Admins can read all read stories" ON user_read_stories
+  FOR SELECT USING (
+    EXISTS (SELECT 1 FROM public.user_profiles 
+            WHERE id = auth.uid() AND is_admin = TRUE)
+  );
+
+CREATE POLICY "Admins can read all image selections" ON user_primary_images
+  FOR SELECT USING (
+    EXISTS (SELECT 1 FROM public.user_profiles 
+            WHERE id = auth.uid() AND is_admin = TRUE)
+  );
+```
+
+**Note:** For `user_profiles`, use the `admin_get_all_profiles()` SECURITY DEFINER function instead of RLS policies to avoid circular dependency issues.
+
 ### Storage Buckets
 
 | Bucket | Purpose | Access |
@@ -416,9 +443,35 @@ CREATE POLICY "Public read access" ON grahams_devotional_spreads
 - `https://www.grahambible.com/`
 - `https://grysngrhm-tech.github.io/graham-devotional/` (legacy/alternate)
 
-**Email Templates:**
-- Magic Link template should use `{{ .SiteURL }}` for redirect
-- Custom branding available in Supabase dashboard under Auth > Email Templates
+### Custom SMTP (Resend)
+
+Custom SMTP is required for branded emails and reliable delivery.
+
+**Supabase Dashboard > Project Settings > Authentication > SMTP Settings:**
+
+| Setting | Value |
+|---------|-------|
+| Host | `smtp.resend.com` |
+| Port | `465` |
+| Username | `resend` |
+| Password | Your Resend API Key |
+| Sender email | `hello@grahambible.com` |
+| Sender name | `The Graham Bible` |
+
+**Important:** Sender email must be lowercase and match your verified domain in Resend.
+
+### Email Templates
+
+Two custom templates provide consistent branding:
+
+| Template | When Sent | Key Variable |
+|----------|-----------|--------------|
+| Confirm signup | New user's first sign-in | `{{ .ConfirmationURL }}` |
+| Magic Link | Returning user requests login | `{{ .ConfirmationURL }}` |
+
+**Critical:** Both templates must use `{{ .ConfirmationURL }}` for the login button, NOT `{{ .SiteURL }}`.
+
+Full template code available in: `supabase/EMAIL_TEMPLATES.md`
 
 ### Making a User Admin
 
@@ -434,6 +487,47 @@ UPDATE user_profiles
 SET is_admin = true 
 WHERE email = 'admin@example.com';
 ```
+
+### Admin RLS Policies
+
+Admins need access to user data for the dashboard. Standard RLS blocks this.
+
+**Solution:** Use `SECURITY DEFINER` functions that execute with elevated privileges.
+
+```sql
+-- Function to get all profiles (bypasses RLS for admins)
+CREATE OR REPLACE FUNCTION admin_get_all_profiles()
+RETURNS SETOF public.user_profiles
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  -- Check if caller is admin
+  IF NOT EXISTS (
+    SELECT 1 FROM public.user_profiles 
+    WHERE id = auth.uid() AND is_admin = TRUE
+  ) THEN
+    RAISE EXCEPTION 'Access denied: Admin only';
+  END IF;
+  
+  RETURN QUERY SELECT * FROM public.user_profiles ORDER BY created_at DESC;
+END;
+$$;
+```
+
+Additional admin SELECT policies allow reading user data for statistics:
+
+```sql
+-- Example: Admin can see all favorites for statistics
+CREATE POLICY "Admins can read all favorites" ON user_favorites
+  FOR SELECT USING (
+    EXISTS (SELECT 1 FROM public.user_profiles 
+            WHERE id = auth.uid() AND is_admin = TRUE)
+  );
+```
+
+Full migration: `supabase/migrations/011_admin_rls_policies.sql`
 
 ---
 
@@ -460,6 +554,61 @@ After Processing Pipeline (image pass):
 ```
 
 A spread is **complete** when all four statuses = `done`.
+
+---
+
+## Client-Side Caching Architecture
+
+### IndexedDB Stores (`offline.js`)
+
+The web viewer uses IndexedDB for persistent client-side storage:
+
+| Store | Purpose | Retention |
+|-------|---------|-----------|
+| `story-cache` | Auto-cached viewed stories | LRU eviction (~100 stories) |
+| `library` | User's manually saved stories | Permanent |
+| `story-list` | Homepage story list cache | 5-minute freshness window |
+
+### Story List Caching
+
+For faster home page loading:
+
+1. **On page load:** Check `story-list` store
+2. **If fresh (< 5 min):** Render immediately from cache
+3. **If stale/missing:** Fetch from Supabase
+4. **Background refresh:** Fetch anyway if stale, update if changed
+
+```javascript
+// Check freshness
+const cachedList = await GraceOffline.getStoryList();
+if (cachedList && await GraceOffline.isStoryListFresh()) {
+  renderStories(cachedList); // Instant render
+} else {
+  // Fetch in background, re-render if different
+}
+```
+
+### Service Worker Caching (`sw.js`)
+
+PWA assets cached in three separate caches:
+
+| Cache | Contents | Strategy |
+|-------|----------|----------|
+| `graham-bible-v12` | HTML, CSS, JS, icons | Cache-first, network fallback |
+| `graham-fonts-v1` | Google Fonts | Cache-first |
+| `graham-images-v1` | Story images | Cache-first, network fallback |
+
+**Version Sync:** Bump service worker cache version when deploying changes.
+
+### Download Entire Bible
+
+Power user feature to download all content for offline use:
+
+- Downloads all story JSON data to IndexedDB `library` store
+- Downloads only user's primary image per story (or global default)
+- ~75% smaller than downloading all 4 images per story
+- Progress persists in `localStorage` — can resume after interruption
+- Progress saved every 10 stories
 
 ---
 
@@ -644,6 +793,14 @@ WHERE email = 'admin@example.com';
 
 | Date | Version | Changes |
 |------|---------|---------|
+| 2025-12-09 | v33.0 | Magic link auth fix, loading skeletons, error handling improvements |
+| 2025-12-09 | v32.0 | Custom email templates (Resend SMTP), download progress persistence |
+| 2025-12-08 | v31.0 | Admin curation mode with keyboard shortcuts, Generate All Images |
+| 2025-12-08 | v30.0 | Admin RLS policy fix: SECURITY DEFINER function for profile access |
+| 2025-12-07 | v29.0 | iOS-inspired settings redesign, Download Entire Bible feature |
+| 2025-12-07 | v28.0 | Optimistic story-list caching, race condition fixes |
+| 2025-12-06 | v27.0 | Event listener cleanup, user primary image for thumbnails |
+| 2025-12-05 | v26.0 | Bug fixes: favorites/read sync, image selection persistence |
 | 2025-12-04 | v12.0 | Mobile layout fixes, Supabase timeout wrappers |
 | 2025-12-04 | v11.0 | OTP authentication for PWA users |
 | 2025-12-04 | v10.5 | Offline library (user_library table), IndexedDB storage |

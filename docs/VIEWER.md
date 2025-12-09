@@ -266,18 +266,41 @@ Logged-in users can save stories for offline reading:
 
 ### Settings Modal
 
-Accessed via gear icon in header (when logged in):
+Accessed via gear icon in header (when logged in). iOS-inspired design with grouped sections.
 
+**Appearance Section:**
 | Setting | Options | Default |
 |---------|---------|---------|
 | Dark Mode | On/Off | On |
 | Font Size | Small/Medium/Large | Medium |
+
+**Reading Section:**
+| Setting | Options | Default |
+|---------|---------|---------|
 | Bible Version | NIV/ESV/KJV/NKJV/NLT/NASB/WEB | NIV |
 
-**Offline Storage Section (logged in only):**
-- Shows cache statistics (story count, size)
-- Buttons to manage automatic cache and library
-- Sign-in prompt for guests
+*Note: Bible Version changes the link to view the full scripture on Bible Gateway, not the quotes in the story.*
+
+**Storage Section (logged in only):**
+- Download Entire Bible — Downloads all stories and primary images for offline viewing
+- Clear Automatic Cache — Remove auto-cached stories
+- Clear My Library — Remove all manually saved stories
+- Storage usage statistics displayed
+
+**Download Entire Bible Feature:**
+- Downloads all story data and the user's primary image per story
+- Uses global default image if user hasn't selected a primary
+- Reduces download size by ~75% (only 1 image per story vs 4)
+- Progress persists if interrupted — can resume later
+- Shows percentage and story count during download
+
+**Account Section:**
+- Shows current user email
+- Sign Out button
+
+**About Section:**
+- Admin users see "Admin Panel" link
+- Gold glow effect on settings icon indicates admin status
 
 **Settings Persistence:**
 - Stored in `localStorage` as `graham-settings`
@@ -289,10 +312,6 @@ Accessed via gear icon in header (when logged in):
 - Max height 85% of viewport
 - Internal scrolling if content overflows
 - Tap backdrop to close
-
-**Admin Link:**
-- Admin users see "Admin Panel" link in settings
-- Gold glow effect on settings icon indicates admin status
 
 ---
 
@@ -364,6 +383,100 @@ When admin selects a primary image:
 - Updates `image_url` column (global default)
 - All users without personal selection see this image
 - Users with personal selections unaffected
+
+### Admin Curation Mode
+
+A dedicated workflow for efficiently reviewing and setting default images across all stories.
+
+**Access:**
+1. Go to Admin Dashboard (`/viewer/admin.html`)
+2. Click "Curate Default Images" card
+3. Navigates to main app in curation mode
+
+**Curation View Layout:**
+- **Left side:** 2×2 image grid for quick comparison
+- **Right side:** Story metadata (title, focal symbol, visual approach, prompt)
+- **Top bar:** Progress indicator and navigation controls
+- **Keyboard shortcuts** displayed at bottom
+
+**Keyboard Shortcuts:**
+| Key | Action |
+|-----|--------|
+| `1-4` | Set image slot 1-4 as global default |
+| `Shift+1-4` | Regenerate image in slot 1-4 |
+| `←` | Previous story |
+| `→` | Next story |
+| `Esc` | Exit curation mode |
+
+**Curation Filter:**
+- Default: Stories without a global default image (`no-default`)
+- Shows only stories needing attention
+- Progress bar shows completion status
+
+**Generate All Images (Empty Stories):**
+- For stories with no images at all, a "Generate All Images" button appears
+- Triggers n8n workflow to generate all 4 images at once
+- Images automatically assigned to slots 1-4 (no selection modal)
+- Progress indicator shows generation status
+
+**Admin Dashboard Stats:**
+- Stories Needing Default Image
+- Pending Images
+- Being Regenerated
+
+---
+
+## Loading States
+
+### Skeleton Loading
+
+The app uses skeleton loading states for smooth transitions and perceived performance.
+
+**Story Page Skeleton:**
+- Animated placeholder for image area (left)
+- Skeleton lines for title, passage, key verse, and paraphrase
+- Pulse animation while loading
+- Replaced immediately when data arrives
+
+**Home Page Skeleton:**
+- Grid of skeleton cards matching actual layout
+- Animated image placeholder per card
+- Skeleton text for title and metadata
+- 12 skeleton cards shown during initial load
+
+**CSS Animation:**
+```css
+@keyframes skeleton-pulse {
+    0%, 100% { opacity: 0.4; }
+    50% { opacity: 0.8; }
+}
+```
+
+---
+
+## Error Handling
+
+### User-Friendly Error Messages
+
+Network and database errors are translated to friendly messages:
+
+| Error Type | User Message |
+|------------|--------------|
+| Network error | "Network error. Please check your connection and try again." |
+| Timeout | "Request timed out. Please try again." |
+| Auth expired | "Your session has expired. Please sign in again." |
+| Generic | "Something went wrong. Please try again." |
+
+**Toast Notifications:**
+- Error toasts shown in red
+- Success toasts shown in default style
+- Auto-dismiss after 3-5 seconds
+- Can be manually dismissed
+
+**Optimistic Updates:**
+- UI updates immediately on user action
+- Reverts with error toast if backend fails
+- Applies to: favorites, read status, image selection
 
 ---
 
@@ -784,12 +897,31 @@ await supabase.from('user_library').delete()
 **Magic link not working:**
 - Check Supabase Auth settings: Site URL and Redirect URLs
 - Ensure redirect URL matches exactly (no trailing spaces)
-- PWA users: Use "Check Login Status" button after clicking link
+- Email template must use `{{ .ConfirmationURL }}` (not `{{ .SiteURL }}`)
+- SMTP sender email must be lowercase and match verified domain
+- PWA users: Use OTP code entry or "Check Login Status" button
+
+**Magic link redirects but doesn't log in:**
+- Ensure `auth.js` calls `getSession()` before setting up listeners
+- Check browser console for `[Auth]` logs
+- Hard refresh (`Ctrl+Shift+R`) to clear cached JavaScript
+- Verify latest `auth.js` version is deployed (check `?v=` parameter)
 
 **Admin features not showing:**
 - Verify `is_admin = true` in `user_profiles` table
 - Check browser console for auth state logs
+- Run SQL to restore admin status if needed:
+  ```sql
+  UPDATE public.user_profiles 
+  SET is_admin = true 
+  WHERE email = 'your-email@example.com';
+  ```
 - Try logging out and back in
+
+**Admin RLS issues (empty data in admin panel):**
+- RLS policies may be blocking admin access
+- Use `SECURITY DEFINER` functions for admin queries
+- See `supabase/migrations/011_admin_rls_policies.sql`
 
 **Session not persisting:**
 - Check localStorage is not blocked
@@ -848,14 +980,28 @@ Open: `http://localhost:8000`
 
 When making changes, update version query strings:
 ```html
-<link rel="stylesheet" href="styles.css?v=16">
-<script src="app.js?v=16"></script>
+<link rel="stylesheet" href="styles.css?v=33">
+<script src="app.js?v=33"></script>
+<script src="auth.js?v=13"></script>
+<script src="offline.js?v=3"></script>
+<script src="settings.js?v=3"></script>
 ```
 
 Also update service worker cache name:
 ```javascript
-const CACHE_NAME = 'graham-bible-v1';
+const CACHE_NAME = 'graham-bible-v12';
 ```
+
+**Current Versions (as of Dec 2025):**
+| File | Version |
+|------|---------|
+| `styles.css` | v33 |
+| `app.js` | v33 |
+| `auth.js` | v13 |
+| `offline.js` | v3 |
+| `settings.js` | v3 |
+| `router.js` | v2 |
+| Service Worker | v12 |
 
 ### Deployment
 
@@ -955,6 +1101,19 @@ Copy-Item "data\all-spreads.json" -Destination "viewer\data\all-spreads.json"
 
 | Date | Version | Changes |
 |------|---------|---------|
+| 2025-12-09 | v33.0 | Magic link auth fix, reverted initAuth to working code |
+| 2025-12-09 | v32.0 | Loading skeletons (story + home), improved error handling with user-friendly toasts |
+| 2025-12-09 | v31.0 | Download Entire Bible progress persistence (resume interrupted downloads) |
+| 2025-12-09 | v30.0 | Custom Supabase email templates with Resend SMTP integration |
+| 2025-12-08 | v29.0 | Admin curation mode redesign: image grid, abstract display, keyboard shortcuts |
+| 2025-12-08 | v28.0 | Generate All Images feature for stories with no images |
+| 2025-12-08 | v27.0 | Admin RLS policy fix (SECURITY DEFINER function for profiles) |
+| 2025-12-07 | v26.0 | iOS-inspired settings modal redesign, Download Entire Bible feature |
+| 2025-12-07 | v25.0 | Optimistic data loading with story-list caching |
+| 2025-12-06 | v24.0 | Race condition fixes for rapid navigation |
+| 2025-12-06 | v23.0 | Event listener cleanup to prevent memory leaks |
+| 2025-12-06 | v22.0 | User primary image selection for home page thumbnails |
+| 2025-12-05 | v21.0 | Bug fixes: favorites/read sync, image selection persistence |
 | 2025-12-04 | v12.0 | Mobile layout fixes, filter ordering, story header restructure |
 | 2025-12-04 | v11.5 | Supabase timeout wrappers, fallback data for story pages |
 | 2025-12-04 | v11.0 | OTP authentication for PWA, 8-digit code entry |
