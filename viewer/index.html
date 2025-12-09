@@ -28,7 +28,7 @@
     <!-- Google Fonts with font-display:swap for faster text rendering -->
     <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=IM+Fell+English:ital@0;1&family=Inter:wght@300;400;500;600&family=Playfair+Display:ital,opsz,wght@0,8..72,400;0,8..72,500;0,8..72,600;0,8..72,700;1,8..72,400&family=Source+Serif+4:ital,opsz,wght@0,8..60,300;0,8..60,400;0,8..60,500;1,8..60,400&display=swap" rel="stylesheet">
     
-    <link rel="stylesheet" href="styles.css?v=35">
+    <link rel="stylesheet" href="styles.css?v=36">
     
     <!-- PWA -->
     <link rel="manifest" href="manifest.json">
@@ -712,7 +712,7 @@
                             <line x1="12" y1="15" x2="12" y2="3"/>
                         </svg>
                         <span>Download Entire Bible</span>
-                        <span class="download-size" id="downloadSizeEstimate">~625 MB</span>
+                        <span class="download-size" id="downloadSizeEstimate">~550 MB</span>
                     </button>
                     
                     <!-- Download Progress -->
@@ -728,14 +728,41 @@
                     Sign in to sync your library across devices
                 </div>
                 
-                <!-- Storage Quota -->
+                <!-- Storage Quota with Limit Slider -->
                 <div class="settings-section-card storage-quota-card" id="storageQuotaSection">
                     <div class="storage-quota-header">
-                        <span class="storage-label">Device Storage</span>
+                        <span class="storage-label">App Storage</span>
                         <span class="storage-quota-text" id="storageQuotaText">Calculating...</span>
                     </div>
                     <div class="storage-quota-track">
                         <div class="storage-quota-bar" id="storageQuotaBar"></div>
+                    </div>
+                    
+                    <!-- Storage Limit Slider -->
+                    <div class="storage-limit-control">
+                        <div class="storage-limit-header">
+                            <span class="storage-limit-label">Storage Limit</span>
+                            <span class="storage-limit-value" id="storageLimitValue">150 MB</span>
+                        </div>
+                        <div class="storage-slider-container">
+                            <input type="range" 
+                                   id="storageLimitSlider" 
+                                   class="storage-slider"
+                                   min="0" 
+                                   max="6" 
+                                   value="2"
+                                   step="1">
+                            <div class="storage-slider-labels">
+                                <span>50</span>
+                                <span>100</span>
+                                <span>150</span>
+                                <span>300</span>
+                                <span>450</span>
+                                <span>600</span>
+                                <span>750</span>
+                            </div>
+                        </div>
+                        <p class="storage-limit-hint">Lower limits automatically clear old cache</p>
                     </div>
                 </div>
             </div>
@@ -800,10 +827,10 @@
     <!-- Supabase JS Client (self-hosted to avoid tracking prevention blocks) -->
     <script src="lib/supabase.min.js"></script>
     <script src="config.js"></script>
-    <script src="offline.js?v=4"></script>
+    <script src="offline.js?v=5"></script>
     <script src="auth.js?v=15"></script>
-    <script src="settings.js?v=5"></script>
+    <script src="settings.js?v=6"></script>
     <script src="router.js?v=2"></script>
-    <script src="app.js?v=38"></script>
+    <script src="app.js?v=39"></script>
 </body>
 </html>

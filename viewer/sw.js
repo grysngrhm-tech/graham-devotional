@@ -3,7 +3,7 @@
  * Provides offline caching with smart caching strategies
  */
 
-const CACHE_NAME = 'graham-bible-v20'; // Fix duplicate prefetchToggle declaration
+const CACHE_NAME = 'graham-bible-v21'; // Smart storage management with limit slider
 const IMAGE_CACHE = 'graham-bible-images-v1';
 
 // App shell files to cache on install

@@ -215,6 +215,9 @@ const GraceSettings = (function() {
         
         // Setup offline storage controls
         setupOfflineStorage();
+        
+        // Setup storage limit slider
+        setupStorageLimitSlider();
     }
     
     /**
@@ -286,7 +289,34 @@ const GraceSettings = (function() {
         // Download entire Bible button
         if (downloadEntireBibleBtn) {
             downloadEntireBibleBtn.addEventListener('click', async () => {
-                if (!confirm('Download all 500 stories with images? This will use approximately 625 MB of storage and may take several minutes.')) {
+                // Check storage availability first
+                const estimate = await window.GraceOffline?.getDownloadEstimate();
+                const requiredMB = estimate?.estimatedMB || 550;
+                
+                const availability = await window.GraceOffline?.checkStorageAvailability(requiredMB);
+                
+                if (availability && !availability.hasSpace) {
+                    const shouldIncrease = confirm(
+                        `Not enough storage space.\n\n` +
+                        `Required: ${requiredMB} MB\n` +
+                        `Available: ${availability.availableMB} MB\n` +
+                        `Current limit: ${availability.currentLimitMB} MB\n\n` +
+                        `Would you like to increase your storage limit to ${requiredMB + 100} MB?`
+                    );
+                    
+                    if (shouldIncrease) {
+                        // Find the next preset that fits
+                        const presets = window.GraceOffline.STORAGE_PRESETS;
+                        const newLimit = presets.find(p => p >= requiredMB + 50) || presets[presets.length - 1];
+                        window.GraceOffline.setStorageLimitMB(newLimit);
+                        updateStorageQuota();
+                        showStorageToast(`Storage limit increased to ${newLimit} MB`);
+                    } else {
+                        return;
+                    }
+                }
+                
+                if (!confirm(`Download all ${estimate?.stories || 500} stories with images?\n\nThis will use approximately ${requiredMB} MB of storage and may take several minutes.`)) {
                     return;
                 }
                 
@@ -322,6 +352,7 @@ const GraceSettings = (function() {
                         showStorageToast('Download completed with some errors', true);
                     }
                     updateStorageStats();
+                    updateStorageQuota();
                 } catch (err) {
                     console.error('[Settings] Error downloading entire Bible:', err);
                     showStorageToast('Download failed', true);
@@ -403,27 +434,25 @@ const GraceSettings = (function() {
     }
     
     /**
-     * Update storage quota display
+     * Update storage quota display with app-specific limit slider
      */
     async function updateStorageQuota() {
         const quotaBar = document.getElementById('storageQuotaBar');
         const quotaText = document.getElementById('storageQuotaText');
         const quotaSection = document.getElementById('storageQuotaSection');
+        const storageSlider = document.getElementById('storageLimitSlider');
+        const sliderValue = document.getElementById('storageLimitValue');
         
-        if (!quotaSection) return;
-        
-        // Check if Storage API is available
-        if (!navigator.storage || !navigator.storage.estimate) {
-            quotaSection.style.display = 'none';
-            return;
-        }
+        if (!quotaSection || !window.GraceOffline) return;
         
         try {
-            const estimate = await navigator.storage.estimate();
-            const usedMB = Math.round((estimate.usage || 0) / (1024 * 1024));
-            const quotaMB = Math.round((estimate.quota || 0) / (1024 * 1024));
-            const percentUsed = quotaMB > 0 ? Math.round((estimate.usage / estimate.quota) * 100) : 0;
+            // Get app storage usage (not device storage)
+            const usage = await window.GraceOffline.getAppStorageUsage();
+            const limitMB = window.GraceOffline.getStorageLimitMB();
+            const usedMB = Math.round(usage.totalBytes / (1024 * 1024));
+            const percentUsed = limitMB > 0 ? Math.round((usedMB / limitMB) * 100) : 0;
             
+            // Update progress bar
             if (quotaBar) {
                 quotaBar.style.width = `${Math.min(percentUsed, 100)}%`;
                 // Color code based on usage
@@ -437,13 +466,19 @@ const GraceSettings = (function() {
             }
             
             if (quotaText) {
-                if (quotaMB > 1024) {
-                    const usedGB = (usedMB / 1024).toFixed(1);
-                    const quotaGB = (quotaMB / 1024).toFixed(1);
-                    quotaText.textContent = `${usedGB} GB / ${quotaGB} GB used`;
-                } else {
-                    quotaText.textContent = `${usedMB} MB / ${quotaMB} MB used`;
-                }
+                quotaText.textContent = `${usedMB} MB / ${limitMB} MB used`;
+            }
+            
+            // Update slider
+            if (storageSlider) {
+                const presets = window.GraceOffline.STORAGE_PRESETS;
+                const sliderIndex = presets.indexOf(limitMB);
+                storageSlider.max = presets.length - 1;
+                storageSlider.value = sliderIndex >= 0 ? sliderIndex : 2; // Default to 150MB (index 2)
+            }
+            
+            if (sliderValue) {
+                sliderValue.textContent = `${limitMB} MB`;
             }
             
             quotaSection.style.display = 'block';
@@ -451,6 +486,54 @@ const GraceSettings = (function() {
             console.warn('[Settings] Could not get storage quota:', err);
             quotaSection.style.display = 'none';
         }
+    }
+    
+    /**
+     * Setup storage limit slider
+     */
+    function setupStorageLimitSlider() {
+        const slider = document.getElementById('storageLimitSlider');
+        const valueDisplay = document.getElementById('storageLimitValue');
+        
+        if (!slider || !window.GraceOffline) return;
+        
+        const presets = window.GraceOffline.STORAGE_PRESETS;
+        
+        slider.addEventListener('input', () => {
+            const presetIndex = parseInt(slider.value, 10);
+            const limitMB = presets[presetIndex] || 150;
+            
+            if (valueDisplay) {
+                valueDisplay.textContent = `${limitMB} MB`;
+            }
+        });
+        
+        slider.addEventListener('change', async () => {
+            const presetIndex = parseInt(slider.value, 10);
+            const limitMB = presets[presetIndex] || 150;
+            
+            window.GraceOffline.setStorageLimitMB(limitMB);
+            
+            // Check if current usage exceeds new limit
+            const usage = await window.GraceOffline.getAppStorageUsage();
+            const usedMB = Math.round(usage.totalBytes / (1024 * 1024));
+            
+            if (usedMB > limitMB * 0.9) {
+                // Warn user and offer to clean up
+                const shouldCleanup = confirm(
+                    `Current usage (${usedMB} MB) exceeds 90% of new limit (${limitMB} MB).\n\nClear cached stories to free up space?`
+                );
+                
+                if (shouldCleanup) {
+                    await window.GraceOffline.smartCleanup((usedMB - limitMB * 0.7) * 1024 * 1024);
+                    showStorageToast('Cache cleared to fit new storage limit');
+                }
+            }
+            
+            // Refresh display
+            updateStorageQuota();
+            updateStorageStats();
+        });
     }
     
     /**

@@ -72,12 +72,19 @@ async function openDatabase() {
 
 /**
  * Save a story to the automatic cache
+ * Skips if story is already in user's library (prevents duplicates)
  * @param {Object} story - Full story object from Supabase
  */
 async function cacheStory(story) {
     if (!story?.spread_code) return;
     
     try {
+        // Skip if already in library (prevents duplicate storage)
+        const inLibrary = await isInLibrary(story.spread_code);
+        if (inLibrary) {
+            return;
+        }
+        
         const database = await openDatabase();
         const tx = database.transaction(CACHE_STORE, 'readwrite');
         const store = tx.objectStore(CACHE_STORE);
@@ -95,8 +102,8 @@ async function cacheStory(story) {
             tx.onerror = () => reject(tx.error);
         });
         
-        // Prune cache if needed (run async, don't block)
-        pruneCache();
+        // Check storage limit and cleanup if needed
+        await checkStorageLimitAndCleanup();
         
     } catch (err) {
         console.error('[Offline] Failed to cache story:', err);
@@ -262,8 +269,8 @@ async function getCacheStats() {
             const countRequest = store.count();
             countRequest.onsuccess = () => {
                 const count = countRequest.result;
-                // Estimate ~105KB per story (5KB data + 100KB image)
-                const sizeEstimate = count * 105 * 1024;
+                // Estimate ~1.1MB per story (100KB data + 1MB image)
+                const sizeEstimate = count * 1.1 * 1024 * 1024;
                 resolve({ count, sizeEstimate });
             };
             countRequest.onerror = () => reject(countRequest.error);
@@ -377,6 +384,7 @@ async function clearStoryListCache() {
 
 /**
  * Save a story to the user's offline library
+ * Also removes from automatic cache to prevent duplicate storage
  * @param {Object} story - Full story object
  */
 async function saveToLibrary(story) {
@@ -400,9 +408,32 @@ async function saveToLibrary(story) {
             tx.onerror = () => reject(tx.error);
         });
         
+        // Remove from cache if exists (prevent duplicate storage)
+        await removeFromCacheIfExists(story.spread_code);
+        
     } catch (err) {
         console.error('[Offline] Failed to save to library:', err);
         throw err;
+    }
+}
+
+/**
+ * Remove a story from cache if it exists (for deduplication)
+ * @param {string} spreadCode
+ */
+async function removeFromCacheIfExists(spreadCode) {
+    try {
+        const database = await openDatabase();
+        const tx = database.transaction(CACHE_STORE, 'readwrite');
+        const store = tx.objectStore(CACHE_STORE);
+        store.delete(spreadCode);
+        
+        await new Promise((resolve, reject) => {
+            tx.oncomplete = resolve;
+            tx.onerror = () => reject(tx.error);
+        });
+    } catch (err) {
+        // Non-critical - ignore errors
     }
 }
 
@@ -568,7 +599,8 @@ async function getLibraryStats() {
             const countRequest = store.count();
             countRequest.onsuccess = () => {
                 const count = countRequest.result;
-                const sizeEstimate = count * 105 * 1024;
+                // Estimate ~1.1MB per story (100KB data + 1MB image)
+                const sizeEstimate = count * 1.1 * 1024 * 1024;
                 resolve({ count, sizeEstimate });
             };
             countRequest.onerror = () => reject(countRequest.error);
@@ -811,24 +843,25 @@ async function downloadEntireBible(progressCallback, userPrimaryImages = new Map
 
 /**
  * Get download size estimate
+ * Updated estimate: ~100KB data + ~1MB image = ~1.1MB per story
  * @returns {{stories: number, estimatedMB: number}}
  */
 async function getDownloadEstimate() {
     try {
         const supabase = window.supabaseClient;
-        if (!supabase) return { stories: 500, estimatedMB: 625 }; // Default estimate
+        if (!supabase) return { stories: 500, estimatedMB: 550 }; // Default estimate
         
         const { count } = await supabase
             .from('grahams_devotional_spreads')
             .select('*', { count: 'exact', head: true });
         
-        // Estimate: ~5KB per story data + ~1.25MB per image = ~1.25MB per story
+        // Estimate: ~100KB per story data + ~1MB per primary image = ~1.1MB per story
         const stories = count || 500;
-        const estimatedMB = Math.round(stories * 1.25);
+        const estimatedMB = Math.round(stories * 1.1);
         
         return { stories, estimatedMB };
     } catch (err) {
-        return { stories: 500, estimatedMB: 625 };
+        return { stories: 500, estimatedMB: 550 };
     }
 }
 
@@ -973,6 +1006,180 @@ function formatBytes(bytes) {
 }
 
 // ============================================================================
+// Storage Limit Management
+// ============================================================================
+
+// Storage limit presets in MB (50 MB increments)
+const STORAGE_PRESETS = [50, 100, 150, 300, 450, 600, 750];
+const DEFAULT_STORAGE_LIMIT_MB = 150;
+const STORAGE_LIMIT_KEY = 'graham-storage-limit-mb';
+
+/**
+ * Get the current storage limit in MB
+ * @returns {number}
+ */
+function getStorageLimitMB() {
+    try {
+        const stored = localStorage.getItem(STORAGE_LIMIT_KEY);
+        if (stored) {
+            const limit = parseInt(stored, 10);
+            if (STORAGE_PRESETS.includes(limit)) {
+                return limit;
+            }
+        }
+    } catch (err) {
+        // localStorage might be unavailable
+    }
+    return DEFAULT_STORAGE_LIMIT_MB;
+}
+
+/**
+ * Set the storage limit in MB
+ * @param {number} limitMB - Must be one of STORAGE_PRESETS
+ */
+function setStorageLimitMB(limitMB) {
+    if (!STORAGE_PRESETS.includes(limitMB)) {
+        console.warn('[Offline] Invalid storage limit:', limitMB);
+        return;
+    }
+    try {
+        localStorage.setItem(STORAGE_LIMIT_KEY, limitMB.toString());
+        console.log('[Offline] Storage limit set to', limitMB, 'MB');
+    } catch (err) {
+        console.error('[Offline] Failed to save storage limit:', err);
+    }
+}
+
+/**
+ * Get total app storage usage (cache + library + images)
+ * @returns {Promise<{totalBytes: number, cacheBytes: number, libraryBytes: number, imageBytes: number}>}
+ */
+async function getAppStorageUsage() {
+    try {
+        const [cacheStats, libraryStats] = await Promise.all([
+            getCacheStats(),
+            getLibraryStats()
+        ]);
+        
+        // Estimate ~1.1MB per story (100KB data + 1MB image)
+        const BYTES_PER_STORY = 1.1 * 1024 * 1024;
+        
+        const cacheBytes = cacheStats.count * BYTES_PER_STORY;
+        const libraryBytes = libraryStats.count * BYTES_PER_STORY;
+        const imageBytes = 0; // Images counted in per-story estimate
+        
+        return {
+            totalBytes: cacheBytes + libraryBytes,
+            cacheBytes,
+            libraryBytes,
+            imageBytes,
+            cacheCount: cacheStats.count,
+            libraryCount: libraryStats.count
+        };
+    } catch (err) {
+        console.error('[Offline] Failed to get storage usage:', err);
+        return { totalBytes: 0, cacheBytes: 0, libraryBytes: 0, imageBytes: 0, cacheCount: 0, libraryCount: 0 };
+    }
+}
+
+/**
+ * Check if storage is approaching limit and cleanup if needed
+ * Called automatically after caching stories
+ */
+async function checkStorageLimitAndCleanup() {
+    try {
+        const limitMB = getStorageLimitMB();
+        const limitBytes = limitMB * 1024 * 1024;
+        const usage = await getAppStorageUsage();
+        
+        // Check if over 90% of limit
+        if (usage.totalBytes > limitBytes * 0.9) {
+            console.log('[Offline] Storage approaching limit, cleaning up...');
+            await smartCleanup(usage.totalBytes - (limitBytes * 0.7)); // Free up to 70%
+        }
+    } catch (err) {
+        console.error('[Offline] Storage limit check failed:', err);
+    }
+}
+
+/**
+ * Smart cleanup - removes least important data first
+ * Priority: 1. Old cache entries (LRU), 2. Story list cache
+ * Never touches Library (user's intentional saves)
+ * @param {number} targetBytesToFree - How many bytes to free up
+ * @returns {Promise<{freed: number, itemsDeleted: number}>}
+ */
+async function smartCleanup(targetBytesToFree) {
+    let totalFreed = 0;
+    let itemsDeleted = 0;
+    const BYTES_PER_STORY = 1.1 * 1024 * 1024;
+    
+    try {
+        const database = await openDatabase();
+        
+        // Phase 1: Delete oldest cache entries (LRU)
+        const tx = database.transaction(CACHE_STORE, 'readwrite');
+        const store = tx.objectStore(CACHE_STORE);
+        const index = store.index('last_viewed');
+        
+        await new Promise((resolve, reject) => {
+            const cursorRequest = index.openCursor();
+            cursorRequest.onsuccess = (event) => {
+                const cursor = event.target.result;
+                if (cursor && totalFreed < targetBytesToFree) {
+                    store.delete(cursor.primaryKey);
+                    totalFreed += BYTES_PER_STORY;
+                    itemsDeleted++;
+                    cursor.continue();
+                } else {
+                    resolve();
+                }
+            };
+            cursorRequest.onerror = () => reject(cursorRequest.error);
+        });
+        
+        // Phase 2: If still not enough, clear story list cache
+        if (totalFreed < targetBytesToFree) {
+            await clearStoryListCache();
+            totalFreed += 2 * 1024 * 1024; // Estimate 2MB for story list
+        }
+        
+        console.log('[Offline] Cleanup freed', formatBytes(totalFreed), '- deleted', itemsDeleted, 'cache entries');
+        
+        // Notify user
+        if (itemsDeleted > 0 && typeof showToast === 'function') {
+            showToast(`Cleared ${itemsDeleted} cached stories to free space`);
+        }
+        
+        return { freed: totalFreed, itemsDeleted };
+    } catch (err) {
+        console.error('[Offline] Smart cleanup failed:', err);
+        return { freed: 0, itemsDeleted: 0 };
+    }
+}
+
+/**
+ * Check if there's enough storage space for a download
+ * @param {number} requiredMB - Required space in MB
+ * @returns {Promise<{hasSpace: boolean, availableMB: number, requiredMB: number, needsMoreMB: number}>}
+ */
+async function checkStorageAvailability(requiredMB) {
+    const limitMB = getStorageLimitMB();
+    const usage = await getAppStorageUsage();
+    const usedMB = Math.round(usage.totalBytes / (1024 * 1024));
+    const availableMB = limitMB - usedMB;
+    const hasSpace = availableMB >= requiredMB;
+    
+    return {
+        hasSpace,
+        availableMB,
+        requiredMB,
+        needsMoreMB: hasSpace ? 0 : requiredMB - availableMB,
+        currentLimitMB: limitMB
+    };
+}
+
+// ============================================================================
 // Smart Prefetch System
 // ============================================================================
 
@@ -1039,7 +1246,8 @@ async function prefetchAdjacentStories(currentSpreadCode, filteredStories, range
 }
 
 /**
- * Prefetch a single story (data only, no images)
+ * Prefetch a single story (data + primary image)
+ * Caches both story data and the primary image for instant loading
  * @param {string} spreadCode
  */
 async function prefetchStory(spreadCode) {
@@ -1061,13 +1269,61 @@ async function prefetchStory(spreadCode) {
         if (error) throw error;
         
         if (story) {
-            // Cache story data only (not images - to save bandwidth)
+            // Cache story data
             await cacheStory(story);
+            
+            // Also cache the primary image for instant loading
+            await prefetchPrimaryImage(story);
+            
             console.log('[Offline] Prefetched:', spreadCode);
         }
     } catch (err) {
         // Silent fail - prefetch is non-critical
         console.warn('[Offline] Prefetch failed for', spreadCode, err.message);
+    }
+}
+
+/**
+ * Prefetch and cache a story's primary image
+ * @param {Object} story - Story object with image URLs
+ */
+async function prefetchPrimaryImage(story) {
+    if (!story) return;
+    
+    try {
+        // Determine primary image URL (user selection > global default > slot 1)
+        let primaryImageUrl = null;
+        
+        // Check for user's custom selection
+        if (window.GraceAuth?.isAuthenticated()) {
+            const userSlot = await window.GraceAuth.getUserPrimaryImage?.(story.spread_code);
+            if (userSlot) {
+                primaryImageUrl = story[`image_url_${userSlot}`];
+            }
+        }
+        
+        // Fall back to global default (primary_slot)
+        if (!primaryImageUrl) {
+            const globalSlot = story.primary_slot || 1;
+            primaryImageUrl = story[`image_url_${globalSlot}`] || story.image_url_1;
+        }
+        
+        if (!primaryImageUrl) return;
+        
+        // Cache the image using service worker's cache
+        const imageCache = await caches.open('graham-bible-images-v1');
+        const cachedResponse = await imageCache.match(primaryImageUrl);
+        
+        if (!cachedResponse) {
+            const response = await fetch(primaryImageUrl);
+            if (response.ok) {
+                await imageCache.put(primaryImageUrl, response);
+                console.log('[Offline] Prefetched image for:', story.spread_code);
+            }
+        }
+    } catch (err) {
+        // Silent fail - image prefetch is non-critical
+        console.warn('[Offline] Image prefetch failed for', story.spread_code, err.message);
     }
 }
 
@@ -1132,7 +1388,16 @@ window.GraceOffline = {
     // Smart prefetch
     prefetchAdjacentStories,
     prefetchStory,
+    prefetchPrimaryImage,
     getPrefetchStatus,
+    
+    // Storage limit management
+    getStorageLimitMB,
+    setStorageLimitMB,
+    getAppStorageUsage,
+    checkStorageAvailability,
+    smartCleanup,
+    STORAGE_PRESETS,
     
     // Utility
     formatBytes
