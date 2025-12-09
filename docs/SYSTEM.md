@@ -234,7 +234,7 @@ CREATE TABLE public.grahams_devotional_spreads (
     mood_category           TEXT,        -- awe|peace|struggle|triumph|sorrow|mystery|joy|warning
     image_abstract          TEXT,        -- Scene analysis from GPT-4
     image_prompt            TEXT,        -- Primary image prompt (first of 4)
-    image_url               TEXT,        -- Primary/selected image URL (global default)
+    primary_slot            INTEGER DEFAULT 1 CHECK (primary_slot >= 1 AND primary_slot <= 4),  -- Global default slot (1-4)
     image_url_1             TEXT,        -- First artistic variation URL
     image_url_2             TEXT,        -- Second artistic variation URL
     image_url_3             TEXT,        -- Third artistic variation URL
@@ -422,6 +422,45 @@ CREATE POLICY "Admins can read all image selections" ON user_primary_images
 
 **Note:** For `user_profiles`, use the `admin_get_all_profiles()` SECURITY DEFINER function instead of RLS policies to avoid circular dependency issues.
 
+### Primary Image Data Model
+
+The `primary_slot` column uses a slot-based reference system instead of storing duplicate URLs:
+
+**Why Slot-Based?**
+- Prevents orphaned image references after regeneration
+- Single source of truth for each image slot
+- Simpler admin curation (set slot 1-4, not copy URLs)
+- User selections also use slot numbers (`user_primary_images.image_slot`)
+
+**Migration (from legacy `image_url`):**
+```sql
+-- Add new column
+ALTER TABLE grahams_devotional_spreads 
+ADD COLUMN IF NOT EXISTS primary_slot INTEGER DEFAULT 1;
+
+-- Migrate existing data
+UPDATE grahams_devotional_spreads SET primary_slot = 
+  CASE 
+    WHEN image_url IS NOT NULL AND image_url = image_url_1 THEN 1
+    WHEN image_url IS NOT NULL AND image_url = image_url_2 THEN 2
+    WHEN image_url IS NOT NULL AND image_url = image_url_3 THEN 3
+    WHEN image_url IS NOT NULL AND image_url = image_url_4 THEN 4
+    ELSE 1
+  END;
+
+-- Add constraint
+ALTER TABLE grahams_devotional_spreads 
+ADD CONSTRAINT primary_slot_range CHECK (primary_slot >= 1 AND primary_slot <= 4);
+
+-- Drop legacy column (after verification)
+ALTER TABLE grahams_devotional_spreads DROP COLUMN IF EXISTS image_url;
+```
+
+**Image Selection Priority:**
+1. User's personal selection (`user_primary_images.image_slot`)
+2. Global default (`grahams_devotional_spreads.primary_slot`)
+3. Fallback to slot 1 if neither set
+
 ### Storage Buckets
 
 | Bucket | Purpose | Access |
@@ -429,6 +468,27 @@ CREATE POLICY "Admins can read all image selections" ON user_primary_images
 | `devotional-artwork` | Generated images | Public |
 | `devotional-data` | Source JSON outlines | Public |
 | `devotional-images` | Alternative image storage | Public |
+
+### Supabase Image Transforms
+
+Thumbnails are generated on-the-fly using Supabase's image transformation API:
+
+```javascript
+// Convert storage URL to transformed URL
+const thumbnailUrl = imageUrl
+    .replace('/storage/v1/object/', '/storage/v1/render/image/')
+    + '?width=400&quality=80';
+```
+
+**Usage:**
+- Homepage cards: 400px width, 80% quality (~50KB vs ~1MB original)
+- Story page 4-image grid: Same transforms
+- Single-image view: Full resolution (original URL)
+
+**Benefits:**
+- ~80% reduction in initial page load bandwidth
+- Faster LCP (Largest Contentful Paint)
+- Images served from Supabase CDN edge locations
 
 ---
 
@@ -594,11 +654,33 @@ PWA assets cached in three separate caches:
 
 | Cache | Contents | Strategy |
 |-------|----------|----------|
-| `graham-bible-v12` | HTML, CSS, JS, icons | Cache-first, network fallback |
+| `graham-bible-v18` | HTML, CSS, JS, icons | Cache-first, network fallback |
 | `graham-fonts-v1` | Google Fonts | Cache-first |
 | `graham-images-v1` | Story images | Cache-first, network fallback |
 
 **Version Sync:** Bump service worker cache version when deploying changes.
+
+### Smart Prefetch System
+
+Adjacent stories are prefetched in the background when viewing a story:
+
+```javascript
+// In offline.js
+async function prefetchAdjacentStories(currentSpreadCode, filteredStories, range = 2) {
+    // Check if prefetch enabled in settings
+    if (GraceSettings.getSetting('prefetchEnabled') === false) return;
+    
+    // Find current position and prefetch prev/next stories
+    // Uses requestIdleCallback for low-priority fetching
+    // Only prefetches story data (not images)
+}
+```
+
+**Benefits:**
+- ~80% faster navigation to adjacent stories
+- Non-blocking (uses idle time)
+- Bandwidth-efficient (data only, ~5KB per story vs ~1MB with images)
+- User-configurable via Settings > Performance
 
 ### Download Entire Bible
 
@@ -793,6 +875,11 @@ WHERE email = 'admin@example.com';
 
 | Date | Version | Changes |
 |------|---------|---------|
+| 2025-12-09 | v38.0 | Settings button fix, storage quota display, smart prefetch system |
+| 2025-12-09 | v37.0 | Primary slot migration: replaced image_url with primary_slot integer |
+| 2025-12-09 | v36.0 | Homepage performance: image transforms, pagination, static JSON optimization |
+| 2025-12-09 | v35.0 | Custom email templates with Playfair Display font |
+| 2025-12-09 | v34.0 | PKCE flow support for magic link authentication |
 | 2025-12-09 | v33.0 | Magic link auth fix, loading skeletons, error handling improvements |
 | 2025-12-09 | v32.0 | Custom email templates (Resend SMTP), download progress persistence |
 | 2025-12-08 | v31.0 | Admin curation mode with keyboard shortcuts, Generate All Images |

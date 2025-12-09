@@ -288,11 +288,12 @@ Accessed via gear icon in header (when logged in). iOS-inspired design with grou
 
 *Note: Bible Version changes the link to view the full scripture on Bible Gateway, not the quotes in the story.*
 
-**Storage Section (logged in only):**
+**Storage Section:**
 - Download Entire Bible — Downloads all stories and primary images for offline viewing
 - Clear Automatic Cache — Remove auto-cached stories
-- Clear My Library — Remove all manually saved stories
+- Clear My Library — Remove all manually saved stories (logged in only)
 - Storage usage statistics displayed
+- Device Storage Quota — Visual progress bar showing used/available space
 
 **Download Entire Bible Feature:**
 - Downloads all story data and the user's primary image per story
@@ -300,6 +301,13 @@ Accessed via gear icon in header (when logged in). iOS-inspired design with grou
 - Reduces download size by ~75% (only 1 image per story vs 4)
 - Progress persists if interrupted — can resume later
 - Shows percentage and story count during download
+
+**Performance Section:**
+| Setting | Options | Default |
+|---------|---------|---------|
+| Smart Prefetch | On/Off | On |
+
+*Smart Prefetch preloads adjacent stories (prev/next 2) when viewing a story for faster navigation.*
 
 **Account Section:**
 - Shows current user email
@@ -387,9 +395,10 @@ Admin selection updates spread's image_url_X
 ### Global Default Images
 
 When admin selects a primary image:
-- Updates `image_url` column (global default)
-- All users without personal selection see this image
+- Updates `primary_slot` column (integer 1-4) indicating which slot is the global default
+- All users without personal selection see the image from this slot
 - Users with personal selections unaffected
+- Uses slot-based reference (not URL duplication) to prevent orphaned references after regeneration
 
 ### Admin Curation Mode
 
@@ -529,6 +538,13 @@ Network and database errors are translated to friendly messages:
 - LRU eviction keeps cache size manageable (~100 stories)
 - Works for all users (logged in or not)
 
+**Smart Prefetch:**
+- When viewing a story, adjacent stories (prev/next 2) are prefetched in background
+- Uses `requestIdleCallback` for low-priority fetching (doesn't block UI)
+- Only prefetches story data (not images) to save bandwidth
+- Configurable via Settings > Performance > Smart Prefetch toggle
+- Dramatically improves navigation speed between stories
+
 **User Library (logged in):**
 - Manual "Save to Library" button on stories
 - Stories saved permanently until removed
@@ -630,6 +646,25 @@ The Graham Bible — An illustrated Bible arranged story by story
 - Pending spreads: placeholder image
 - Complete badge (admin only)
 - Click any card to view full spread
+
+### Performance Optimizations
+
+**Image Transforms (Supabase):**
+- Homepage thumbnails use Supabase image transforms (400px width, 80% quality)
+- Story page 4-image grid also uses transformed thumbnails
+- Only single-image story view loads full resolution
+- Reduces initial page load by ~80%
+
+**Progressive Loading:**
+- Initial load: 48 story cards
+- More cards loaded on scroll via IntersectionObserver
+- Static JSON (`data/all-spreads.json`) loaded first for instant rendering
+- Background Supabase fetch updates with latest data
+
+**Preconnect Hints:**
+- Google Fonts
+- Supabase storage domain
+- Reduces DNS/TLS handshake latency
 
 ### Unified Breadcrumb Header
 
@@ -817,7 +852,30 @@ All interactive elements meet 44×44px minimum:
 ```javascript
 const { data } = await supabase
     .from('grahams_devotional_spreads')
-    .select('spread_code, title, kjv_passage_ref, status_text, status_image, image_url, image_url_1, testament, book, start_chapter, start_verse');
+    .select('spread_code, title, kjv_passage_ref, status_text, status_image, primary_slot, image_url_1, image_url_2, image_url_3, image_url_4, testament, book, start_chapter, start_verse');
+```
+
+**Primary Image Selection Logic:**
+```javascript
+function getPrimaryImageUrl(story, userPrimarySlot = null) {
+    // Priority 1: User's personal selection
+    if (userPrimarySlot) {
+        const url = story[`image_url_${userPrimarySlot}`];
+        if (url) return url;
+    }
+    // Priority 2: Global default (admin-curated)
+    const globalSlot = story.primary_slot || 1;
+    return story[`image_url_${globalSlot}`] || story.image_url_1 || null;
+}
+```
+
+**Thumbnail URL Generation:**
+```javascript
+function getThumbnailUrl(imageUrl, width = 400, quality = 80) {
+    if (!imageUrl?.includes('supabase.co/storage/v1/object/')) return imageUrl;
+    const thumbnailUrl = imageUrl.replace('/storage/v1/object/', '/storage/v1/render/image/');
+    return `${thumbnailUrl}?width=${width}&quality=${quality}`;
+}
 ```
 
 **Load Single Spread:**
@@ -1002,13 +1060,13 @@ const CACHE_NAME = 'graham-bible-v12';
 **Current Versions (as of Dec 2025):**
 | File | Version |
 |------|---------|
-| `styles.css` | v33 |
-| `app.js` | v33 |
-| `auth.js` | v13 |
-| `offline.js` | v3 |
-| `settings.js` | v3 |
+| `styles.css` | v35 |
+| `app.js` | v38 |
+| `auth.js` | v14 |
+| `offline.js` | v4 |
+| `settings.js` | v4 |
 | `router.js` | v2 |
-| Service Worker | v12 |
+| Service Worker | v18 |
 
 ### Deployment
 
@@ -1089,18 +1147,38 @@ Invoke-WebRequest -Uri "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dis
 
 ### Updating Fallback Data
 
-```bash
-# Copy from source
-cp data/all-spreads.json viewer/data/all-spreads.json
+**Automated Export (Recommended):**
 
-# Or with PowerShell
-Copy-Item "data\all-spreads.json" -Destination "viewer\data\all-spreads.json"
+```bash
+# From project root
+cd graham-devotional
+npm install  # First time only
+node scripts/export-stories.js
+```
+
+This script:
+- Fetches all 500 stories from Supabase
+- Exports to `viewer/data/all-spreads.json`
+- Includes `primary_slot` and all 4 image URLs per story
+- Shows count of stories with/without images
+
+**Manual Copy (Legacy):**
+```bash
+cp data/all-spreads.json viewer/data/all-spreads.json
 ```
 
 **When to update:**
+- After admin sets new global default images (primary_slot changes)
+- After image regeneration (new image URLs)
 - New stories added to the outline
 - Story metadata changes (titles, references)
-- Not needed for: image updates, status changes (those come from Supabase)
+
+**Cache Busting:**
+After updating, bump the version parameter in app.js:
+```javascript
+fetch('data/all-spreads.json?v=3')  // Increment version
+```
+Also update service worker cache name in `sw.js`.
 
 ---
 
@@ -1108,6 +1186,10 @@ Copy-Item "data\all-spreads.json" -Destination "viewer\data\all-spreads.json"
 
 | Date | Version | Changes |
 |------|---------|---------|
+| 2025-12-09 | v38.0 | Settings button fix, storage quota display, smart prefetch system |
+| 2025-12-09 | v37.0 | Primary slot migration: replaced image_url with primary_slot integer |
+| 2025-12-09 | v36.0 | Homepage performance: image transforms, pagination, static JSON optimization |
+| 2025-12-09 | v35.0 | Custom email templates with Playfair Display font, iOS-inspired design |
 | 2025-12-09 | v34.0 | PKCE flow support: token_hash verification, updated email templates |
 | 2025-12-09 | v33.0 | Magic link auth fix, reverted initAuth to working code |
 | 2025-12-09 | v32.0 | Loading skeletons (story + home), improved error handling with user-friendly toasts |
