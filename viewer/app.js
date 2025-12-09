@@ -46,6 +46,33 @@ function getPrimaryImageUrl(story, primaryImagesMap = userPrimaryImages) {
     return story.image_url || story.image_url_1 || null;
 }
 
+/**
+ * Transform a Supabase storage URL to use image transformation for thumbnails
+ * Converts /object/ URLs to /render/image/ URLs with resize parameters
+ * @param {string} imageUrl - Original Supabase storage URL
+ * @param {number} width - Target width (default 400)
+ * @param {number} quality - JPEG quality 1-100 (default 80)
+ * @returns {string|null} Transformed URL or original if not transformable
+ */
+function getThumbnailUrl(imageUrl, width = 400, quality = 80) {
+    if (!imageUrl) return null;
+    
+    // Only transform Supabase storage URLs
+    if (!imageUrl.includes('supabase.co/storage/v1/object/')) {
+        return imageUrl;
+    }
+    
+    // Transform: /storage/v1/object/public/... -> /storage/v1/render/image/public/...
+    const thumbnailUrl = imageUrl.replace(
+        '/storage/v1/object/',
+        '/storage/v1/render/image/'
+    );
+    
+    // Add transformation parameters
+    const separator = thumbnailUrl.includes('?') ? '&' : '?';
+    return `${thumbnailUrl}${separator}width=${width}&quality=${quality}`;
+}
+
 // Filter state
 let currentFilters = {
     testament: 'all',
@@ -267,12 +294,13 @@ function renderCurationView(story) {
         // Normal image cards for stories with images
         const imageCards = [1, 2, 3, 4].map(slot => {
             const imageUrl = story[`image_url_${slot}`];
+            const thumbnailUrl = getThumbnailUrl(imageUrl);
             const isCurrentDefault = story.image_url === imageUrl && imageUrl;
             return `
                 <div class="curation-image-card ${isCurrentDefault ? 'is-default' : ''}" data-slot="${slot}">
                     <div class="curation-image-wrapper">
-                        ${imageUrl 
-                            ? `<img src="${imageUrl}" alt="Option ${slot}" loading="lazy">`
+                        ${thumbnailUrl 
+                            ? `<img src="${thumbnailUrl}" alt="Option ${slot}" loading="lazy">`
                             : `<div class="curation-no-image">No Image</div>`
                         }
                         ${isCurrentDefault ? '<div class="curation-default-badge">Current Default</div>' : ''}
@@ -1574,9 +1602,10 @@ function showSkeletonCards(count) {
 
 async function loadAllStories() {
     let loadedFromCache = false;
+    let loadedFromStaticJson = false;
     let needsBackgroundRefresh = true;
     
-    // STEP 1: Try loading from IndexedDB cache first (instant)
+    // STEP 1: Try loading from IndexedDB cache first (instant, has full data)
     try {
         const cached = await window.GraceOffline?.getStoryList();
         if (cached?.stories?.length > 0) {
@@ -1590,12 +1619,44 @@ async function loadAllStories() {
         console.warn('[GRACE] Cache read failed:', cacheErr);
     }
     
-    // If we have cached data, render immediately - don't wait for network
-    if (loadedFromCache && !needsBackgroundRefresh) {
-        return; // Cache is fresh, no need to fetch
+    // STEP 2: If no cache, try static JSON first (instant from service worker, has images!)
+    // This provides fast first-load for new users before Supabase responds
+    if (!loadedFromCache) {
+        try {
+            const response = await fetch('data/all-spreads.json');
+            if (response.ok) {
+                const json = await response.json();
+                if (json.spreads && json.spreads.length > 0) {
+                    // Map static data to match Supabase schema (now includes image_url!)
+                    allStories = sortStoriesChronologically(json.spreads.map(s => ({
+                        spread_code: s.spread_code,
+                        title: s.title,
+                        kjv_passage_ref: s.kjv_key_verse_ref || `${s.book} ${s.start_chapter}:${s.start_verse}`,
+                        status_text: 'done',
+                        status_image: s.image_url ? 'done' : 'pending',
+                        image_url: s.image_url || null,
+                        image_url_1: s.image_url || null, // Use primary as slot 1 fallback
+                        testament: s.testament,
+                        book: s.book,
+                        start_chapter: s.start_chapter,
+                        start_verse: s.start_verse
+                    })));
+                    filteredStories = [...allStories];
+                    loadedFromStaticJson = true;
+                    console.log('[GRACE] Stories loaded from static JSON:', allStories.length);
+                }
+            }
+        } catch (staticErr) {
+            console.warn('[GRACE] Static JSON load failed:', staticErr);
+        }
     }
     
-    // STEP 2: Fetch from Supabase (blocking if no cache, background if cache exists)
+    // If we have cached data and it's fresh, we're done
+    if (loadedFromCache && !needsBackgroundRefresh) {
+        return;
+    }
+    
+    // STEP 3: Fetch from Supabase (background if we have data, blocking if we don't)
     const fetchFromSupabase = async () => {
         try {
             const { data, error } = await supabase
@@ -1610,12 +1671,14 @@ async function loadAllStories() {
                 // Save to cache for next time
                 window.GraceOffline?.saveStoryList(data);
                 
-                // If data changed or we didn't have cache, update and re-render
-                if (!loadedFromCache || data.length !== allStories.length) {
+                const hadData = loadedFromCache || loadedFromStaticJson;
+                
+                // If data changed or we didn't have any source, update
+                if (!hadData || data.length !== allStories.length) {
                     allStories = sorted;
                     filteredStories = [...allStories];
-                    if (loadedFromCache) {
-                        // Re-render only if we already showed cached data
+                    if (hadData) {
+                        // Re-render only if we already showed some data
                         applyFilters();
                     }
                     console.log('[GRACE] Stories updated from Supabase:', allStories.length);
@@ -1634,30 +1697,29 @@ async function loadAllStories() {
         }
     };
     
-    if (loadedFromCache) {
-        // Background refresh - don't block rendering
-        fetchFromSupabase();
+    // If we have data from cache or static JSON, fetch Supabase in background
+    if (loadedFromCache || loadedFromStaticJson) {
+        fetchFromSupabase(); // Don't await - let it run in background
     } else {
-        // No cache - must wait for network
+        // No data at all - must wait for Supabase
         const supabaseWorked = await fetchFromSupabase();
         
-        // STEP 3: Fallback to static JSON if Supabase failed
-        if (!supabaseWorked) {
+        // Last resort fallback if everything failed
+        if (!supabaseWorked && allStories.length === 0) {
             try {
                 const response = await fetch('data/all-spreads.json');
                 if (!response.ok) throw new Error(`HTTP ${response.status}`);
                 
                 const json = await response.json();
                 if (json.spreads && json.spreads.length > 0) {
-                    // Map static data to match Supabase schema
                     allStories = sortStoriesChronologically(json.spreads.map(s => ({
                         spread_code: s.spread_code,
                         title: s.title,
                         kjv_passage_ref: s.kjv_key_verse_ref || `${s.book} ${s.start_chapter}:${s.start_verse}`,
                         status_text: 'done',
-                        status_image: 'done',
-                        image_url: null,
-                        image_url_1: null,
+                        status_image: s.image_url ? 'done' : 'pending',
+                        image_url: s.image_url || null,
+                        image_url_1: s.image_url || null,
                         testament: s.testament,
                         book: s.book,
                         start_chapter: s.start_chapter,
@@ -2194,11 +2256,21 @@ function resetFilters() {
     applyFilters();
 }
 
+// Progressive loading state
+const INITIAL_LOAD_COUNT = 48; // First batch - fills viewport
+const LOAD_MORE_COUNT = 24; // Subsequent batches
+let renderedStoryCount = 0;
+let loadMoreObserver = null;
+
 function renderStories() {
     const grid = document.getElementById('storiesGrid');
     if (!grid) return;
     
     console.log('[GRACE] renderStories called, filteredStories:', filteredStories.length);
+    
+    // Reset progressive loading state
+    renderedStoryCount = 0;
+    cleanupLoadMoreObserver();
     
     if (filteredStories.length === 0) {
         grid.innerHTML = getEmptyStateHTML();
@@ -2206,15 +2278,90 @@ function renderStories() {
         return;
     }
     
-    // ALWAYS render ALL section headers - no conditions
-    // This ensures headers always appear regardless of filter state
+    // Render initial batch
+    grid.innerHTML = '';
+    renderStoryBatch(grid, 0, INITIAL_LOAD_COUNT);
+    
+    // Setup scroll-reveal breadcrumb in header
+    setupScrollRevealBreadcrumb();
+    
+    // Setup progressive loading if there are more stories
+    if (renderedStoryCount < filteredStories.length) {
+        setupLoadMoreObserver(grid);
+    }
+}
+
+/**
+ * Cleanup load more observer
+ */
+function cleanupLoadMoreObserver() {
+    if (loadMoreObserver) {
+        loadMoreObserver.disconnect();
+        loadMoreObserver = null;
+    }
+    // Remove any existing sentinel
+    const existingSentinel = document.getElementById('loadMoreSentinel');
+    if (existingSentinel) {
+        existingSentinel.remove();
+    }
+}
+
+/**
+ * Setup IntersectionObserver for progressive loading
+ */
+function setupLoadMoreObserver(grid) {
+    // Create sentinel element
+    const sentinel = document.createElement('div');
+    sentinel.id = 'loadMoreSentinel';
+    sentinel.className = 'load-more-sentinel';
+    sentinel.innerHTML = '<div class="loading-spinner"></div>';
+    grid.appendChild(sentinel);
+    
+    // Create observer
+    loadMoreObserver = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting && renderedStoryCount < filteredStories.length) {
+                // Remove sentinel temporarily while loading
+                sentinel.remove();
+                
+                // Render next batch
+                renderStoryBatch(grid, renderedStoryCount, LOAD_MORE_COUNT);
+                
+                // Re-add sentinel if there are more stories
+                if (renderedStoryCount < filteredStories.length) {
+                    grid.appendChild(sentinel);
+                }
+            }
+        });
+    }, {
+        rootMargin: '200px' // Start loading 200px before reaching bottom
+    });
+    
+    loadMoreObserver.observe(sentinel);
+}
+
+/**
+ * Render a batch of stories starting from startIndex
+ */
+function renderStoryBatch(grid, startIndex, count) {
+    const endIndex = Math.min(startIndex + count, filteredStories.length);
     let html = '';
+    
+    // Track headers for this batch
     let currentTestament = null;
     let currentGrouping = null;
     let currentBook = null;
-    let headerCount = 0;
     
-    filteredStories.forEach((story, index) => {
+    // Get header state from previous batch
+    if (startIndex > 0 && filteredStories[startIndex - 1]) {
+        const prevStory = filteredStories[startIndex - 1];
+        currentTestament = prevStory.testament;
+        currentGrouping = BOOK_TO_GROUPING[prevStory.book] || 'Unknown';
+        currentBook = prevStory.book;
+    }
+    
+    for (let index = startIndex; index < endIndex; index++) {
+        const story = filteredStories[index];
         const testament = story.testament;
         const book = story.book;
         const grouping = BOOK_TO_GROUPING[book] || 'Unknown';
@@ -2224,24 +2371,22 @@ function renderStories() {
             console.log('[GRACE] First story:', { testament, book, grouping, title: story.title });
         }
         
-        // ALWAYS add Testament header when it changes
+        // Add Testament header when it changes
         if (testament && testament !== currentTestament) {
             currentTestament = testament;
             currentGrouping = null;
             currentBook = null;
             const testamentName = testament === 'OT' ? 'Old Testament' : 'New Testament';
             html += `<div class="section-header testament-header" data-testament="${testamentName}" data-grouping="" data-book=""><h2>${testamentName}</h2></div>`;
-            headerCount++;
         }
         
-        // ALWAYS add Grouping header when it changes
+        // Add Grouping header when it changes
         if (grouping && grouping !== currentGrouping) {
             currentGrouping = grouping;
             currentBook = null;
             const testamentName = currentTestament === 'OT' ? 'Old Testament' : 'New Testament';
             const description = GROUPING_DESCRIPTIONS[grouping] || '';
             html += `<div class="section-header grouping-header" data-testament="${testamentName}" data-grouping="${grouping}" data-book=""><h3>${grouping}</h3>${description ? `<span class="grouping-description">${description}</span>` : ''}</div>`;
-            headerCount++;
         }
         
         // Add Book header when it changes, UNLESS:
@@ -2255,7 +2400,6 @@ function renderStories() {
             currentBook = book;
             const testamentName = currentTestament === 'OT' ? 'Old Testament' : 'New Testament';
             html += `<div class="section-header book-header" data-testament="${testamentName}" data-grouping="${currentGrouping}" data-book="${book}"><h4>${book}</h4></div>`;
-            headerCount++;
         } else if (!shouldShowBookHeaders) {
             // Track book changes even if not showing headers (for breadcrumb)
             currentBook = book;
@@ -2268,6 +2412,8 @@ function renderStories() {
         
         // Use shared function for primary image (same logic used by download feature)
         const imageUrl = getPrimaryImageUrl(story);
+        // Use thumbnail for homepage cards (90% smaller, ~50KB vs 500KB)
+        const thumbnailUrl = getThumbnailUrl(imageUrl);
         
         const passageRef = story.kjv_passage_ref || '';
         
@@ -2282,8 +2428,8 @@ function renderStories() {
         html += `
             <a href="#/story/${story.spread_code}" class="story-card ${userClasses}">
                 <div class="card-image">
-                    ${imageUrl 
-                        ? `<img src="${imageUrl}" alt="${story.title}" loading="lazy">`
+                    ${thumbnailUrl 
+                        ? `<img src="${thumbnailUrl}" alt="${story.title}" loading="lazy">`
                         : `<div class="placeholder">No image yet</div>`
                     }
                     <span class="card-status ${statusClass} admin-only">${statusText}</span>
@@ -2294,13 +2440,18 @@ function renderStories() {
                 </div>
             </a>
         `;
-    });
+    }
     
-    console.log('[GRACE] Generated', headerCount, 'section headers');
-    grid.innerHTML = html;
+    // Append to grid (don't replace if this is a subsequent batch)
+    if (startIndex === 0) {
+        grid.innerHTML = html;
+    } else {
+        grid.insertAdjacentHTML('beforeend', html);
+    }
     
-    // Setup scroll-reveal breadcrumb in header
-    setupScrollRevealBreadcrumb();
+    // Update rendered count
+    renderedStoryCount = endIndex;
+    console.log('[GRACE] Rendered stories:', renderedStoryCount, '/', filteredStories.length);
 }
 
 // ============================================================================
@@ -3066,7 +3217,9 @@ function renderImageGrid(container, candidateImages, globalPrimaryUrl, userPrima
         const slot = index + 1;
         
         if (imageUrl && imageUrl.trim()) {
-            img.src = imageUrl;
+            // Use thumbnails in grid view (90% smaller, ~50KB vs 500KB)
+            // Full-res only loads in single image view
+            img.src = getThumbnailUrl(imageUrl);
             img.alt = `${currentStory?.title || 'Story'} - Option ${slot}`;
             
             // Check if this is global primary

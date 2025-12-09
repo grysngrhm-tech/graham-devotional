@@ -3,7 +3,7 @@
  * Provides offline caching with smart caching strategies
  */
 
-const CACHE_NAME = 'graham-bible-v13'; // Fixed magic link auth - reverted to simple getSession()
+const CACHE_NAME = 'graham-bible-v14'; // Performance optimizations - thumbnails, pagination, preconnect
 const IMAGE_CACHE = 'graham-bible-images-v1';
 
 // App shell files to cache on install
