@@ -3,7 +3,7 @@
  * Provides offline caching with smart caching strategies
  */
 
-const CACHE_NAME = 'graham-bible-v14'; // Performance optimizations - thumbnails, pagination, preconnect
+const CACHE_NAME = 'graham-bible-v15'; // Cache bust static JSON with image URLs
 const IMAGE_CACHE = 'graham-bible-images-v1';
 
 // App shell files to cache on install
@@ -24,7 +24,7 @@ const APP_SHELL = [
     './config.js',
     './manifest.json',
     './lib/supabase.min.js',
-    './data/all-spreads.json',
+    './data/all-spreads.json?v=2',
     './icons/icon.svg',
     './icons/icon-192.png',
     './icons/icon-512.png',

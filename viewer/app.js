@@ -1623,7 +1623,7 @@ async function loadAllStories() {
     // This provides fast first-load for new users before Supabase responds
     if (!loadedFromCache) {
         try {
-            const response = await fetch('data/all-spreads.json');
+            const response = await fetch('data/all-spreads.json?v=2'); // v2 includes image URLs
             if (response.ok) {
                 const json = await response.json();
                 if (json.spreads && json.spreads.length > 0) {
@@ -1707,7 +1707,7 @@ async function loadAllStories() {
         // Last resort fallback if everything failed
         if (!supabaseWorked && allStories.length === 0) {
             try {
-                const response = await fetch('data/all-spreads.json');
+                const response = await fetch('data/all-spreads.json?v=2');
                 if (!response.ok) throw new Error(`HTTP ${response.status}`);
                 
                 const json = await response.json();
@@ -2867,7 +2867,7 @@ async function loadStoryList() {
         
         // Try loading from fallback JSON
         try {
-            const response = await fetch('data/all-spreads.json');
+            const response = await fetch('data/all-spreads.json?v=2');
             if (response.ok) {
                 const json = await response.json();
                 if (json.spreads?.length > 0) {
@@ -2933,7 +2933,7 @@ async function loadStory(storyId, navigationId) {
                 // If not in cache, try loading from fallback JSON
                 if (!story) {
                     try {
-                        const response = await fetch('data/all-spreads.json');
+                        const response = await fetch('data/all-spreads.json?v=2');
                         if (response.ok) {
                             const json = await response.json();
                             const fallbackStory = json.spreads?.find(s => s.spread_code === storyId);
