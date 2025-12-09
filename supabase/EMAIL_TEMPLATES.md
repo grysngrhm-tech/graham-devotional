@@ -1,13 +1,10 @@
-# Supabase Email Templates Configuration (PKCE Flow)
+# Supabase Email Templates Configuration
 
 ## Overview
 
-Custom email templates for The Graham Bible authentication using **PKCE flow** (the modern, secure default).
+Custom email templates for The Graham Bible authentication.
 
-**Key Difference from Implicit Flow:**
-- PKCE requires `{{ .TokenHash }}` in a custom URL format
-- The app handles token verification via `verifyOtp()`
-- `{{ .ConfirmationURL }}` alone does NOT work with PKCE
+**Important:** Use `{{ .ConfirmationURL }}` for the magic link button - Supabase handles all token processing automatically via `getSession()`.
 
 ---
 
@@ -68,7 +65,7 @@ Welcome to The Graham Bible
           <!-- Primary CTA Button -->
           <tr>
             <td style="padding: 8px 32px 32px; text-align: center;">
-              <a href="{{ .SiteURL }}/#/auth/confirm?token_hash={{ .TokenHash }}&type=signup" style="display: inline-block; background-color: #C9A227; color: #ffffff; text-decoration: none; font-size: 16px; font-weight: 600; padding: 16px 48px; border-radius: 12px;">Confirm &amp; Sign In</a>
+              <a href="{{ .ConfirmationURL }}" style="display: inline-block; background-color: #C9A227; color: #ffffff; text-decoration: none; font-size: 16px; font-weight: 600; padding: 16px 48px; border-radius: 12px;">Confirm &amp; Sign In</a>
             </td>
           </tr>
           
@@ -157,7 +154,7 @@ Your Graham Bible Login Link
           <!-- Primary CTA Button -->
           <tr>
             <td style="padding: 8px 32px 32px; text-align: center;">
-              <a href="{{ .SiteURL }}/#/auth/confirm?token_hash={{ .TokenHash }}&type=magiclink" style="display: inline-block; background-color: #C9A227; color: #ffffff; text-decoration: none; font-size: 16px; font-weight: 600; padding: 16px 48px; border-radius: 12px;">Sign In</a>
+              <a href="{{ .ConfirmationURL }}" style="display: inline-block; background-color: #C9A227; color: #ffffff; text-decoration: none; font-size: 16px; font-weight: 600; padding: 16px 48px; border-radius: 12px;">Sign In</a>
             </td>
           </tr>
           
@@ -204,69 +201,23 @@ Your Graham Bible Login Link
 
 ---
 
-## Key Differences Between Templates
+## Template Variables
 
-| Aspect | Confirm signup | Magic Link |
-|--------|---------------|------------|
-| Subject | "Welcome to The Graham Bible" | "Your Graham Bible Login Link" |
-| Greeting | "Welcome!" | "Welcome back!" |
-| Button Text | "Confirm & Sign In" | "Sign In" |
-| Type Parameter | `type=signup` | `type=magiclink` |
-| Purpose | New user email verification | Returning user login |
-
----
-
-## Template Variables Reference (PKCE Flow)
-
-| Variable | Description | Use In |
-|----------|-------------|--------|
-| `{{ .SiteURL }}` | Your site URL (e.g., `https://www.grahambible.com`) | Base of custom link |
-| `{{ .TokenHash }}` | Hashed authentication token | Query parameter in link |
-| `{{ .Token }}` | 8-digit OTP code | Displayed for manual entry |
-| `{{ .Email }}` | User's email address | Optional personalization |
-
-### PKCE Link Format
-
-```
-{{ .SiteURL }}/#/auth/confirm?token_hash={{ .TokenHash }}&type=<type>
-```
-
-- The `/#/` is required for hash-based SPA routing
-- `type=signup` for new user confirmation
-- `type=magiclink` for returning user login
-
-### Why NOT `{{ .ConfirmationURL }}`?
-
-`{{ .ConfirmationURL }}` generates a link to Supabase's auth server, which works for **implicit flow**. But with **PKCE flow** (the modern default), your app must:
-1. Receive the token_hash
-2. Call `supabase.auth.verifyOtp({ token_hash, type })` 
-3. Exchange it for a session
-
-This is handled in `viewer/auth.js` in the `initAuth()` function.
+| Variable | Description |
+|----------|-------------|
+| `{{ .ConfirmationURL }}` | **USE THIS** - Full magic link URL (Supabase handles tokens automatically) |
+| `{{ .Token }}` | OTP code for manual entry (8-digit) |
+| `{{ .SiteURL }}` | Your site URL (don't use for login buttons) |
+| `{{ .Email }}` | User's email address |
 
 ---
 
-## Client-Side Token Verification
+## Important Notes
 
-The app handles PKCE token verification in `viewer/auth.js`:
-
-```javascript
-// In initAuth() - handles PKCE magic link
-if (hash.includes('token_hash=')) {
-    const params = new URLSearchParams(hash.split('?')[1]);
-    const tokenHash = params.get('token_hash');
-    const type = params.get('type');
-    
-    const { data, error } = await supabase.auth.verifyOtp({
-        token_hash: tokenHash,
-        type: type === 'signup' ? 'signup' : 'magiclink'
-    });
-    
-    if (data?.session) {
-        // User is now logged in
-    }
-}
-```
+1. **Both templates use `{{ .ConfirmationURL }}`** - This is handled automatically by Supabase's `getSession()`
+2. **Do NOT use `{{ .SiteURL }}` for the login button** - It doesn't include authentication tokens
+3. **OTP code (`{{ .Token }}`)** is 8-digit in this project's configuration
+4. **Sender email must be lowercase** and match your verified domain in Resend
 
 ---
 
@@ -274,36 +225,6 @@ if (hash.includes('token_hash=')) {
 
 After updating templates:
 
-1. **Deploy auth.js** with PKCE token verification
-2. **Copy templates** to Supabase Dashboard > Authentication > Email Templates
-3. **Test new user:**
-   - Sign up with new email
-   - Should receive "Confirm signup" email
-   - Click link → should log in successfully
-4. **Test returning user:**
-   - Sign out, request new login
-   - Should receive "Magic Link" email
-   - Click link → should log in successfully
-5. **Test OTP fallback:**
-   - Request login in PWA
-   - Enter 8-digit code manually
-   - Should authenticate
-
----
-
-## Troubleshooting
-
-**Link doesn't log in:**
-- Ensure `auth.js?v=14` (or latest) is deployed
-- Check browser console for `[Auth] Detected token_hash` log
-- Verify URL format matches `/#/auth/confirm?token_hash=...`
-
-**OTP code not working:**
-- Ensure code hasn't expired (1 hour limit)
-- Check code is entered correctly (8 digits)
-- Try requesting a new code
-
-**Email not received:**
-- Check spam folder
-- Verify SMTP settings in Supabase
-- Check Resend dashboard for delivery status
+1. **Test new user:** Sign up with new email, click the magic link → should log in
+2. **Test returning user:** Request login, click the magic link → should log in
+3. **Test OTP:** Enter the 8-digit code manually → should authenticate

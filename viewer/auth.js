@@ -50,51 +50,7 @@ async function initAuth() {
         return null;
     }
     
-    // Check for token_hash in URL (PKCE magic link flow)
-    // URL format: /#/auth/confirm?token_hash=xxx&type=email
-    const hash = window.location.hash;
-    if (hash.includes('token_hash=')) {
-        console.log('[Auth] Detected token_hash in URL, processing PKCE magic link...');
-        try {
-            // Parse token_hash and type from URL
-            const hashParts = hash.split('?');
-            const params = new URLSearchParams(hashParts[1] || '');
-            const tokenHash = params.get('token_hash');
-            const type = params.get('type') || 'email';
-            
-            if (tokenHash) {
-                // Map type parameter to Supabase OTP types
-                // 'signup' = new user confirmation, 'magiclink'/'email' = returning user login
-                const otpType = type === 'signup' ? 'signup' : 'magiclink';
-                
-                const { data, error } = await sb.auth.verifyOtp({
-                    token_hash: tokenHash,
-                    type: otpType
-                });
-                
-                if (error) {
-                    console.error('[Auth] PKCE verification failed:', error.message);
-                } else if (data?.session) {
-                    console.log('[Auth] PKCE magic link verified successfully');
-                    await setCurrentUser(data.session.user);
-                }
-                
-                // Clean URL regardless of success/failure
-                history.replaceState(null, '', window.location.pathname);
-                
-                // Update UI and notify listeners
-                updateAuthUI();
-                notifyAuthStateListeners();
-                return currentUser;
-            }
-        } catch (err) {
-            console.error('[Auth] Error processing PKCE token:', err);
-            history.replaceState(null, '', window.location.pathname);
-        }
-    }
-    
     // Check for existing session with timeout (prevents hang if storage is blocked)
-    // This also processes any tokens in the URL hash (implicit flow magic link redirects)
     let session = null;
     try {
         const sessionPromise = sb.auth.getSession();
@@ -109,10 +65,6 @@ async function initAuth() {
     
     if (session?.user) {
         await setCurrentUser(session.user);
-        // Clean up URL hash after successful session from implicit flow magic link
-        if (window.location.hash.includes('access_token')) {
-            history.replaceState(null, '', window.location.pathname);
-        }
     }
     
     // Listen for auth state changes (login, logout, token refresh)
