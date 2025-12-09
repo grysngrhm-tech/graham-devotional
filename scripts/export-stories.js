@@ -21,7 +21,7 @@ async function exportStories() {
     
     const { data, error } = await supabase
         .from('grahams_devotional_spreads')
-        .select('spread_code, title, testament, book, start_chapter, start_verse, end_chapter, end_verse, kjv_passage_ref, image_url, image_url_1')
+        .select('spread_code, title, testament, book, start_chapter, start_verse, end_chapter, end_verse, kjv_passage_ref, primary_slot, image_url_1, image_url_2, image_url_3, image_url_4')
         .order('spread_code');
     
     if (error) {
@@ -31,7 +31,8 @@ async function exportStories() {
     
     console.log(`Fetched ${data.length} stories`);
     
-    // Transform to simplified format for static JSON
+    // Transform to format for static JSON
+    // Now includes primary_slot and all image URLs so app can compute primary
     const spreads = data.map(story => ({
         spread_code: story.spread_code,
         testament: story.testament,
@@ -42,12 +43,16 @@ async function exportStories() {
         end_verse: story.end_verse,
         title: story.title,
         kjv_key_verse_ref: story.kjv_passage_ref,
-        // Include primary image URL for faster first-load rendering
-        image_url: story.image_url || story.image_url_1 || null
+        // Store slot reference (1-4) instead of URL - matches new data model
+        primary_slot: story.primary_slot || 1,
+        image_url_1: story.image_url_1 || null,
+        image_url_2: story.image_url_2 || null,
+        image_url_3: story.image_url_3 || null,
+        image_url_4: story.image_url_4 || null
     }));
     
     const output = {
-        version: '2.0',
+        version: '3.0', // New version with slot-based primary
         exported_at: new Date().toISOString(),
         total_spreads: spreads.length,
         spreads
@@ -60,7 +65,7 @@ async function exportStories() {
     console.log(`Exported ${spreads.length} stories to ${outputPath}`);
     
     // Count stories with images
-    const withImages = spreads.filter(s => s.image_url).length;
+    const withImages = spreads.filter(s => s.image_url_1).length;
     console.log(`Stories with images: ${withImages}/${spreads.length}`);
 }
 

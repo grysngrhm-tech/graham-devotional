@@ -742,7 +742,9 @@ async function downloadEntireBible(progressCallback, userPrimaryImages = new Map
                     primaryImageUrl = story[`image_url_${userSlot}`];
                 }
                 if (!primaryImageUrl) {
-                    primaryImageUrl = story.image_url || story.image_url_1;
+                    // Use slot-based global default
+                    const globalSlot = story.primary_slot || 1;
+                    primaryImageUrl = story[`image_url_${globalSlot}`] || story.image_url_1;
                 }
                 
                 // Cache the primary image

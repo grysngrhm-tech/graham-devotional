@@ -32,18 +32,18 @@ let userPrimaryImages = new Map(); // spread_code -> image_slot (1-4)
  * @param {Map} [primaryImagesMap] - Optional map of spread_code -> slot (defaults to userPrimaryImages)
  * @returns {string|null} Image URL or null
  */
-function getPrimaryImageUrl(story, primaryImagesMap = userPrimaryImages) {
+function getPrimaryImageUrl(story, userPrimarySlot = null) {
     if (!story) return null;
     
-    // Check for user's personal selection
-    const userSlot = primaryImagesMap?.get(story.spread_code);
-    if (userSlot) {
-        const userImageUrl = story[`image_url_${userSlot}`];
+    // Priority 1: User's personal selection (slot number 1-4)
+    if (userPrimarySlot) {
+        const userImageUrl = story[`image_url_${userPrimarySlot}`];
         if (userImageUrl) return userImageUrl;
     }
     
-    // Fall back to global default or first available
-    return story.image_url || story.image_url_1 || null;
+    // Priority 2: Global default (now stored as slot number)
+    const globalSlot = story.primary_slot || 1;
+    return story[`image_url_${globalSlot}`] || story.image_url_1 || null;
 }
 
 /**
@@ -144,8 +144,8 @@ async function loadCurationStories(filter) {
         // Only support 'no-default' filter for streamlined curation
         const query = supabase
             .from('grahams_devotional_spreads')
-            .select('spread_code, title, image_abstract, image_url, image_url_1, image_url_2, image_url_3, image_url_4, status_image, book, testament, kjv_passage_ref')
-            .or('image_url.is.null,image_url.eq.') // Only stories needing defaults
+            .select('spread_code, title, image_abstract, primary_slot, image_url_1, image_url_2, image_url_3, image_url_4, status_image, book, testament, kjv_passage_ref')
+            .or('primary_slot.is.null,primary_slot.eq.1') // Stories with default slot 1 (may need curation)
             .order('spread_code'); // Chronological order
         
         const { data, error } = await query;
@@ -292,10 +292,11 @@ function renderCurationView(story) {
         `;
     } else {
         // Normal image cards for stories with images
+        const globalPrimarySlot = story.primary_slot || 1;
         const imageCards = [1, 2, 3, 4].map(slot => {
             const imageUrl = story[`image_url_${slot}`];
             const thumbnailUrl = getThumbnailUrl(imageUrl);
-            const isCurrentDefault = story.image_url === imageUrl && imageUrl;
+            const isCurrentDefault = slot === globalPrimarySlot && imageUrl;
             return `
                 <div class="curation-image-card ${isCurrentDefault ? 'is-default' : ''}" data-slot="${slot}">
                     <div class="curation-image-wrapper">
@@ -622,7 +623,7 @@ async function autoAssignAllImages(spreadCode, optionUrls) {
     console.log('[Graham] Auto-assigning 4 images to story:', spreadCode);
     
     try {
-        // Update the database with all 4 images
+        // Update the database with all 4 images and set slot 1 as default
         const { error } = await supabase
             .from('grahams_devotional_spreads')
             .update({
@@ -630,6 +631,7 @@ async function autoAssignAllImages(spreadCode, optionUrls) {
                 image_url_2: optionUrls[1],
                 image_url_3: optionUrls[2],
                 image_url_4: optionUrls[3],
+                primary_slot: 1, // Default to slot 1 for newly generated images
                 status_image: 'done'
             })
             .eq('spread_code', spreadCode);
@@ -643,6 +645,7 @@ async function autoAssignAllImages(spreadCode, optionUrls) {
             story.image_url_2 = optionUrls[1];
             story.image_url_3 = optionUrls[2];
             story.image_url_4 = optionUrls[3];
+            story.primary_slot = 1;
             story.status_image = 'done';
         }
         
@@ -690,15 +693,16 @@ async function setGlobalDefaultBySlot(slot) {
     }
     
     try {
+        // Now stores slot number instead of URL - can never become orphaned!
         const { error } = await supabase
             .from('grahams_devotional_spreads')
-            .update({ image_url: imageUrl })
+            .update({ primary_slot: slot })
             .eq('spread_code', story.spread_code);
         
         if (error) throw error;
         
         // Update local story object
-        story.image_url = imageUrl;
+        story.primary_slot = slot;
         
         // In curation mode, auto-advance to next story after brief feedback
         if (curationMode.active) {
@@ -1623,19 +1627,23 @@ async function loadAllStories() {
     // This provides fast first-load for new users before Supabase responds
     if (!loadedFromCache) {
         try {
-            const response = await fetch('data/all-spreads.json?v=2'); // v2 includes image URLs
+            const response = await fetch('data/all-spreads.json?v=3'); // v3 uses slot-based primary
             if (response.ok) {
                 const json = await response.json();
                 if (json.spreads && json.spreads.length > 0) {
-                    // Map static data to match Supabase schema (now includes image_url!)
+                    // Map static data to match Supabase schema
+                    // Now includes primary_slot and all image URLs
                     allStories = sortStoriesChronologically(json.spreads.map(s => ({
                         spread_code: s.spread_code,
                         title: s.title,
                         kjv_passage_ref: s.kjv_key_verse_ref || `${s.book} ${s.start_chapter}:${s.start_verse}`,
                         status_text: 'done',
-                        status_image: s.image_url ? 'done' : 'pending',
-                        image_url: s.image_url || null,
-                        image_url_1: s.image_url || null, // Use primary as slot 1 fallback
+                        status_image: s.image_url_1 ? 'done' : 'pending',
+                        primary_slot: s.primary_slot || 1,
+                        image_url_1: s.image_url_1 || null,
+                        image_url_2: s.image_url_2 || null,
+                        image_url_3: s.image_url_3 || null,
+                        image_url_4: s.image_url_4 || null,
                         testament: s.testament,
                         book: s.book,
                         start_chapter: s.start_chapter,
@@ -1661,7 +1669,7 @@ async function loadAllStories() {
         try {
             const { data, error } = await supabase
                 .from('grahams_devotional_spreads')
-                .select('spread_code, title, kjv_passage_ref, status_text, status_image, image_url, image_url_1, image_url_2, image_url_3, image_url_4, testament, book, start_chapter, start_verse');
+                .select('spread_code, title, kjv_passage_ref, status_text, status_image, primary_slot, image_url_1, image_url_2, image_url_3, image_url_4, testament, book, start_chapter, start_verse');
             
             if (error) throw error;
             
@@ -1707,7 +1715,7 @@ async function loadAllStories() {
         // Last resort fallback if everything failed
         if (!supabaseWorked && allStories.length === 0) {
             try {
-                const response = await fetch('data/all-spreads.json?v=2');
+                const response = await fetch('data/all-spreads.json?v=3');
                 if (!response.ok) throw new Error(`HTTP ${response.status}`);
                 
                 const json = await response.json();
@@ -1717,9 +1725,12 @@ async function loadAllStories() {
                         title: s.title,
                         kjv_passage_ref: s.kjv_key_verse_ref || `${s.book} ${s.start_chapter}:${s.start_verse}`,
                         status_text: 'done',
-                        status_image: s.image_url ? 'done' : 'pending',
-                        image_url: s.image_url || null,
-                        image_url_1: s.image_url || null,
+                        status_image: s.image_url_1 ? 'done' : 'pending',
+                        primary_slot: s.primary_slot || 1,
+                        image_url_1: s.image_url_1 || null,
+                        image_url_2: s.image_url_2 || null,
+                        image_url_3: s.image_url_3 || null,
+                        image_url_4: s.image_url_4 || null,
                         testament: s.testament,
                         book: s.book,
                         start_chapter: s.start_chapter,
@@ -2410,8 +2421,10 @@ function renderStoryBatch(grid, startIndex, count) {
         const statusClass = isComplete ? 'complete' : 'pending';
         const statusText = isComplete ? 'Complete' : 'Pending';
         
-        // Use shared function for primary image (same logic used by download feature)
-        const imageUrl = getPrimaryImageUrl(story);
+        // Use shared function for primary image
+        // Pass user's slot selection if they have one, otherwise uses global default
+        const userSlot = userPrimaryImages.get(story.spread_code);
+        const imageUrl = getPrimaryImageUrl(story, userSlot);
         // Use thumbnail for homepage cards (90% smaller, ~50KB vs 500KB)
         const thumbnailUrl = getThumbnailUrl(imageUrl);
         
@@ -3081,31 +3094,31 @@ async function renderImages(story) {
         story.image_url_4
     ];
     const hasCandidates = candidateImages.some(url => url && url.trim());
-    const globalPrimary = story.image_url && story.image_url.trim() ? story.image_url : null;
+    
+    // Get global primary using slot-based model
+    const globalSlot = story.primary_slot || 1;
+    const globalPrimaryUrl = candidateImages[globalSlot - 1] || null;
     
     // Check for user's personal primary image selection
     let userPrimarySlot = null;
-    let displayPrimary = null;
+    let userPrimaryUrl = null;
     const isLoggedIn = window.GraceAuth?.isAuthenticated() || false;
     
     if (isLoggedIn) {
-        // For logged-in users, only set displayPrimary if they have a personal selection
+        // For logged-in users, check if they have a personal selection
         userPrimarySlot = await window.GraceAuth.getUserPrimaryImage(story.spread_code);
         if (userPrimarySlot && candidateImages[userPrimarySlot - 1]) {
-            displayPrimary = candidateImages[userPrimarySlot - 1];
+            userPrimaryUrl = candidateImages[userPrimarySlot - 1];
         }
-        // If no personal selection, displayPrimary stays null - they'll see the grid
-    } else {
-        // For logged-out users, show the global primary
-        displayPrimary = globalPrimary;
+        // If no personal selection, userPrimaryUrl stays null - they'll see the grid
     }
     
     // Store for use in other functions
     window._currentUserPrimarySlot = userPrimarySlot;
-    window._currentGlobalPrimary = globalPrimary;
+    window._currentGlobalPrimarySlot = globalSlot;
     
     // Check if we should show grid or single image
-    if (!globalPrimary && !hasCandidates) {
+    if (!hasCandidates) {
         container.innerHTML = `
             <div class="placeholder" style="display: flex; align-items: center; justify-content: center; height: 100%; color: var(--color-charcoal-light);">
                 <em>No images generated</em>
@@ -3118,18 +3131,18 @@ async function renderImages(story) {
     // - Logged OUT: Show single image (global primary)
     // - Logged IN without personal selection: Show grid so they can choose
     // - Logged IN with personal selection: Show their selection (unless manually toggled to grid)
-    if (!isLoggedIn && globalPrimary && !showingGrid) {
+    if (!isLoggedIn && globalPrimaryUrl && !showingGrid) {
         // Logged out - show global primary as single image
-        renderSingleImage(container, globalPrimary, story.title, hasCandidates, null);
-    } else if (isLoggedIn && userPrimarySlot && displayPrimary && !showingGrid) {
+        renderSingleImage(container, globalPrimaryUrl, story.title, hasCandidates, null);
+    } else if (isLoggedIn && userPrimarySlot && userPrimaryUrl && !showingGrid) {
         // Logged in WITH personal selection - show their selection
-        renderSingleImage(container, displayPrimary, story.title, hasCandidates, userPrimarySlot);
+        renderSingleImage(container, userPrimaryUrl, story.title, hasCandidates, userPrimarySlot);
     } else if (hasCandidates) {
         // Show grid: logged in without selection, or manually toggled to grid
-        renderImageGrid(container, candidateImages, globalPrimary, userPrimarySlot);
-    } else if (globalPrimary) {
+        renderImageGrid(container, candidateImages, globalPrimaryUrl, userPrimarySlot);
+    } else if (globalPrimaryUrl) {
         // Fallback to global primary
-        renderSingleImage(container, globalPrimary, story.title, false, null);
+        renderSingleImage(container, globalPrimaryUrl, story.title, false, null);
     }
 }
 
@@ -3183,6 +3196,9 @@ function renderImageGrid(container, candidateImages, globalPrimaryUrl, userPrima
     const isAuthenticated = window.GraceAuth?.isAuthenticated() || false;
     const isAdmin = window.GraceAuth?.isAdmin() || false;
     
+    // Get global primary slot from story (now slot-based, not URL)
+    const globalPrimarySlot = currentStory?.primary_slot || 1;
+    
     // Determine what primary to show (user's or global)
     const userPrimaryUrl = userPrimarySlot ? candidateImages[userPrimarySlot - 1] : null;
     const displayPrimaryUrl = userPrimaryUrl || globalPrimaryUrl;
@@ -3222,8 +3238,8 @@ function renderImageGrid(container, candidateImages, globalPrimaryUrl, userPrima
             img.src = getThumbnailUrl(imageUrl);
             img.alt = `${currentStory?.title || 'Story'} - Option ${slot}`;
             
-            // Check if this is global primary
-            const isGlobalPrimary = globalPrimaryUrl && imageUrl === globalPrimaryUrl;
+            // Check if this is global primary (now slot-based comparison)
+            const isGlobalPrimary = globalPrimarySlot === slot;
             // Check if this is user's primary
             const isUserPrimary = userPrimarySlot === slot;
             
@@ -3320,8 +3336,8 @@ async function handleImageSelection(slot, imageUrl) {
     }
     
     if (isAdmin) {
-        // Admin sets global default
-        await setGlobalPrimaryImage(imageUrl);
+        // Admin sets global default (now slot-based)
+        await setGlobalPrimaryImage(slot);
     } else {
         // Regular user sets personal primary
         await setUserPrimaryImage(slot);
@@ -3330,12 +3346,13 @@ async function handleImageSelection(slot, imageUrl) {
 
 /**
  * Set global primary image (ADMIN only)
+ * Now uses slot number instead of URL - can never become orphaned
  */
-async function setGlobalPrimaryImage(imageUrl) {
+async function setGlobalPrimaryImage(slot) {
     if (!currentStory) return;
     
-    // Skip if this image is already the global primary
-    if (currentStory.image_url === imageUrl) {
+    // Skip if this slot is already the global primary
+    if (currentStory.primary_slot === slot) {
         showToast('This is already the global default');
         showingGrid = false;
         renderImages(currentStory);
@@ -3348,13 +3365,13 @@ async function setGlobalPrimaryImage(imageUrl) {
     try {
         const { error } = await supabase
             .from('grahams_devotional_spreads')
-            .update({ image_url: imageUrl })
+            .update({ primary_slot: slot })
             .eq('spread_code', currentStory.spread_code);
         
         if (error) throw error;
         
         // Update local state
-        currentStory.image_url = imageUrl;
+        currentStory.primary_slot = slot;
         
         // Success haptic
         hapticFeedback('success');
