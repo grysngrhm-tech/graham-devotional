@@ -1,13 +1,13 @@
-# Supabase Email Templates Configuration
+# Supabase Email Templates Configuration (PKCE Flow)
 
 ## Overview
 
-Custom email templates for The Graham Bible authentication. These templates provide:
-- Graham Bible branding with signature gold color (#C9A227)
-- Magic link as primary login method (most prominent)
-- OTP code as secondary option for PWA users
-- iOS-inspired clean design
-- Works in both light and dark email clients
+Custom email templates for The Graham Bible authentication using **PKCE flow** (the modern, secure default).
+
+**Key Difference from Implicit Flow:**
+- PKCE requires `{{ .TokenHash }}` in a custom URL format
+- The app handles token verification via `verifyOtp()`
+- `{{ .ConfirmationURL }}` alone does NOT work with PKCE
 
 ---
 
@@ -23,8 +23,6 @@ Custom email templates for The Graham Bible authentication. These templates prov
 | Password | Your Resend API Key (starts with `re_`) |
 | Sender email | `hello@grahambible.com` (must be lowercase!) |
 | Sender name | `The Graham Bible` |
-
-**Important:** Email domain must match your verified domain in Resend. Case matters!
 
 ---
 
@@ -45,7 +43,6 @@ Welcome to The Graham Bible
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="color-scheme" content="light dark">
-  <meta name="supported-color-schemes" content="light dark">
 </head>
 <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f5f5f5;">
   <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color: #f5f5f5;">
@@ -56,7 +53,7 @@ Welcome to The Graham Bible
           <!-- Header -->
           <tr>
             <td style="padding: 32px 32px 24px; text-align: center; border-bottom: 1px solid #f0f0f0;">
-              <h1 style="margin: 0 0 8px; font-size: 24px; font-weight: 600; color: #1a1a1a; letter-spacing: -0.5px;">The Graham Bible</h1>
+              <h1 style="margin: 0 0 8px; font-size: 24px; font-weight: 600; color: #1a1a1a;">The Graham Bible</h1>
               <p style="margin: 0; font-size: 14px; color: #888888;">An illustrated Bible arranged story by story</p>
             </td>
           </tr>
@@ -64,14 +61,14 @@ Welcome to The Graham Bible
           <!-- Welcome Message -->
           <tr>
             <td style="padding: 32px 32px 16px; text-align: center;">
-              <p style="margin: 0; font-size: 16px; color: #1a1a1a;">Welcome! Tap the button below to sign in:</p>
+              <p style="margin: 0; font-size: 16px; color: #1a1a1a;">Welcome! Tap the button below to confirm your account:</p>
             </td>
           </tr>
           
           <!-- Primary CTA Button -->
           <tr>
             <td style="padding: 8px 32px 32px; text-align: center;">
-              <a href="{{ .ConfirmationURL }}" style="display: inline-block; background-color: #C9A227; color: #ffffff; text-decoration: none; font-size: 16px; font-weight: 600; padding: 16px 48px; border-radius: 12px; letter-spacing: 0.3px;">Sign In</a>
+              <a href="{{ .SiteURL }}/#/auth/confirm?token_hash={{ .TokenHash }}&type=signup" style="display: inline-block; background-color: #C9A227; color: #ffffff; text-decoration: none; font-size: 16px; font-weight: 600; padding: 16px 48px; border-radius: 12px;">Confirm &amp; Sign In</a>
             </td>
           </tr>
           
@@ -135,7 +132,6 @@ Your Graham Bible Login Link
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="color-scheme" content="light dark">
-  <meta name="supported-color-schemes" content="light dark">
 </head>
 <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f5f5f5;">
   <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color: #f5f5f5;">
@@ -146,7 +142,7 @@ Your Graham Bible Login Link
           <!-- Header -->
           <tr>
             <td style="padding: 32px 32px 24px; text-align: center; border-bottom: 1px solid #f0f0f0;">
-              <h1 style="margin: 0 0 8px; font-size: 24px; font-weight: 600; color: #1a1a1a; letter-spacing: -0.5px;">The Graham Bible</h1>
+              <h1 style="margin: 0 0 8px; font-size: 24px; font-weight: 600; color: #1a1a1a;">The Graham Bible</h1>
               <p style="margin: 0; font-size: 14px; color: #888888;">An illustrated Bible arranged story by story</p>
             </td>
           </tr>
@@ -161,7 +157,7 @@ Your Graham Bible Login Link
           <!-- Primary CTA Button -->
           <tr>
             <td style="padding: 8px 32px 32px; text-align: center;">
-              <a href="{{ .ConfirmationURL }}" style="display: inline-block; background-color: #C9A227; color: #ffffff; text-decoration: none; font-size: 16px; font-weight: 600; padding: 16px 48px; border-radius: 12px; letter-spacing: 0.3px;">Sign In</a>
+              <a href="{{ .SiteURL }}/#/auth/confirm?token_hash={{ .TokenHash }}&type=magiclink" style="display: inline-block; background-color: #C9A227; color: #ffffff; text-decoration: none; font-size: 16px; font-weight: 600; padding: 16px 48px; border-radius: 12px;">Sign In</a>
             </td>
           </tr>
           
@@ -214,33 +210,63 @@ Your Graham Bible Login Link
 |--------|---------------|------------|
 | Subject | "Welcome to The Graham Bible" | "Your Graham Bible Login Link" |
 | Greeting | "Welcome!" | "Welcome back!" |
-| Purpose | First-time users | Returning users |
-| Link variable | `{{ .ConfirmationURL }}` | `{{ .ConfirmationURL }}` |
-| OTP variable | `{{ .Token }}` | `{{ .Token }}` |
+| Button Text | "Confirm & Sign In" | "Sign In" |
+| Type Parameter | `type=signup` | `type=magiclink` |
+| Purpose | New user email verification | Returning user login |
 
 ---
 
-## Template Variables Reference
+## Template Variables Reference (PKCE Flow)
 
-| Variable | Description |
-|----------|-------------|
-| `{{ .ConfirmationURL }}` | Full magic link URL that logs user in |
-| `{{ .Token }}` | 6-digit OTP code |
-| `{{ .SiteURL }}` | Your site URL (don't use for login links) |
-| `{{ .Email }}` | User's email address |
+| Variable | Description | Use In |
+|----------|-------------|--------|
+| `{{ .SiteURL }}` | Your site URL (e.g., `https://www.grahambible.com`) | Base of custom link |
+| `{{ .TokenHash }}` | Hashed authentication token | Query parameter in link |
+| `{{ .Token }}` | 8-digit OTP code | Displayed for manual entry |
+| `{{ .Email }}` | User's email address | Optional personalization |
 
-**Important:** Use `{{ .ConfirmationURL }}` for the Sign In button, NOT `{{ .SiteURL }}`.
+### PKCE Link Format
+
+```
+{{ .SiteURL }}/#/auth/confirm?token_hash={{ .TokenHash }}&type=<type>
+```
+
+- The `/#/` is required for hash-based SPA routing
+- `type=signup` for new user confirmation
+- `type=magiclink` for returning user login
+
+### Why NOT `{{ .ConfirmationURL }}`?
+
+`{{ .ConfirmationURL }}` generates a link to Supabase's auth server, which works for **implicit flow**. But with **PKCE flow** (the modern default), your app must:
+1. Receive the token_hash
+2. Call `supabase.auth.verifyOtp({ token_hash, type })` 
+3. Exchange it for a session
+
+This is handled in `viewer/auth.js` in the `initAuth()` function.
 
 ---
 
-## Design Principles
+## Client-Side Token Verification
 
-1. **Magic link is primary** — Large gold button, above the fold
-2. **OTP is secondary** — Smaller, below divider, for PWA users
-3. **Clean typography** — System fonts, readable sizes
-4. **Brand colors** — Gold (#C9A227) for CTA, neutral grays elsewhere
-5. **Mobile-first** — Responsive, large touch targets
-6. **Light/dark compatible** — Neutral colors work in both modes
+The app handles PKCE token verification in `viewer/auth.js`:
+
+```javascript
+// In initAuth() - handles PKCE magic link
+if (hash.includes('token_hash=')) {
+    const params = new URLSearchParams(hash.split('?')[1]);
+    const tokenHash = params.get('token_hash');
+    const type = params.get('type');
+    
+    const { data, error } = await supabase.auth.verifyOtp({
+        token_hash: tokenHash,
+        type: type === 'signup' ? 'signup' : 'magiclink'
+    });
+    
+    if (data?.session) {
+        // User is now logged in
+    }
+}
+```
 
 ---
 
@@ -248,20 +274,36 @@ Your Graham Bible Login Link
 
 After updating templates:
 
-1. **Test new user flow:**
-   - Use incognito/private browser
+1. **Deploy auth.js** with PKCE token verification
+2. **Copy templates** to Supabase Dashboard > Authentication > Email Templates
+3. **Test new user:**
    - Sign up with new email
-   - Verify "Confirm signup" template received
-   - Click magic link → should log in
+   - Should receive "Confirm signup" email
+   - Click link → should log in successfully
+4. **Test returning user:**
+   - Sign out, request new login
+   - Should receive "Magic Link" email
+   - Click link → should log in successfully
+5. **Test OTP fallback:**
+   - Request login in PWA
+   - Enter 8-digit code manually
+   - Should authenticate
 
-2. **Test returning user flow:**
-   - Sign out
-   - Request new login link
-   - Verify "Magic Link" template received
-   - Click magic link → should log in
+---
 
-3. **Test OTP flow (PWA):**
-   - Open PWA version
-   - Request login
-   - Enter OTP code from email
-   - Should authenticate within PWA
+## Troubleshooting
+
+**Link doesn't log in:**
+- Ensure `auth.js?v=14` (or latest) is deployed
+- Check browser console for `[Auth] Detected token_hash` log
+- Verify URL format matches `/#/auth/confirm?token_hash=...`
+
+**OTP code not working:**
+- Ensure code hasn't expired (1 hour limit)
+- Check code is entered correctly (8 digits)
+- Try requesting a new code
+
+**Email not received:**
+- Check spam folder
+- Verify SMTP settings in Supabase
+- Check Resend dashboard for delivery status

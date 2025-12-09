@@ -117,16 +117,23 @@ window.N8N_WEBHOOK_URL = 'https://grysngrhm.app.n8n.cloud/webhook/regenerate-ima
 
 ## User Authentication
 
-### Magic Link Flow
+### Magic Link Flow (PKCE)
 
-The app uses Supabase Auth with email magic links (passwordless authentication):
+The app uses Supabase Auth with email magic links (passwordless authentication) using **PKCE flow** for security:
 
 1. User clicks "Sign In" button in header
 2. Modal opens with email input
 3. User enters email and clicks "Send Magic Link"
-4. Email with login link sent to user
-5. User clicks link → redirected to app and logged in
-6. Session persisted in browser
+4. Email with login link sent to user (contains `token_hash`)
+5. User clicks link → app receives token_hash in URL
+6. App calls `verifyOtp({ token_hash, type })` to exchange for session
+7. Session persisted in browser
+
+**PKCE Flow vs Implicit Flow:**
+- PKCE (Proof Key for Code Exchange) is more secure
+- Requires custom URL format: `{{ .SiteURL }}/#/auth/confirm?token_hash={{ .TokenHash }}&type=...`
+- App handles token verification (not Supabase redirect)
+- See `supabase/EMAIL_TEMPLATES.md` for template configuration
 
 ### PWA Login Flow (OTP Code)
 
@@ -1101,6 +1108,7 @@ Copy-Item "data\all-spreads.json" -Destination "viewer\data\all-spreads.json"
 
 | Date | Version | Changes |
 |------|---------|---------|
+| 2025-12-09 | v34.0 | PKCE flow support: token_hash verification, updated email templates |
 | 2025-12-09 | v33.0 | Magic link auth fix, reverted initAuth to working code |
 | 2025-12-09 | v32.0 | Loading skeletons (story + home), improved error handling with user-friendly toasts |
 | 2025-12-09 | v31.0 | Download Entire Bible progress persistence (resume interrupted downloads) |
