@@ -50,17 +50,37 @@ async function initAuth() {
         return null;
     }
     
-    // Set up auth state listener FIRST (important for catching URL token processing)
+    // Check for existing session with timeout (prevents hang if storage is blocked)
+    // This also processes any tokens in the URL hash (magic link redirects)
+    let session = null;
+    try {
+        const sessionPromise = sb.auth.getSession();
+        const timeoutPromise = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Session check timeout')), 5000)
+        );
+        const result = await Promise.race([sessionPromise, timeoutPromise]);
+        session = result?.data?.session;
+    } catch (err) {
+        // Session check failed - continue without auth (common with strict privacy settings)
+    }
+    
+    if (session?.user) {
+        await setCurrentUser(session.user);
+        // Clean up URL hash after successful session from magic link
+        if (window.location.hash.includes('access_token')) {
+            history.replaceState(null, '', window.location.pathname);
+        }
+    }
+    
+    // Listen for auth state changes (login, logout, token refresh)
     try {
         sb.auth.onAuthStateChange(async (event, session) => {
-            console.log('[Auth] Auth state changed:', event);
             if (event === 'SIGNED_IN' && session?.user) {
                 await setCurrentUser(session.user);
                 updateAuthUI();
                 notifyAuthStateListeners();
-                // Clean up URL hash after successful sign in from magic link
+                // Clean up URL hash after successful sign in
                 if (window.location.hash.includes('access_token')) {
-                    // Replace hash with clean URL
                     history.replaceState(null, '', window.location.pathname);
                 }
             } else if (event === 'SIGNED_OUT') {
@@ -73,42 +93,7 @@ async function initAuth() {
             }
         });
     } catch (err) {
-        console.error('[Auth] Could not set up auth listener:', err);
-    }
-    
-    // Check for tokens in URL hash (magic link redirect)
-    // This triggers the auth state change listener above
-    if (window.location.hash.includes('access_token') || window.location.hash.includes('refresh_token')) {
-        console.log('[Auth] Detected tokens in URL hash, processing...');
-        try {
-            // getSession() will process the URL hash tokens automatically
-            const { data, error } = await sb.auth.getSession();
-            if (error) {
-                console.error('[Auth] Error processing URL tokens:', error);
-            } else if (data?.session) {
-                console.log('[Auth] Session established from URL tokens');
-                await setCurrentUser(data.session.user);
-            }
-        } catch (err) {
-            console.error('[Auth] Exception processing URL tokens:', err);
-        }
-    } else {
-        // No URL tokens - check for existing session with timeout
-        let session = null;
-        try {
-            const sessionPromise = sb.auth.getSession();
-            const timeoutPromise = new Promise((_, reject) => 
-                setTimeout(() => reject(new Error('Session check timeout')), 5000)
-            );
-            const result = await Promise.race([sessionPromise, timeoutPromise]);
-            session = result?.data?.session;
-        } catch (err) {
-            // Session check failed - continue without auth (common with strict privacy settings)
-        }
-        
-        if (session?.user) {
-            await setCurrentUser(session.user);
-        }
+        // Could not set up auth listener - continue without real-time auth updates
     }
     
     // Update UI based on initial state
