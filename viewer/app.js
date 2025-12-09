@@ -49,6 +49,7 @@ function getPrimaryImageUrl(story, userPrimarySlot = null) {
 /**
  * Transform a Supabase storage URL to use image transformation for thumbnails
  * Converts /object/ URLs to /render/image/ URLs with resize parameters
+ * Maintains 3:4 aspect ratio (portrait) for story illustrations
  * @param {string} imageUrl - Original Supabase storage URL
  * @param {number} width - Target width (default 400)
  * @param {number} quality - JPEG quality 1-100 (default 80)
@@ -68,9 +69,12 @@ function getThumbnailUrl(imageUrl, width = 400, quality = 80) {
         '/storage/v1/render/image/'
     );
     
-    // Add transformation parameters
+    // Calculate height to maintain 3:4 aspect ratio (width:height = 3:4)
+    const height = Math.round(width * 4 / 3);
+    
+    // Add transformation parameters with explicit dimensions and resize mode
     const separator = thumbnailUrl.includes('?') ? '&' : '?';
-    return `${thumbnailUrl}${separator}width=${width}&quality=${quality}`;
+    return `${thumbnailUrl}${separator}width=${width}&height=${height}&resize=contain&quality=${quality}`;
 }
 
 // Filter state
