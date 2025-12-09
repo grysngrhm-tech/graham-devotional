@@ -196,8 +196,7 @@ const GraceSettings = (function() {
             });
         }
         
-        // Prefetch toggle
-        const prefetchToggle = document.getElementById('prefetchToggle');
+        // Prefetch toggle (variable already declared at line 111)
         if (prefetchToggle) {
             prefetchToggle.addEventListener('change', () => {
                 updateSetting('prefetchEnabled', prefetchToggle.checked);
