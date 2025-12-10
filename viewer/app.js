@@ -2469,6 +2469,11 @@ function renderStoryBatch(grid, startIndex, count) {
     // Update rendered count
     renderedStoryCount = endIndex;
     console.log('[GRACE] Rendered stories:', renderedStoryCount, '/', filteredStories.length);
+
+    // Refresh breadcrumb tracking to include newly added section headers
+    if (startIndex > 0) {
+        refreshScrollRevealBreadcrumb();
+    }
 }
 
 // ============================================================================
@@ -2481,6 +2486,18 @@ function renderStoryBatch(grid, startIndex, count) {
 
 let currentBreadcrumbState = { testament: '', grouping: '', book: '' };
 let breadcrumbVisible = false;
+let breadcrumbRefreshTimer = null;
+
+function refreshScrollRevealBreadcrumb() {
+    // Debounce re-initialization to capture newly rendered section headers
+    if (breadcrumbRefreshTimer) {
+        clearTimeout(breadcrumbRefreshTimer);
+    }
+    breadcrumbRefreshTimer = setTimeout(() => {
+        setupScrollRevealBreadcrumb();
+        breadcrumbRefreshTimer = null;
+    }, 50);
+}
 
 function setupScrollRevealBreadcrumb() {
     const headerBreadcrumb = document.getElementById('headerBreadcrumb');
@@ -3041,6 +3058,7 @@ function renderStory(story) {
     // Set verse range with Bible Gateway link
     const verseRangeEl = content.getElementById('verseRange');
     verseRangeEl.textContent = story.kjv_passage_ref || '';
+    verseRangeEl.classList.add('verse-link');
     const bibleGatewayUrl = getBibleGatewayUrl(story.kjv_passage_ref);
     if (bibleGatewayUrl) {
         verseRangeEl.href = bibleGatewayUrl;

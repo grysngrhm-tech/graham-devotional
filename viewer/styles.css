@@ -2540,35 +2540,47 @@ body.is-offline {
 }
 
 .verse-range {
+    position: relative;
     font-family: var(--font-body);
     font-size: 0.75rem; /* Smaller */
-    color: #888888;
+    color: var(--text-primary);
     text-transform: uppercase;
     letter-spacing: 0.15em;
-    font-weight: 500;
-    text-decoration: none;
+    font-weight: 600;
     display: inline-flex;
     align-items: center;
-    gap: 0.3em;
-    transition: color 0.2s ease;
-}
-
-.verse-range:hover {
-    color: var(--color-gold);
+    gap: 0.35em;
+    padding: 6px 8px;
+    border-radius: 8px;
     text-decoration: underline;
-    text-underline-offset: 3px;
+    text-decoration-color: rgba(201, 162, 39, 0.85);
+    text-decoration-thickness: 2px;
+    text-underline-offset: 4px;
+    background: linear-gradient(180deg, rgba(201, 162, 39, 0.16), rgba(201, 162, 39, 0.05));
+    box-shadow:
+        0 6px 18px rgba(201, 162, 39, 0.14),
+        inset 0 -2px 0 rgba(201, 162, 39, 0.25);
+    transition: color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
 }
 
 .verse-range::after {
     content: '↗';
     font-size: 0.75em;
-    opacity: 0;
-    transform: translateX(-4px);
+    opacity: 0.6;
+    transform: translateX(-2px);
     transition: opacity 0.2s ease, transform 0.2s ease;
 }
 
+.verse-range:hover {
+    color: var(--color-gold);
+    background: linear-gradient(180deg, rgba(201, 162, 39, 0.22), rgba(201, 162, 39, 0.08));
+    box-shadow:
+        0 10px 24px rgba(201, 162, 39, 0.22),
+        inset 0 -2px 0 rgba(201, 162, 39, 0.35);
+}
+
 .verse-range:hover::after {
-    opacity: 0.8;
+    opacity: 0.9;
     transform: translateX(0);
 }
 
