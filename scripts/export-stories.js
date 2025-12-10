@@ -1,23 +1,42 @@
 /**
  * Export all stories with image URLs from Supabase to static JSON
- * Run with: node scripts/export-stories.js
  * 
- * This script exports the story list with image URLs for faster first-load
- * The static JSON is used as fallback and for instant rendering
+ * Usage:
+ *   node scripts/export-stories.js
+ * 
+ * Environment Variables (optional):
+ *   SUPABASE_URL       - Supabase project URL (defaults to prod)
+ *   SUPABASE_ANON_KEY  - Supabase anon key (defaults to prod)
+ * 
+ * Note: The anon key is safe to use because:
+ *   - It only has read access to public data via RLS policies
+ *   - grahams_devotional_spreads has public SELECT
+ *   - No service-role key is needed for this read-only export
+ * 
+ * This script exports the story list with image URLs for faster first-load.
+ * The static JSON is used as fallback and for instant rendering.
  */
 
 const { createClient } = require('@supabase/supabase-js');
 const fs = require('fs');
 const path = require('path');
 
-// Load config - use environment variables or hardcode for local use
+// Configuration - prefer environment variables, fallback to public anon key
+// The anon key below is intentionally public (RLS-protected, read-only access)
 const SUPABASE_URL = process.env.SUPABASE_URL || 'https://zekbemqgvupzmukpntog.supabase.co';
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inpla2JlbXFndnVwem11a3BudG9nIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQ1NjI2MTIsImV4cCI6MjA4MDEzODYxMn0.D6YxknCEeqhp1-9MBS-CZ31Bu4_dH6JV5T1d5Ud92Bo';
+
+// Validate we're not accidentally using service role
+if (SUPABASE_ANON_KEY.includes('service_role')) {
+    console.error('ERROR: Do not use service_role key for export. Use anon key only.');
+    process.exit(1);
+}
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 async function exportStories() {
     console.log('Fetching stories from Supabase...');
+    console.log('URL:', SUPABASE_URL);
     
     const { data, error } = await supabase
         .from('grahams_devotional_spreads')
@@ -67,7 +86,13 @@ async function exportStories() {
     // Count stories with images
     const withImages = spreads.filter(s => s.image_url_1).length;
     console.log(`Stories with images: ${withImages}/${spreads.length}`);
+    
+    // Reminder about cache busting
+    console.log('\n--- IMPORTANT ---');
+    console.log('After export, remember to:');
+    console.log('1. Bump ?v= param in sw.js APP_SHELL for all-spreads.json');
+    console.log('2. Bump CACHE_NAME in sw.js');
+    console.log('3. Bump ?v= param in app.js fetch calls for all-spreads.json');
 }
 
 exportStories().catch(console.error);
-

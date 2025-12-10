@@ -3,7 +3,7 @@
  * Provides offline caching with smart caching strategies
  */
 
-const CACHE_NAME = 'graham-bible-v22'; // Smart storage management with limit slider
+const CACHE_NAME = 'graham-bible-v23'; // P1 updates: placeholders, admin RLS, config docs
 const IMAGE_CACHE = 'graham-bible-images-v1';
 const GB_SW_DEBUG = false;
 
@@ -16,8 +16,8 @@ const APP_SHELL = [
     './privacy.html',
     './terms.html',
     './404.html',
-    './styles.css?v=39',
-    './app.js?v=42',
+    './styles.css?v=40',
+    './app.js?v=43',
     './offline.js?v=5',
     './router.js?v=2',
     './auth.js?v=15',
