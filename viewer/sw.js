@@ -3,8 +3,9 @@
  * Provides offline caching with smart caching strategies
  */
 
-const CACHE_NAME = 'graham-bible-v21'; // Smart storage management with limit slider
+const CACHE_NAME = 'graham-bible-v22'; // Smart storage management with limit slider
 const IMAGE_CACHE = 'graham-bible-images-v1';
+const GB_SW_DEBUG = false;
 
 // App shell files to cache on install
 const APP_SHELL = [
@@ -15,12 +16,12 @@ const APP_SHELL = [
     './privacy.html',
     './terms.html',
     './404.html',
-    './styles.css',
-    './app.js',
-    './offline.js',
-    './router.js',
-    './auth.js',
-    './settings.js',
+    './styles.css?v=39',
+    './app.js?v=42',
+    './offline.js?v=5',
+    './router.js?v=2',
+    './auth.js?v=15',
+    './settings.js?v=6',
     './config.js',
     './manifest.json',
     './lib/supabase.min.js',
@@ -40,15 +41,15 @@ const SUPABASE_STORAGE_HOST = 'zekbemqgvupzmukpntog.supabase.co';
 
 // Install event - cache app shell
 self.addEventListener('install', (event) => {
-    console.log('[SW] Installing service worker...');
+    if (GB_SW_DEBUG) console.log('[SW] Installing service worker...');
     event.waitUntil(
         caches.open(CACHE_NAME)
             .then((cache) => {
-                console.log('[SW] Caching app shell');
+                if (GB_SW_DEBUG) console.log('[SW] Caching app shell');
                 return cache.addAll(APP_SHELL);
             })
             .then(() => {
-                console.log('[SW] App shell cached, skipping waiting');
+                if (GB_SW_DEBUG) console.log('[SW] App shell cached, skipping waiting');
                 return self.skipWaiting();
             })
             .catch((error) => {
@@ -59,7 +60,7 @@ self.addEventListener('install', (event) => {
 
 // Activate event - clean up old caches and claim clients
 self.addEventListener('activate', (event) => {
-    console.log('[SW] Activating service worker...');
+    if (GB_SW_DEBUG) console.log('[SW] Activating service worker...');
     const validCaches = [CACHE_NAME, FONT_CACHE, IMAGE_CACHE];
     
     event.waitUntil(
@@ -72,12 +73,12 @@ self.addEventListener('activate', (event) => {
                                !validCaches.includes(name);
                     })
                     .map((name) => {
-                        console.log('[SW] Deleting old cache:', name);
+                        if (GB_SW_DEBUG) console.log('[SW] Deleting old cache:', name);
                         return caches.delete(name);
                     })
             );
         }).then(() => {
-            console.log('[SW] Claiming clients');
+            if (GB_SW_DEBUG) console.log('[SW] Claiming clients');
             return self.clients.claim();
         })
     );
@@ -207,6 +208,7 @@ async function handleImageRequest(request) {
         if (networkResponse.ok) {
             const cache = await caches.open(IMAGE_CACHE);
             cache.put(request, networkResponse.clone());
+            await trimImageCache();
         }
         
         return networkResponse;
@@ -242,6 +244,22 @@ async function handleFontRequest(request) {
     } catch (error) {
         console.error('[SW] Failed to fetch font:', request.url);
         return new Response('Font not available', { status: 503 });
+    }
+}
+
+// Trim image cache to a maximum number of entries (FIFO)
+async function trimImageCache(maxEntries = 200) {
+    try {
+        const cache = await caches.open(IMAGE_CACHE);
+        const keys = await cache.keys();
+        if (keys.length <= maxEntries) return;
+        const excess = keys.length - maxEntries;
+        for (let i = 0; i < excess; i++) {
+            await cache.delete(keys[i]);
+        }
+        if (GB_SW_DEBUG) console.log('[SW] Trimmed image cache by', excess, 'entries');
+    } catch (err) {
+        console.error('[SW] Failed to trim image cache:', err);
     }
 }
 

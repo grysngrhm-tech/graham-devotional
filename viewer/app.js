@@ -13,6 +13,18 @@ const supabase = window.supabase.createClient(
 );
 window.supabaseClient = supabase;
 
+// Verbose logging toggle: set window.GB_DEBUG = true to enable prefixed logs
+const GB_DEBUG = window.GB_DEBUG === true;
+const GB_LOG_PREFIX_RE = /^\[(GRACE|Graham|Router|SW)/;
+if (!GB_DEBUG) {
+    const _origLog = console.log;
+    console.log = (...args) => {
+        const first = args[0] !== undefined ? String(args[0]) : '';
+        if (GB_LOG_PREFIX_RE.test(first)) return;
+        _origLog(...args);
+    };
+}
+
 // Global state
 let allStories = [];
 let filteredStories = [];
@@ -3591,13 +3603,32 @@ async function triggerRegeneration(slot) {
         }
         
         console.log('[Graham] Triggering regeneration:', { spreadCode, slot, webhookUrl });
-        
-        // Trigger the n8n workflow
-        const response = await fetch(webhookUrl, {
+        const headers = {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
-            },
+            }
+        };
+        
+        // Attach admin access token for server-side validation (n8n or edge)
+        try {
+            const { data: sessionData } = await supabase.auth.getSession();
+            const accessToken = sessionData?.session?.access_token;
+            if (accessToken) {
+                headers.headers['X-GB-Admin-Token'] = accessToken;
+            }
+        } catch (err) {
+            console.warn('[Graham] Could not attach admin token:', err);
+        }
+        
+        // Optional shared secret if provided at deploy time
+        if (window.N8N_CONFIG?.webhookSecret) {
+            headers.headers['X-GB-Webhook-Secret'] = window.N8N_CONFIG.webhookSecret;
+        }
+        
+        // Trigger the n8n workflow
+        const response = await fetch(webhookUrl, {
+            ...headers,
             body: JSON.stringify({
                 spread_code: spreadCode,
                 slot: slot
